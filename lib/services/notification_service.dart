@@ -15,16 +15,31 @@ class NotificationService {
     InitializationSettings(android: androidInit);
 
     await flutterLocalNotificationsPlugin.initialize(settings);
-
     tz.initializeTimeZones();
   }
 
-  static Future<void> scheduleNotification({
+  // 🔔 Daily alarm (ANDROID SAFE)
+  static Future<void> scheduleDailyNotification({
     required int id,
     required String title,
     required String body,
-    required DateTime scheduledDate,
+    required int hour,
+    required int minute,
   }) async {
+    final now = DateTime.now();
+
+    DateTime scheduledDate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
+
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
     await flutterLocalNotificationsPlugin.zonedSchedule(
       id,
       title,
@@ -36,9 +51,9 @@ class NotificationService {
           'Medicine Reminders',
           importance: Importance.max,
           priority: Priority.high,
+          playSound: true,
         ),
       ),
-      //androidAllowWhileIdle: true,
       uiLocalNotificationDateInterpretation:
       UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,

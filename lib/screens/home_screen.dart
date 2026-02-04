@@ -16,14 +16,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final List<Medicine> medicines = [];
 
-  // ✅ runs once when screen loads
   @override
   void initState() {
     super.initState();
     loadMedicines();
   }
 
-  // ✅ load saved data
   Future<void> loadMedicines() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString('medicines');
@@ -39,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ✅ save data
   Future<void> saveMedicines() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded =
@@ -47,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setString('medicines', encoded);
   }
 
-  // ✅ delete medicine
   void deleteMedicine(int index) {
     setState(() {
       medicines.removeAt(index);
@@ -62,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Smart Pill Reminder'),
         centerTitle: true,
       ),
-
       body: medicines.isEmpty
           ? const Center(
         child: Text(
@@ -75,9 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
         itemBuilder: (context, index) {
           return MedicineCard(
             medicine: medicines[index],
-            onDelete: () {
-              deleteMedicine(index);
-            },
+            onDelete: () => deleteMedicine(index),
             onEdit: () async {
               final updated = await Navigator.push(
                 context,
@@ -98,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
-
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await Navigator.push(
@@ -115,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
             saveMedicines();
           }
         },
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add), // ✅ FIXED ICON
       ),
     );
   }

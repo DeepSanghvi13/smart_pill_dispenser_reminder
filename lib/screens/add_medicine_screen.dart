@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/medicine.dart';
+import '../services/notification_service.dart';
 
 class AddMedicineScreen extends StatefulWidget {
-  final Medicine? medicine; // null = add, not null = edit
+  final Medicine? medicine;
 
   const AddMedicineScreen({super.key, this.medicine});
 
@@ -49,8 +51,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title:
-        Text(widget.medicine == null ? 'Add Medicine' : 'Edit Medicine'),
+        title: Text(widget.medicine == null ? 'Add Medicine' : 'Edit Medicine'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -67,7 +68,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             TextField(
               controller: dosageController,
               decoration: const InputDecoration(
-                labelText: 'Dosage (e.g. 1 pill)',
+                labelText: 'Dosage',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -89,20 +90,42 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (nameController.text.isEmpty ||
                     dosageController.text.isEmpty ||
-                    selectedTime == null) return;
+                    selectedTime == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please fill all fields')),
+                  );
+                  return;
+                }
 
-                final updated = Medicine(
+                final medicine = Medicine(
                   name: nameController.text,
                   dosage: dosageController.text,
                   time: selectedTime!.format(context),
                 );
 
-                Navigator.pop(context, updated);
+                // 🔔 Schedule notification ONLY on Android
+                if (Platform.isAndroid) {
+                  try {
+                    await NotificationService.scheduleDailyNotification(
+                      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                      title: 'Medicine Reminder',
+                      body: '${medicine.name} - ${medicine.dosage}',
+                      hour: selectedTime!.hour,
+                      minute: selectedTime!.minute,
+                    );
+                  } catch (e) {
+                    debugPrint('Notification error: $e');
+                  }
+                }
+
+                // ✅ ALWAYS go back & save medicine
+                if (!mounted) return;
+                Navigator.pop(context, medicine);
               },
-              child: Text(widget.medicine == null ? 'Save' : 'Update'),
+              child: const Text('Save'),
             ),
           ],
         ),

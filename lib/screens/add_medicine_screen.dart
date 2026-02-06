@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/medicine.dart';
 import '../services/notification_service.dart';
+import '../services/database_service.dart';
 
 class AddMedicineScreen extends StatefulWidget {
   final Medicine? medicine;
@@ -22,7 +23,8 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     super.initState();
 
     nameController = TextEditingController(text: widget.medicine?.name ?? '');
-    dosageController = TextEditingController(text: widget.medicine?.dosage ?? '');
+    dosageController =
+        TextEditingController(text: widget.medicine?.dosage ?? '');
 
     if (widget.medicine != null) {
       final parts = widget.medicine!.time.split(':');
@@ -46,12 +48,76 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     }
   }
 
+  Future<void> saveMedicine() async {
+    if (nameController.text.isEmpty ||
+        dosageController.text.isEmpty ||
+        selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill all fields'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final medicine = Medicine(
+      name: nameController.text,
+      dosage: dosageController.text,
+      time: selectedTime!.format(context),
+    );
+
+    try {
+      /// ⭐ 1. SAVE INTO SQLITE DATABASE
+      await DatabaseService().insertMedicine(
+        name: medicine.name,
+        dosage: medicine.dosage,
+        time: medicine.time,
+      );
+
+      /// ⭐ 2. SCHEDULE NOTIFICATION
+      if (Platform.isAndroid) {
+        final notificationId = medicine.name.hashCode;
+
+        await NotificationService.scheduleDailyNotification(
+          id: notificationId,
+          title: 'Medicine Reminder 💊',
+          body: 'Time to take ${medicine.name} - ${medicine.dosage}',
+          hour: selectedTime!.hour,
+          minute: selectedTime!.minute,
+        );
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Medicine saved & reminder set for ${selectedTime!.format(context)}',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pop(context, medicine);
+    } catch (e) {
+      print("Save error: $e");
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving medicine: $e'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.medicine == null ? 'Add Medicine' : 'Edit Medicine'),
-        elevation: 2,
+        title:
+        Text(widget.medicine == null ? 'Add Medicine' : 'Edit Medicine'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -81,7 +147,6 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
                   children: [
@@ -92,87 +157,23 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                         selectedTime == null
                             ? 'Select time for reminder'
                             : 'Reminder at: ${selectedTime!.format(context)}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: selectedTime == null ? Colors.grey : Colors.black,
-                        ),
                       ),
                     ),
-                    const Icon(Icons.arrow_drop_down),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      if (nameController.text.isEmpty ||
-                          dosageController.text.isEmpty ||
-                          selectedTime == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please fill all fields'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
 
-                      final medicine = Medicine(
-                        name: nameController.text,
-                        dosage: dosageController.text,
-                        time: selectedTime!.format(context),
-                      );
-
-                      // Schedule notification
-                      if (Platform.isAndroid) {
-                        try {
-                          final notificationId = nameController.text.hashCode;
-
-                          await NotificationService.scheduleDailyNotification(
-                            id: notificationId,
-                            title: 'Medicine Reminder 💊',
-                            body: 'Time to take ${medicine.name} - ${medicine.dosage}',
-                            hour: selectedTime!.hour,
-                            minute: selectedTime!.minute,
-                          );
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Reminder set for ${selectedTime!.format(context)}',
-                              ),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        } catch (e) {
-                          print('Notification error: $e');
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error setting reminder: $e'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        }
-                      }
-
-                      if (!mounted) return;
-                      Navigator.pop(context, medicine);
-                    },
-                    icon: const Icon(Icons.save),
-                    label: const Text('Save Medicine'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.all(16),
-                    ),
-                  ),
-                ),
-              ],
+            /// ⭐ SAVE BUTTON
+            ElevatedButton.icon(
+              onPressed: saveMedicine,
+              icon: const Icon(Icons.save),
+              label: const Text('Save Medicine'),
             ),
+
             const SizedBox(height: 12),
-            // Test notification button
+
             TextButton.icon(
               onPressed: () async {
                 await NotificationService.showImmediateNotification(

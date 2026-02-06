@@ -16,11 +16,9 @@ class NotificationService {
     // Initialize timezone
     tz.initializeTimeZones();
 
-    // Get local timezone
-    final String timeZoneName = DateTime.now().timeZoneName;
-    tz.setLocalLocation(tz.getLocation(timeZoneName));
+    // ✅ FIX: Use valid IANA timezone
+    tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
-    // Android initialization
     const AndroidInitializationSettings androidInit =
     AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -34,7 +32,6 @@ class NotificationService {
       },
     );
 
-    // Create notification channel
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'medicine_channel',
       'Medicine Reminders',
@@ -45,7 +42,8 @@ class NotificationService {
     );
 
     await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
   }
 

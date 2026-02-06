@@ -6,14 +6,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.smart_pill_dispenser_reminder"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    compileSdkVersion 34
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+    defaultConfig {
+        minSdkVersion 21  // ← At least 21
+        targetSdkVersion 34
     }
+}
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()

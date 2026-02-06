@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'screens/home_screen.dart';
 import 'services/notification_service.dart';
@@ -8,16 +7,10 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await NotificationService.init();
-
-  // 🔔 Request notification permission (Android 13+)
+  // Only initialize notifications on Android
   if (Platform.isAndroid) {
-    final androidPlugin = NotificationService
-        .flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
-
-    await androidPlugin?.requestNotificationsPermission();
+    await NotificationService.init();
+    await NotificationService.requestPermissions();
   }
 
   runApp(const MyApp());

@@ -1,27 +1,36 @@
 class Medicine {
-  final String name;
-  final String dosage;
-  final String time;
+
+  int? id;
+  String name;
+  String dosage;
+  String time;
+  int? notificationId;
 
   Medicine({
+    this.id,
     required this.name,
     required this.dosage,
     required this.time,
+    this.notificationId,
   });
 
-  Map<String, dynamic> toJson() {
+  Map<String,dynamic> toMap(){
     return {
-      'name': name,
+      'id': id,
+      'medicine_name': name,
       'dosage': dosage,
-      'time': time,
+      'reminder_time': time,
+      'notification_id': notificationId
     };
   }
 
-  factory Medicine.fromJson(Map<String, dynamic> json) {
+  factory Medicine.fromMap(Map map){
     return Medicine(
-      name: json['name'],
-      dosage: json['dosage'],
-      time: json['time'],
+      id: map['id'],
+      name: map['medicine_name'],
+      dosage: map['dosage'],
+      time: map['reminder_time'],
+      notificationId: map['notification_id'],
     );
   }
 }

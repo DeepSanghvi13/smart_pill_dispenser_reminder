@@ -1,200 +1,91 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/medicine.dart';
-import '../services/notification_service.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 
 class AddMedicineScreen extends StatefulWidget {
+
   final Medicine? medicine;
 
-  const AddMedicineScreen({super.key, this.medicine});
+  const AddMedicineScreen({super.key,this.medicine});
 
   @override
   State<AddMedicineScreen> createState() => _AddMedicineScreenState();
 }
 
 class _AddMedicineScreenState extends State<AddMedicineScreen> {
-  late TextEditingController nameController;
-  late TextEditingController dosageController;
-  TimeOfDay? selectedTime;
+
+  final nameController = TextEditingController();
+  final dosageController = TextEditingController();
+  final timeController = TextEditingController();
 
   @override
-  void initState() {
+  void initState(){
     super.initState();
 
-    nameController = TextEditingController(text: widget.medicine?.name ?? '');
-    dosageController =
-        TextEditingController(text: widget.medicine?.dosage ?? '');
-
-    if (widget.medicine != null) {
-      final parts = widget.medicine!.time.split(':');
-      final hour = int.parse(parts[0]);
-      final minutePart = parts[1].split(' ')[0];
-      final minute = int.parse(minutePart);
-      selectedTime = TimeOfDay(hour: hour, minute: minute);
+    if(widget.medicine!=null){
+      nameController.text = widget.medicine!.name;
+      dosageController.text = widget.medicine!.dosage;
+      timeController.text = widget.medicine!.time;
     }
   }
 
-  Future<void> pickTime() async {
-    final time = await showTimePicker(
-      context: context,
-      initialTime: selectedTime ?? TimeOfDay.now(),
-    );
+  Future<void> save() async{
 
-    if (time != null) {
-      setState(() {
-        selectedTime = time;
-      });
-    }
-  }
+    if(widget.medicine!=null){
 
-  Future<void> saveMedicine() async {
-    if (nameController.text.isEmpty ||
-        dosageController.text.isEmpty ||
-        selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill all fields'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+      await NotificationService.cancelNotification(
+          widget.medicine!.notificationId);
     }
 
-    final medicine = Medicine(
+    Medicine med = Medicine(
+      id: widget.medicine?.id ??
+          DateTime.now().millisecondsSinceEpoch,
       name: nameController.text,
       dosage: dosageController.text,
-      time: selectedTime!.format(context),
+      time: timeController.text,
     );
 
-    try {
-      /// ⭐ 1. SAVE INTO SQLITE DATABASE
-      await DatabaseService().insertMedicine(
-        name: medicine.name,
-        dosage: medicine.dosage,
-        time: medicine.time,
-      );
+    int newId =
+    await NotificationService.scheduleNotification(med);
 
-      /// ⭐ 2. SCHEDULE NOTIFICATION
-      if (Platform.isAndroid) {
-        final notificationId = medicine.name.hashCode;
+    med.notificationId = newId;
 
-        await NotificationService.scheduleDailyNotification(
-          id: notificationId,
-          title: 'Medicine Reminder 💊',
-          body: 'Time to take ${medicine.name} - ${medicine.dosage}',
-          hour: selectedTime!.hour,
-          minute: selectedTime!.minute,
-        );
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Medicine saved & reminder set for ${selectedTime!.format(context)}',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      Navigator.pop(context, medicine);
-    } catch (e) {
-      print("Save error: $e");
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error saving medicine: $e'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+    if(widget.medicine==null){
+      await DatabaseService().insertMedicine(med);
+    }else{
+      await DatabaseService().updateMedicine(med);
     }
+
+    Navigator.pop(context);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context){
+
     return Scaffold(
       appBar: AppBar(
-        title:
-        Text(widget.medicine == null ? 'Add Medicine' : 'Edit Medicine'),
+        title: Text(widget.medicine==null?"Add":"Edit"),
       ),
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Medicine Name',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.medication),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: dosageController,
-              decoration: const InputDecoration(
-                labelText: 'Dosage (e.g., 1 tablet, 5ml)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.local_pharmacy),
-              ),
-            ),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: pickTime,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.access_time),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        selectedTime == null
-                            ? 'Select time for reminder'
-                            : 'Reminder at: ${selectedTime!.format(context)}',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
+          children:[
 
-            /// ⭐ SAVE BUTTON
-            ElevatedButton.icon(
-              onPressed: saveMedicine,
-              icon: const Icon(Icons.save),
-              label: const Text('Save Medicine'),
-            ),
+            TextField(controller:nameController),
+            TextField(controller:dosageController),
+            TextField(controller:timeController),
 
-            const SizedBox(height: 12),
+            const SizedBox(height:20),
 
-            TextButton.icon(
-              onPressed: () async {
-                await NotificationService.showImmediateNotification(
-                  id: 999,
-                  title: 'Test Notification',
-                  body: 'Notifications are working! 🎉',
-                );
-              },
-              icon: const Icon(Icons.notifications_active),
-              label: const Text('Test Notification Now'),
-            ),
+            ElevatedButton(
+              onPressed: save,
+              child: const Text("Save"),
+            )
           ],
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    nameController.dispose();
-    dosageController.dispose();
-    super.dispose();
   }
 }

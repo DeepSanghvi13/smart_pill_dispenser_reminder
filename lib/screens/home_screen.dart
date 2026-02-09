@@ -1,12 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
+import '../services/database_service.dart';
+import '../services/notification_service.dart';
 import '../models/medicine.dart';
-import '../widgets/medicine_card.dart';
 import 'add_medicine_screen.dart';
 
 class HomeScreen extends StatefulWidget {
+
   const HomeScreen({super.key});
 
   @override
@@ -14,100 +13,101 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<Medicine> medicines = [];
+
+  List<Map<String,dynamic>> medicines=[];
 
   @override
-  void initState() {
+  void initState(){
     super.initState();
-    loadMedicines();
+    load();
   }
 
-  Future<void> loadMedicines() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString('medicines');
-
-    if (data != null) {
-      final List decoded = jsonDecode(data);
-      setState(() {
-        medicines.clear();
-        medicines.addAll(
-          decoded.map((e) => Medicine.fromJson(e)).toList(),
-        );
-      });
-    }
+  Future<void> load() async{
+    medicines = await DatabaseService().getMedicines();
+    setState(() {});
   }
 
-  Future<void> saveMedicines() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded =
-    jsonEncode(medicines.map((e) => e.toJson()).toList());
-    await prefs.setString('medicines', encoded);
-  }
+  Future<void> deleteMedicine(Map medicine) async{
 
-  void deleteMedicine(int index) {
-    setState(() {
-      medicines.removeAt(index);
-    });
-    saveMedicines();
+    await NotificationService.cancelNotification(
+        medicine['notification_id']);
+
+    await DatabaseService().deleteMedicine(medicine['id']);
+
+    load();
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context){
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Smart Pill Reminder'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text("Smart Pill Reminder")),
+
       body: medicines.isEmpty
-          ? const Center(
-        child: Text(
-          'No medicines added yet',
-          style: TextStyle(fontSize: 18),
-        ),
-      )
+          ? const Center(child: Text("No medicines added"))
           : ListView.builder(
         itemCount: medicines.length,
-        itemBuilder: (context, index) {
-          return MedicineCard(
-            medicine: medicines[index],
-            onDelete: () => deleteMedicine(index),
-            onEdit: () async {
-              final updated = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AddMedicineScreen(
-                    medicine: medicines[index],
-                  ),
-                ),
-              );
+        itemBuilder:(context,index){
 
-              if (updated != null) {
-                setState(() {
-                  medicines[index] = updated;
-                });
-                saveMedicines();
-              }
-            },
+          final medicine=medicines[index];
+
+          return Card(
+            margin: const EdgeInsets.all(10),
+            child: ListTile(
+
+              leading: const CircleAvatar(
+                child: Icon(Icons.medication),
+              ),
+
+              title: Text(medicine['medicine_name']),
+              subtitle: Text(
+                  "${medicine['dosage']} • ${medicine['reminder_time']}"),
+
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children:[
+
+                  IconButton(
+                    icon: const Icon(Icons.edit,color: Colors.blue),
+                    onPressed: () async{
+
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_)=>AddMedicineScreen(
+                            medicine: Medicine.fromMap(medicine),
+                          ),
+                        ),
+                      );
+
+                      load();
+                    },
+                  ),
+
+                  IconButton(
+                    icon: const Icon(Icons.delete,color: Colors.red),
+                    onPressed: ()=>deleteMedicine(medicine),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
+
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
+        child: const Icon(Icons.add),
+        onPressed: () async{
+
+          await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const AddMedicineScreen(),
+              builder: (_)=>const AddMedicineScreen(),
             ),
           );
 
-          if (result != null) {
-            setState(() {
-              medicines.add(result);
-            });
-            saveMedicines();
-          }
+          load();
         },
-        child: const Icon(Icons.add), // ✅ FIXED ICON
       ),
     );
   }

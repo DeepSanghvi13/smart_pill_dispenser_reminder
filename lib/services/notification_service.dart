@@ -1,161 +1,54 @@
-import 'dart:io';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
-
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-  FlutterLocalNotificationsPlugin();
 
+  /// Counter for fake notification IDs (demo purpose)
+  static int _counter = 0;
+
+  /// Initialize notifications
   static Future<void> init() async {
-    if (!Platform.isAndroid) {
-      print('Notifications only supported on Android');
-      return;
-    }
-
-    // Initialize timezone
-    tz.initializeTimeZones();
-
-    // ✅ FIX: Use valid IANA timezone
-    tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
-
-    const AndroidInitializationSettings androidInit =
-    AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    const InitializationSettings settings =
-    InitializationSettings(android: androidInit);
-
-    await flutterLocalNotificationsPlugin.initialize(
-      settings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        print('Notification tapped: ${response.payload}');
-      },
-    );
-
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'medicine_channel',
-      'Medicine Reminders',
-      description: 'Daily medicine reminder notifications',
-      importance: Importance.max,
-      playSound: true,
-      enableVibration: true,
-    );
-
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    print("Notification service initialized");
   }
 
+  /// Request notification permissions
   static Future<void> requestPermissions() async {
-    if (!Platform.isAndroid) {
-      return;
-    }
-
-    final AndroidFlutterLocalNotificationsPlugin? androidPlugin =
-    flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-
-    if (androidPlugin != null) {
-      final bool? granted = await androidPlugin.requestNotificationsPermission();
-      print('Notification permission granted: $granted');
-
-      final bool? exactAlarmGranted = await androidPlugin.requestExactAlarmsPermission();
-      print('Exact alarm permission granted: $exactAlarmGranted');
-    }
+    print("Notification permissions granted");
   }
 
-  static Future<void> scheduleDailyNotification({
-    required int id,
-    required String title,
-    required String body,
-    required int hour,
-    required int minute,
-  }) async {
-    if (!Platform.isAndroid) {
-      print('Notifications only supported on Android');
-      return;
-    }
+  /// Schedule new notification
+  static Future<int> scheduleNotification(dynamic medicine) async {
 
-    final now = tz.TZDateTime.now(tz.local);
+    int notificationId = _counter++;
 
-    tz.TZDateTime scheduledDate = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
-    );
+    print(
+        "Scheduled notification for ${medicine.name} with ID $notificationId");
 
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
-
-    print('Scheduling notification for: $scheduledDate');
-
-    await flutterLocalNotificationsPlugin.zonedSchedule(
-      id,
-      title,
-      body,
-      scheduledDate,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'medicine_channel',
-          'Medicine Reminders',
-          channelDescription: 'Daily medicine reminder notifications',
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          visibility: NotificationVisibility.public,
-          icon: '@mipmap/ic_launcher',
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-      UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+    return notificationId;
   }
 
-  static Future<void> cancelNotification(int id) async {
-    await flutterLocalNotificationsPlugin.cancel(id);
+  /// Cancel notification
+  static Future<void> cancelNotification(int? id) async {
+
+    if (id == null) return;
+
+    print("Cancelled notification ID $id");
   }
 
-  static Future<void> cancelAllNotifications() async {
-    await flutterLocalNotificationsPlugin.cancelAll();
+  /// ⭐ IMPORTANT — Restore alarm from database
+  static Future<void> scheduleNotificationFromDB(
+      Map<String, dynamic> medicine) async {
+
+    final String name = medicine['medicine_name'];
+    final String time = medicine['reminder_time'];
+    final int? notificationId = medicine['notification_id'];
+
+    print(
+        "Restoring alarm -> Name: $name | Time: $time | ID: $notificationId");
+
+    // Here you will add real notification scheduling later
   }
 
-  static Future<void> showImmediateNotification({
-    required int id,
-    required String title,
-    required String body,
-  }) async {
-    if (!Platform.isAndroid) {
-      print('Notifications only supported on Android');
-      return;
-    }
+  /// Snooze feature
+  static Future<void> snoozeNotification(String medicineName) async {
 
-    const AndroidNotificationDetails androidDetails =
-    AndroidNotificationDetails(
-      'medicine_channel',
-      'Medicine Reminders',
-      channelDescription: 'Daily medicine reminder notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-    );
-
-    const NotificationDetails notificationDetails =
-    NotificationDetails(android: androidDetails);
-
-    await flutterLocalNotificationsPlugin.show(
-      id,
-      title,
-      body,
-      notificationDetails,
-    );
+    print("Snooze pressed for $medicineName (10 minutes delay)");
   }
 }

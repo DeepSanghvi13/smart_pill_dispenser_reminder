@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+
 import '../../models/medicine.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/bottom_nav.dart';
+
 import '../medications/add_medication_screen.dart';
 import '../updates/updates_screen.dart';
 import '../medications/medications_screen.dart';
@@ -16,21 +18,60 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-
-  // ✅ SINGLE SOURCE OF TRUTH
   final List<Medicine> _medicines = [];
 
+  // ADD
   Future<void> _addMedicine() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AddMedicationScreen()),
+      MaterialPageRoute(
+        builder: (_) => const AddMedicationScreen(),
+      ),
     );
 
     if (result != null && result is Medicine) {
-      setState(() {
-        _medicines.add(result);
-      });
+      setState(() => _medicines.add(result));
     }
+  }
+
+  // EDIT
+  Future<void> _editMedicine(int index) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddMedicationScreen(
+          medicine: _medicines[index],
+        ),
+      ),
+    );
+
+    if (result != null && result is Medicine) {
+      setState(() => _medicines[index] = result);
+    }
+  }
+
+  // DELETE
+  void _deleteMedicine(int index) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete medicine'),
+        content: const Text('Are you sure you want to delete this medicine?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() => _medicines.removeAt(index));
+              Navigator.pop(context);
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -38,7 +79,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final pages = [
       HomeBody(
         medicines: _medicines,
-        onAddMed: _addMedicine,
+        onEdit: _editMedicine,
+        onDelete: _deleteMedicine,
       ),
       const UpdatesScreen(),
       MedicationsScreen(
@@ -50,11 +92,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        title: const Text('Guest'),
-        actions: const [Icon(Icons.notifications_active)],
-      ),
+      appBar: AppBar(title: const Text('Guest')),
       body: pages[_currentIndex],
+
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF0D4F8B),
+        onPressed: _addMedicine,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+
       bottomNavigationBar: BottomNav(
         index: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
@@ -67,34 +113,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class HomeBody extends StatelessWidget {
   final List<Medicine> medicines;
-  final VoidCallback onAddMed;
+  final Function(int) onEdit;
+  final Function(int) onDelete;
 
   const HomeBody({
     super.key,
     required this.medicines,
-    required this.onAddMed,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
     if (medicines.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.calendar_month, size: 120),
-            const SizedBox(height: 20),
-            const Text(
-              'No medicines added',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: onAddMed,
-              child: const Text('Add a med'),
-            ),
-          ],
-        ),
+      return const Center(
+        child: Text('No medicines added'),
       );
     }
 
@@ -103,11 +136,25 @@ class HomeBody extends StatelessWidget {
       itemCount: medicines.length,
       itemBuilder: (context, index) {
         final med = medicines[index];
+
         return Card(
           child: ListTile(
             leading: const Icon(Icons.medication),
             title: Text(med.name),
             subtitle: Text('${med.dosage} • ${med.time}'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  onPressed: () => onEdit(index),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => onDelete(index),
+                ),
+              ],
+            ),
           ),
         );
       },

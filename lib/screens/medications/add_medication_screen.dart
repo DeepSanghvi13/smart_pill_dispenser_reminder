@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../models/medicine.dart';
 
 class AddMedicationScreen extends StatefulWidget {
-  const AddMedicationScreen({super.key});
+  final Medicine? medicine; // null = add, not null = edit
+
+  const AddMedicationScreen({super.key, this.medicine});
 
   @override
   State<AddMedicationScreen> createState() => _AddMedicationScreenState();
@@ -11,23 +13,31 @@ class AddMedicationScreen extends StatefulWidget {
 class _AddMedicationScreenState extends State<AddMedicationScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController dosageController = TextEditingController();
-  final TextEditingController timeController = TextEditingController();
+  late TextEditingController nameController;
+  late TextEditingController dosageController;
+  late TextEditingController timeController;
 
-  TimeOfDay? selectedTime;
+  @override
+  void initState() {
+    super.initState();
 
-  // ✅ OPEN CLOCK
+    nameController =
+        TextEditingController(text: widget.medicine?.name ?? '');
+    dosageController =
+        TextEditingController(text: widget.medicine?.dosage ?? '');
+    timeController =
+        TextEditingController(text: widget.medicine?.time ?? '');
+  }
+
   Future<void> _pickTime() async {
-    final TimeOfDay? time = await showTimePicker(
+    final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
     );
 
     if (time != null) {
       setState(() {
-        selectedTime = time;
-        timeController.text = time.format(context); // e.g. 8:30 AM
+        timeController.text = time.format(context);
       });
     }
   }
@@ -35,69 +45,64 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add a med')),
+      appBar: AppBar(
+        title: Text(widget.medicine == null ? 'Add a med' : 'Edit med'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              // Medicine Name
               TextFormField(
                 controller: nameController,
                 decoration: const InputDecoration(
                   labelText: 'Medicine Name',
-                  border: OutlineInputBorder(),
                 ),
-                validator: (v) => v!.isEmpty ? 'Enter medicine name' : null,
+                validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
 
-              // Dosage
               TextFormField(
                 controller: dosageController,
                 decoration: const InputDecoration(
-                  labelText: 'Dosage (e.g. 1 tablet)',
-                  border: OutlineInputBorder(),
+                  labelText: 'Dosage',
                 ),
-                validator: (v) => v!.isEmpty ? 'Enter dosage' : null,
+                validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
 
-              // ✅ TIME PICKER FIELD
               TextFormField(
                 controller: timeController,
                 readOnly: true,
                 onTap: _pickTime,
                 decoration: const InputDecoration(
                   labelText: 'Time',
-                  hintText: 'Select time',
-                  border: OutlineInputBorder(),
                   suffixIcon: Icon(Icons.access_time),
                 ),
-                validator: (v) =>
-                v!.isEmpty ? 'Select medicine time' : null,
+                validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
-
               const SizedBox(height: 30),
 
-              // Save Button
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
                     if (_formKey.currentState!.validate()) {
-                      final medicine = Medicine(
-                        name: nameController.text,
-                        dosage: dosageController.text,
-                        time: timeController.text,
+                      Navigator.pop(
+                        context,
+                        Medicine(
+                          name: nameController.text,
+                          dosage: dosageController.text,
+                          time: timeController.text,
+                        ),
                       );
-
-                      Navigator.pop(context, medicine);
                     }
                   },
-                  child: const Text('Save'),
+                  child: Text(
+                    widget.medicine == null ? 'Save' : 'Update',
+                  ),
                 ),
               ),
             ],

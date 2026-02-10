@@ -86,6 +86,8 @@ class _HomeScreenState extends State<HomeScreen> {
       MedicationsScreen(
         medicines: _medicines,
         onAddMed: _addMedicine,
+        onEdit: _editMedicine,
+        onDelete: _deleteMedicine,
       ),
       const ManageScreen(),
     ];

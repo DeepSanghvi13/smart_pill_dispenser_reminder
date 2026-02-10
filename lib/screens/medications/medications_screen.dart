@@ -4,11 +4,15 @@ import '../../models/medicine.dart';
 class MedicationsScreen extends StatelessWidget {
   final List<Medicine> medicines;
   final VoidCallback onAddMed;
+  final Function(int) onEdit;
+  final Function(int) onDelete;
 
   const MedicationsScreen({
     super.key,
     required this.medicines,
     required this.onAddMed,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -18,20 +22,15 @@ class MedicationsScreen extends StatelessWidget {
           ? Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.medication, size: 120),
-            const SizedBox(height: 20),
-            const Text(
+          children: const [
+            Icon(Icons.medication, size: 120),
+            SizedBox(height: 20),
+            Text(
               'No medicines added',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: onAddMed,
-              child: const Text('Add a med'),
             ),
           ],
         ),
@@ -41,20 +40,38 @@ class MedicationsScreen extends StatelessWidget {
         itemCount: medicines.length,
         itemBuilder: (context, index) {
           final med = medicines[index];
+
           return Card(
             child: ListTile(
               leading: const Icon(Icons.medication),
               title: Text(med.name),
               subtitle: Text('${med.dosage} • ${med.time}'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ✏️ EDIT
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    onPressed: () => onEdit(index),
+                  ),
+
+                  // 🗑️ DELETE
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => onDelete(index),
+                  ),
+                ],
+              ),
             ),
           );
         },
       ),
 
-      // ✅ ADD A MED FLOATING BUTTON
+      // ➕ ADD BUTTON
       floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF0D4F8B),
         onPressed: onAddMed,
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

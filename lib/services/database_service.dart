@@ -1,23 +1,22 @@
+import '../models/medicine_model.dart';
+
 class DatabaseService {
 
-  static List<Map<String,dynamic>> fakeDB = [];
+  static List<Medicine> medicines = [
+    Medicine(name: "Vitamin D", time: "08:00 AM"),
+    Medicine(name: "Antibiotic", time: "01:00 PM"),
+  ];
 
-  Future<List<Map<String,dynamic>>> getMedicines() async{
-    return fakeDB;
+  List<Medicine> getMedicines() {
+    return medicines;
   }
 
-  Future<void> insertMedicine(medicine) async{
-    fakeDB.add(medicine.toMap());
+  void addMedicine(Medicine medicine) {
+    medicines.add(medicine);
   }
 
-  Future<void> updateMedicine(medicine) async{
-    int index = fakeDB.indexWhere((m)=>m['id']==medicine.id);
-    if(index!=-1){
-      fakeDB[index]=medicine.toMap();
-    }
+  void toggleMedicineStatus(Medicine medicine) {
+    medicine.taken = !medicine.taken;
   }
 
-  Future<void> deleteMedicine(int id) async{
-    fakeDB.removeWhere((m)=>m['id']==id);
-  }
 }

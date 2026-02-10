@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
-import '../services/notification_service.dart';
-import '../models/medicine.dart';
+import '../widgets/medicine_card.dart';
+import '../models/medicine_model.dart';
 import 'add_medicine_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-
   const HomeScreen({super.key});
 
   @override
@@ -14,99 +13,132 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
 
-  List<Map<String,dynamic>> medicines=[];
+  List<Medicine> medicines = [];
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
-    load();
+    loadMedicines();
   }
 
-  Future<void> load() async{
-    medicines = await DatabaseService().getMedicines();
+  void loadMedicines() {
+    medicines = DatabaseService().getMedicines();
     setState(() {});
   }
 
-  Future<void> deleteMedicine(Map medicine) async{
+  double calculateProgress() {
 
-    await NotificationService.cancelNotification(
-        medicine['notification_id']);
+    if (medicines.isEmpty) return 0;
 
-    await DatabaseService().deleteMedicine(medicine['id']);
+    int takenCount =
+        medicines.where((m) => m.taken).length;
 
-    load();
+    return takenCount / medicines.length;
   }
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Smart Pill Reminder")),
 
-      body: medicines.isEmpty
-          ? const Center(child: Text("No medicines added"))
-          : ListView.builder(
-        itemCount: medicines.length,
-        itemBuilder:(context,index){
+      appBar: AppBar(
+        title: const Text("Good Morning 👋"),
+      ),
 
-          final medicine=medicines[index];
+      body: Padding(
+        padding: const EdgeInsets.all(16),
 
-          return Card(
-            margin: const EdgeInsets.all(10),
-            child: ListTile(
+        child: Column(
+          children: [
 
-              leading: const CircleAvatar(
-                child: Icon(Icons.medication),
+            /// 🔥 PRO LEVEL Progress Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                  )
+                ],
               ),
 
-              title: Text(medicine['medicine_name']),
-              subtitle: Text(
-                  "${medicine['dosage']} • ${medicine['reminder_time']}"),
+              child: Column(
+                children: [
 
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children:[
-
-                  IconButton(
-                    icon: const Icon(Icons.edit,color: Colors.blue),
-                    onPressed: () async{
-
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_)=>AddMedicineScreen(
-                            medicine: Medicine.fromMap(medicine),
-                          ),
-                        ),
-                      );
-
-                      load();
-                    },
+                  const Text(
+                    "Today's Progress",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
 
-                  IconButton(
-                    icon: const Icon(Icons.delete,color: Colors.red),
-                    onPressed: ()=>deleteMedicine(medicine),
+                  const SizedBox(height: 15),
+
+                  SizedBox(
+                    height: 70,
+                    width: 70,
+                    child: CircularProgressIndicator(
+                      value: calculateProgress(),
+                      strokeWidth: 8,
+                    ),
                   ),
                 ],
               ),
             ),
-          );
-        },
+
+            const SizedBox(height: 20),
+
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Today",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            /// 🔥 Animated List Feeling
+            Expanded(
+              child: ListView.builder(
+                itemCount: medicines.length,
+                itemBuilder: (context, index) {
+
+                  final m = medicines[index];
+
+                  return MedicineCard(
+                    medicine: m,
+                    refresh: loadMedicines, // ⭐ VERY IMPORTANT
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
 
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.add),
-        onPressed: () async{
+
+        onPressed: () async {
 
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_)=>const AddMedicineScreen(),
+              builder: (_) => AddMedicineScreen(),
             ),
           );
 
-          load();
+          loadMedicines();
         },
       ),
     );

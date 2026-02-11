@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
-
-// ✅ CORRECT RELATIVE IMPORT
+import 'theme/theme_controller.dart';
 import 'screens/home/home_screen.dart';
-import 'core/app_theme.dart';
 
 void main() {
-  runApp(MedisafeApp());
+  runApp(const MyApp());
 }
 
-class MedisafeApp extends StatelessWidget {
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Smart Pill Reminder',
-      theme: AppTheme.lightTheme,
-      home: HomeScreen(), // ✅ now visible
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          theme: ThemeData.light(),
+          darkTheme: ThemeData.dark(),
+          themeMode: themeMode,
+          home: const HomeScreen(),
+        );
+      },
     );
   }
 }

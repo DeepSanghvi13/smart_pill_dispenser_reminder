@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import '../auth/login_screen.dart';
+import 'create_profile_screen.dart';
+import 'delete_account_reason_screen.dart';
+import 'delete_account_confirm_screen.dart';
+import 'general_settings_screen.dart';
 
 class AppSettingsScreen extends StatelessWidget {
   const AppSettingsScreen({super.key});
@@ -12,34 +17,87 @@ class AppSettingsScreen extends StatelessWidget {
       body: ListView(
         children: [
           _section('Settings'),
-          _item(Icons.settings, 'General Settings'),
-          _item(Icons.place, 'My Places'),
+          _item(
+            context,
+            icon: Icons.settings,
+            title: 'General Settings',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const GeneralSettingsScreen(),
+                ),
+              );
+            },
+          ),
 
           _section('Account'),
-          _item(Icons.verified, 'Verification Code'),
-          _item(Icons.key, 'Open Account',
-              subtitle: 'Create a free Medisafe account'),
-          _item(Icons.login, 'Login',
-              subtitle: 'Login with an existing account'),
-          _item(Icons.lock, 'Passcode',
-              subtitle: 'Use a passcode to enter the app'),
-          _item(Icons.delete, 'Delete This Account',
-              subtitle: 'Permanently delete account and information',
-              color: Colors.red),
-
-          _section('Premium Settings'),
-          _item(Icons.workspace_premium, 'Subscribe to Medisafe'),
+          _item(
+            context,
+            icon: Icons.key,
+            title: 'Open Account',
+            subtitle: 'Create a free Medisafe account',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CreateProfileScreen(),
+                ),
+              );
+            },
+          ),
+          _item(
+            context,
+            icon: Icons.login,
+            title: 'Login',
+            subtitle: 'Login with an existing account',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const LoginScreen(),
+                ),
+              );
+            },
+          ),
+          _item(
+            context,
+            icon: Icons.delete,
+            title: 'Delete This Account',
+            subtitle: 'Permanently delete account and information',
+            color: Colors.red,
+            onTap: () {
+              _showDeleteAccountSheet(context);
+            },
+          ),
 
           _section('General'),
-          _item(Icons.share, 'Help Us and Share Medisafe'),
-          _item(Icons.star, 'Rate Medisafe'),
-          _item(Icons.mail, 'Send Feedback'),
-          _item(Icons.info, 'About'),
+          _item(
+            context,
+            icon: Icons.share,
+            title: 'Help Us and Share Medisafe',
+          ),
+          _item(
+            context,
+            icon: Icons.star,
+            title: 'Rate Medisafe',
+          ),
+          _item(
+            context,
+            icon: Icons.mail,
+            title: 'Send Feedback',
+          ),
+          _item(
+            context,
+            icon: Icons.info,
+            title: 'About',
+          ),
         ],
       ),
     );
   }
 
+  // ================= SECTION TITLE =================
   Widget _section(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
@@ -53,18 +111,134 @@ class AppSettingsScreen extends StatelessWidget {
     );
   }
 
+  // ================= LIST TILE =================
   Widget _item(
-      IconData icon,
-      String title, {
+      BuildContext context, {
+        required IconData icon,
+        required String title,
         String? subtitle,
         Color color = Colors.grey,
+        VoidCallback? onTap,
       }) {
     return ListTile(
       leading: Icon(icon, color: color),
       title: Text(title),
       subtitle: subtitle != null ? Text(subtitle) : null,
       trailing: const Icon(Icons.chevron_right),
-      onTap: () {},
+      onTap: onTap,
+    );
+  }
+
+  // ================= DELETE ACCOUNT BOTTOM SHEET =================
+  void _showDeleteAccountSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(20),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 40,
+              ),
+              const SizedBox(height: 16),
+
+              const Text(
+                'Attention!',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              const Text(
+                'Deleting your account will permanently delete your information. '
+                    'Are you sure you want to proceed?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // -------- Proceed Button --------
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // close bottom sheet
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DeleteAccountReasonScreen(),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(
+                      color: Color(0xFF0D4F8B),
+                      width: 1.5,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: const Text(
+                    'Proceed',
+                    style: TextStyle(
+                      color: Color(0xFF0D4F8B),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // -------- Cancel Button --------
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D4F8B),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 }

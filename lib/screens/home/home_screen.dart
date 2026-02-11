@@ -97,11 +97,13 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(title: const Text('Guest')),
       body: pages[_currentIndex],
 
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: (_currentIndex == 0 || _currentIndex == 2)
+          ? FloatingActionButton(
         backgroundColor: const Color(0xFF0D4F8B),
         onPressed: _addMedicine,
         child: const Icon(Icons.add, color: Colors.white),
-      ),
+      )
+          : null,
 
       bottomNavigationBar: BottomNav(
         index: _currentIndex,

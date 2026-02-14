@@ -60,19 +60,19 @@ class ManageScreen extends StatelessWidget {
             },
           ),
 
-          _cardTile(
-            icon: Icons.help_outline,
-            title: 'Help Center',
-            subtitle: 'Get help and support',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => HelpCenterScreen(),
-                ),
-              );
-            },
-          ),
+        _cardTile(
+          icon: Icons.help_outline,
+          title: 'Help Center',
+          subtitle: 'Get help and support',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => HelpCenterScreen(),
+              ),
+            );
+          },
+        ),
 
           _cardTile(
             icon: Icons.share,

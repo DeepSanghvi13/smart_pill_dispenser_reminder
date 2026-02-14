@@ -1,35 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
+import 'help_articles_screen.dart';
+import 'contact_support_screen.dart';
+import 'share_help_center_screen.dart';
 
 class HelpCenterScreen extends StatelessWidget {
   const HelpCenterScreen({super.key});
-
-  void _shareHelp(BuildContext context) {
-    const helpText =
-        'Need help with Medisafe?\n\n'
-        'Visit the Help Center:\n'
-        'https://www.medisafe.com/help';
-
-    Clipboard.setData(const ClipboardData(text: helpText));
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Help Center link copied to clipboard'),
-      ),
-    );
-  }
-
-  void _copySupportEmail(BuildContext context) {
-    Clipboard.setData(
-      const ClipboardData(text: 'support@medisafe.com'),
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Support email copied'),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,69 +13,56 @@ class HelpCenterScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Help Center'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'How can we help you?',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            const Text(
-              'Find answers to common questions, get troubleshooting help, '
-                  'or contact our support team.',
-              style: TextStyle(fontSize: 15),
-            ),
-
-            const SizedBox(height: 30),
-
-            // ===== HELP OPTIONS =====
-            _optionTile(
-              icon: Icons.article_outlined,
-              title: 'Help Articles',
-              subtitle: 'Guides and FAQs',
-              onTap: () {},
-            ),
-
-            _optionTile(
-              icon: Icons.support_agent,
-              title: 'Contact Support',
-              subtitle: 'Email our support team',
-              onTap: () => _copySupportEmail(context),
-            ),
-
-            _optionTile(
-              icon: Icons.share,
-              title: 'Share Help Center',
-              subtitle: 'Share help resources with others',
-              onTap: () => _shareHelp(context),
-            ),
-
-            const Spacer(),
-
-            Center(
-              child: Text(
-                'Medisafe Help Center',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _tile(
+            icon: Icons.article_outlined,
+            title: 'Help Articles',
+            subtitle: 'FAQs and guides',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const HelpArticlesScreen(),
                 ),
-              ),
-            ),
-          ],
-        ),
+              );
+            },
+          ),
+
+          _tile(
+            icon: Icons.support_agent,
+            title: 'Contact Support',
+            subtitle: 'Get help from our team',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ContactSupportScreen(),
+                ),
+              );
+            },
+          ),
+
+          _tile(
+            icon: Icons.share,
+            title: 'Share Help Center',
+            subtitle: 'Share help resources',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ShareHelpCenterScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
 
-  // ===== OPTION TILE =====
-  Widget _optionTile({
+  Widget _tile({
     required IconData icon,
     required String title,
     required String subtitle,

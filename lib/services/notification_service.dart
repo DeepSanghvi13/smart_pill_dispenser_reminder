@@ -4,19 +4,46 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin
-  _notifications = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
+
+  // Define the channel
+  static const AndroidNotificationChannel _alarmChannel =
+      AndroidNotificationChannel(
+    'alarm_channel', // id
+    'Medication Alarms', // title
+    description: 'This channel is used for important medication reminders.',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('alarm'),
+  );
 
   static Future<void> init() async {
     tz.initializeTimeZones();
 
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    // Create the channel
+    await androidImplementation?.createNotificationChannel(_alarmChannel);
+
     const androidSettings =
-    AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const initSettings =
-    InitializationSettings(android: androidSettings);
+        InitializationSettings(android: androidSettings);
 
     await _notifications.initialize(initSettings);
+  }
+
+  static Future<void> requestPermissions() async {
+    if (Platform.isAndroid) {
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+          _notifications.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      await androidImplementation?.requestNotificationsPermission();
+    }
   }
 
   /// 🔔 Notification + ⏰ Alarm at SAME TIME
@@ -40,13 +67,12 @@ class NotificationService {
       return;
     }
 
+    // Use the same channel id as defined above
     const androidDetails = AndroidNotificationDetails(
       'alarm_channel',
       'Medication Alarms',
       importance: Importance.max,
       priority: Priority.high,
-
-      // 🔊 THIS IS THE KEY PART
       sound: RawResourceAndroidNotificationSound('alarm'),
       playSound: true,
       enableVibration: true,
@@ -62,7 +88,7 @@ class NotificationService {
       const NotificationDetails(android: androidDetails),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
-      UILocalNotificationDateInterpretation.absoluteTime,
+          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }

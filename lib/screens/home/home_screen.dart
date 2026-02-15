@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../models/medicine.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/bottom_nav.dart';
 
@@ -31,6 +33,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (result != null && result is Medicine) {
       setState(() => _medicines.add(result));
+
+      // Schedule notification
+      final time = DateFormat('h:mm a').parse(result.time);
+      final now = DateTime.now();
+      final dateTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        time.hour,
+        time.minute,
+      );
+      await NotificationService.scheduleAlarmNotification(dateTime: dateTime);
     }
   }
 
@@ -47,6 +61,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (result != null && result is Medicine) {
       setState(() => _medicines[index] = result);
+
+      // Schedule notification
+      final time = DateFormat('h:mm a').parse(result.time);
+      final now = DateTime.now();
+      final dateTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        time.hour,
+        time.minute,
+      );
+
+      await NotificationService.scheduleAlarmNotification(dateTime: dateTime);
     }
   }
 
@@ -96,15 +123,13 @@ class _HomeScreenState extends State<HomeScreen> {
       drawer: const AppDrawer(),
       appBar: AppBar(title: const Text('Guest')),
       body: pages[_currentIndex],
-
       floatingActionButton: (_currentIndex == 0 || _currentIndex == 2)
           ? FloatingActionButton(
-        backgroundColor: const Color(0xFF0D4F8B),
-        onPressed: _addMedicine,
-        child: const Icon(Icons.add, color: Colors.white),
-      )
+              backgroundColor: const Color(0xFF0D4F8B),
+              onPressed: _addMedicine,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
           : null,
-
       bottomNavigationBar: BottomNav(
         index: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),

@@ -7,15 +7,15 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
-  // Define the channel
-  static const AndroidNotificationChannel _alarmChannel =
+  // Define the channel with default settings
+  static const AndroidNotificationChannel _defaultChannel =
       AndroidNotificationChannel(
-    'alarm_channel', // id
-    'Medication Alarms', // title
-    description: 'This channel is used for important medication reminders.',
-    importance: Importance.max,
+    'default_channel', // id
+    'Default Notifications', // title
+    description: 'This channel is used for medication reminders.',
+    importance: Importance.high,
     playSound: true,
-    sound: RawResourceAndroidNotificationSound('alarm'),
+    enableVibration: true,
   );
 
   static Future<void> init() async {
@@ -26,7 +26,7 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     // Create the channel
-    await androidImplementation?.createNotificationChannel(_alarmChannel);
+    await androidImplementation?.createNotificationChannel(_defaultChannel);
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -46,43 +46,23 @@ class NotificationService {
     }
   }
 
-  /// 🔔 Notification + ⏰ Alarm at SAME TIME
+  /// 🔔 Default Notification Reminder
   static Future<void> scheduleAlarmNotification({
     required DateTime dateTime,
   }) async {
-    if (!Platform.isAndroid) {
-      // Windows/Web fallback: notification only
-      await _notifications.show(
-        0,
-        'Medication Reminder',
-        'Time to take your medicine',
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'basic_channel',
-            'Basic Notifications',
-            importance: Importance.max,
-          ),
-        ),
-      );
-      return;
-    }
-
-    // Use the same channel id as defined above
+    // Use the default channel id as defined above
     const androidDetails = AndroidNotificationDetails(
-      'alarm_channel',
-      'Medication Alarms',
-      importance: Importance.max,
+      'default_channel',
+      'Default Notifications',
+      importance: Importance.high,
       priority: Priority.high,
-      sound: RawResourceAndroidNotificationSound('alarm'),
       playSound: true,
       enableVibration: true,
-      fullScreenIntent: true,
-      category: AndroidNotificationCategory.alarm,
     );
 
     await _notifications.zonedSchedule(
       0,
-      'Medication Alarm',
+      'Medication Reminder',
       'Time to take your medicine',
       tz.TZDateTime.from(dateTime, tz.local),
       const NotificationDetails(android: androidDetails),

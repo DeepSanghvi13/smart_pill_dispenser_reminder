@@ -16,6 +16,7 @@ dependencies:
   timezone: ^0.9.4
   share_plus: ^10.0.2
   intl: ^0.18.1
+  url_launcher: ^6.2.2
 
   # ⭐ SQLite
   sqflite: ^2.3.0

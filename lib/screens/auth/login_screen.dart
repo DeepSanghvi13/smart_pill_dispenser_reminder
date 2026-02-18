@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:smart_pill_reminder/services/auth_service.dart';
+import 'package:smart_pill_reminder/screens/admin/admin_webpage_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -99,8 +101,51 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(30),
                           ),
                         ),
-                        onPressed: () {
-                          Navigator.pop(context);
+                        onPressed: () async {
+                          final email = emailController.text.trim();
+                          final password = passwordController.text.trim();
+
+                          if (email.isEmpty || password.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please enter email and password'),
+                              ),
+                            );
+                            return;
+                          }
+
+                          // Attempt login
+                          final success = await authService.login(email, password);
+
+                          if (!context.mounted) return;
+
+                          if (success) {
+                            // Check if user is admin
+                            if (authService.isAdmin) {
+                              // Navigate to admin page
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const AdminWebpageScreen(),
+                                ),
+                              );
+                            } else {
+                              // Regular user login
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Login successful!'),
+                                ),
+                              );
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Invalid email or password'),
+                              ),
+                            );
+                          }
                         },
                         child: const Text(
                           'Log In',

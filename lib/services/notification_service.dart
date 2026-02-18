@@ -58,6 +58,7 @@ class NotificationService {
       priority: Priority.high,
       playSound: true,
       enableVibration: true,
+      sound: RawResourceAndroidNotificationSound('alarm'),
     );
 
     await _notifications.zonedSchedule(

@@ -4,6 +4,10 @@ import 'create_profile_screen.dart';
 import 'delete_account_reason_screen.dart';
 import 'delete_account_confirm_screen.dart';
 import 'general_settings_screen.dart';
+import 'share_app_screen.dart';
+import 'rate_medisafe_screen.dart';
+import 'send_feedback_screen.dart';
+import 'about_screen.dart';
 
 class AppSettingsScreen extends StatelessWidget {
   const AppSettingsScreen({super.key});
@@ -76,21 +80,53 @@ class AppSettingsScreen extends StatelessWidget {
             context,
             icon: Icons.share,
             title: 'Help Us and Share Medisafe',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ShareAppScreen(),
+                ),
+              );
+            },
           ),
           _item(
             context,
             icon: Icons.star,
             title: 'Rate Medisafe',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RateMedisafeScreen(),
+                ),
+              );
+            },
           ),
           _item(
             context,
             icon: Icons.mail,
             title: 'Send Feedback',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SendFeedbackScreen(),
+                ),
+              );
+            },
           ),
           _item(
             context,
             icon: Icons.info,
             title: 'About',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AboutScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),

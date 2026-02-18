@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:smart_pill_reminder/services/auth_service.dart';
+import 'package:smart_pill_reminder/screens/auth/login_screen.dart';
 
 class AdminWebpageScreen extends StatefulWidget {
   const AdminWebpageScreen({super.key});
@@ -40,6 +42,19 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
               IconButton(
                 icon: const Icon(Icons.notifications_none),
                 onPressed: () => _showInfo(context, 'No new notifications'),
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: 'Logout',
+                onPressed: () {
+                  authService.logout();
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                  );
+                },
               ),
             ],
           ),

@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'services/notification_service.dart';
+import 'services/database_service.dart';
 import 'theme/theme_controller.dart';
 import 'screens/home/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize database first (data persistence)
+  await DatabaseService().database;
+
+  // Initialize notifications
   await NotificationService.init();
   await NotificationService.requestPermissions();
 

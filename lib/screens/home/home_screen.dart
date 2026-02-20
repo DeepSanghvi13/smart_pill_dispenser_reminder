@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/medicine.dart';
 import '../../services/notification_service.dart';
+import '../../services/database_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/bottom_nav.dart';
 
@@ -21,6 +22,29 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final List<Medicine> _medicines = [];
+  final DatabaseService _dbService = DatabaseService();
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMedicines();
+  }
+
+  /// Load medicines from database
+  Future<void> _loadMedicines() async {
+    try {
+      final medicines = await _dbService.getAllMedicines();
+      setState(() {
+        _medicines.clear();
+        _medicines.addAll(medicines);
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading medicines: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   // ADD
   Future<void> _addMedicine() async {
@@ -32,19 +56,34 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (result != null && result is Medicine) {
-      setState(() => _medicines.add(result));
+      try {
+        // Save to database
+        final id = await _dbService.addMedicine(result);
+        final newMedicine = result.copyWith(id: id);
 
-      // Schedule notification
-      final time = DateFormat('h:mm a').parse(result.time);
-      final now = DateTime.now();
-      final dateTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        time.hour,
-        time.minute,
-      );
-      await NotificationService.scheduleAlarmNotification(dateTime: dateTime);
+        setState(() => _medicines.add(newMedicine));
+
+        // Schedule notification
+        final time = DateFormat('h:mm a').parse(result.time);
+        final now = DateTime.now();
+        final dateTime = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          time.hour,
+          time.minute,
+        );
+        await NotificationService.scheduleAlarmNotification(dateTime: dateTime);
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Medicine added successfully')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding medicine: $e')),
+        );
+      }
     }
   }
 
@@ -60,20 +99,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (result != null && result is Medicine) {
-      setState(() => _medicines[index] = result);
+      try {
+        final medicineId = _medicines[index].id;
+        if (medicineId != null) {
+          // Update in database
+          await _dbService.updateMedicine(medicineId, result);
 
-      // Schedule notification
-      final time = DateFormat('h:mm a').parse(result.time);
-      final now = DateTime.now();
-      final dateTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        time.hour,
-        time.minute,
-      );
+          setState(() => _medicines[index] = result.copyWith(id: medicineId));
 
-      await NotificationService.scheduleAlarmNotification(dateTime: dateTime);
+          // Schedule notification
+          final time = DateFormat('h:mm a').parse(result.time);
+          final now = DateTime.now();
+          final dateTime = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            time.hour,
+            time.minute,
+          );
+
+          await NotificationService.scheduleAlarmNotification(dateTime: dateTime);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Medicine updated successfully')),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating medicine: $e')),
+        );
+      }
     }
   }
 
@@ -90,8 +145,22 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() => _medicines.removeAt(index));
+            onPressed: () async {
+              try {
+                final medicineId = _medicines[index].id;
+                if (medicineId != null) {
+                  await _dbService.deleteMedicine(medicineId);
+                  setState(() => _medicines.removeAt(index));
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Medicine deleted')),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error deleting medicine: $e')),
+                );
+              }
               Navigator.pop(context);
             },
             child: const Text('Delete'),
@@ -103,6 +172,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     final pages = [
       HomeBody(
         medicines: _medicines,
@@ -137,6 +210,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+/* ...existing code... */
 
 /* ---------------- HOME BODY ---------------- */
 

@@ -19,6 +19,7 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Suppress obsolete Java version warnings
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

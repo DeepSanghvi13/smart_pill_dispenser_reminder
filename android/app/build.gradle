@@ -34,6 +34,18 @@ android {
             signingConfig signingConfigs.debug
         }
     }
+
+    // Disable stripping of debug symbols for all build types
+    packaging {
+        resources {
+            pickFirsts += [
+                'lib/x86/libc++_shared.so',
+                'lib/x86_64/libc++_shared.so',
+                'lib/armeabi-v7a/libc++_shared.so',
+                'lib/arm64-v8a/libc++_shared.so'
+            ]
+        }
+    }
 }
 
 dependencies {

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'dart:io' show Platform;
 import 'services/notification_service.dart';
 import 'services/database_service.dart';
 import 'theme/theme_controller.dart';
@@ -6,6 +8,12 @@ import 'screens/home/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize sqflite_common_ffi for desktop platforms
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
 
   // Initialize database first (data persistence)
   await DatabaseService().database;

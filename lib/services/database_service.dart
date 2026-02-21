@@ -1,6 +1,8 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
 import '../models/medicine.dart';
+import '../models/caretaker.dart';
+import '../models/missed_medicine_alert.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -87,6 +89,39 @@ class DatabaseService {
         scheduledTime TEXT NOT NULL,
         sentTime TEXT,
         taken INTEGER DEFAULT 0,
+        FOREIGN KEY (medicineId) REFERENCES medicines(id)
+      )
+    ''');
+
+    // Caretakers table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS caretakers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firstName TEXT NOT NULL,
+        lastName TEXT NOT NULL,
+        phoneNumber TEXT NOT NULL,
+        email TEXT NOT NULL,
+        relationship TEXT NOT NULL,
+        notifyViaSMS INTEGER DEFAULT 1,
+        notifyViaEmail INTEGER DEFAULT 1,
+        notifyViaNotification INTEGER DEFAULT 1,
+        isActive INTEGER DEFAULT 1,
+        createdAt TEXT NOT NULL
+      )
+    ''');
+
+    // Missed medicine alerts
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS missed_medicine_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        medicineId INTEGER NOT NULL,
+        medicineName TEXT NOT NULL,
+        scheduledTime TEXT NOT NULL,
+        detectedTime TEXT NOT NULL,
+        notificationSent INTEGER DEFAULT 0,
+        caretakersNotified INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'pending',
+        notes TEXT,
         FOREIGN KEY (medicineId) REFERENCES medicines(id)
       )
     ''');
@@ -301,6 +336,107 @@ class DatabaseService {
       whereArgs: [id],
     );
   }
+
+  // ============= CARETAKER OPERATIONS =============
+
+  /// Add caretaker
+  Future<int> addCaretaker(Caretaker caretaker) async {
+    final db = await database;
+    return await db.insert('caretakers', {
+      'firstName': caretaker.firstName,
+      'lastName': caretaker.lastName,
+      'phoneNumber': caretaker.phoneNumber,
+      'email': caretaker.email,
+      'relationship': caretaker.relationship,
+      'notifyViaSMS': caretaker.notifyViaSMS ? 1 : 0,
+      'notifyViaEmail': caretaker.notifyViaEmail ? 1 : 0,
+      'notifyViaNotification': caretaker.notifyViaNotification ? 1 : 0,
+      'isActive': caretaker.isActive ? 1 : 0,
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Get all caretakers
+  Future<List<Caretaker>> getAllCaretakers() async {
+    final db = await database;
+    final result = await db.query('caretakers', orderBy: 'createdAt DESC');
+    return result.map((m) => Caretaker.fromMap(m)).toList();
+  }
+
+  /// Get active caretakers
+  Future<List<Caretaker>> getActiveCaretakers() async {
+    final db = await database;
+    final result = await db.query('caretakers', where: 'isActive = ?', whereArgs: [1]);
+    return result.map((m) => Caretaker.fromMap(m)).toList();
+  }
+
+  /// Update caretaker
+  Future<int> updateCaretaker(int id, Caretaker caretaker) async {
+    final db = await database;
+    return await db.update('caretakers', {
+      'firstName': caretaker.firstName,
+      'lastName': caretaker.lastName,
+      'phoneNumber': caretaker.phoneNumber,
+      'email': caretaker.email,
+      'relationship': caretaker.relationship,
+      'notifyViaSMS': caretaker.notifyViaSMS ? 1 : 0,
+      'notifyViaEmail': caretaker.notifyViaEmail ? 1 : 0,
+      'notifyViaNotification': caretaker.notifyViaNotification ? 1 : 0,
+      'isActive': caretaker.isActive ? 1 : 0,
+    }, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Delete caretaker
+  Future<int> deleteCaretaker(int id) async {
+    final db = await database;
+    return await db.delete('caretakers', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Toggle caretaker status
+  Future<int> toggleCaretakerStatus(int id, bool isActive) async {
+    final db = await database;
+    return await db.update('caretakers', {'isActive': isActive ? 1 : 0}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ============= MISSED MEDICINE ALERTS =============
+
+  /// Log missed medicine alert
+  Future<int> logMissedAlert(MissedMedicineAlert alert) async {
+    final db = await database;
+    return await db.insert('missed_medicine_alerts', {
+      'medicineId': alert.medicineId,
+      'medicineName': alert.medicineName,
+      'scheduledTime': alert.scheduledTime.toIso8601String(),
+      'detectedTime': alert.detectedTime.toIso8601String(),
+      'notificationSent': alert.notificationSent ? 1 : 0,
+      'caretakersNotified': alert.caretakersNotified,
+      'status': alert.status,
+      'notes': alert.notes,
+    });
+  }
+
+  /// Get all missed alerts
+  Future<List<MissedMedicineAlert>> getMissedAlerts() async {
+    final db = await database;
+    final result = await db.query('missed_medicine_alerts', orderBy: 'detectedTime DESC');
+    return result.map((m) => MissedMedicineAlert.fromMap(m)).toList();
+  }
+
+  /// Get pending alerts
+  Future<List<MissedMedicineAlert>> getPendingAlerts() async {
+    final db = await database;
+    final result = await db.query('missed_medicine_alerts', where: 'status = ?', whereArgs: ['pending']);
+    return result.map((m) => MissedMedicineAlert.fromMap(m)).toList();
+  }
+
+  /// Update alert status
+  Future<int> updateAlertStatus(int id, String status, int count) async {
+    final db = await database;
+    return await db.update('missed_medicine_alerts',
+      {'status': status, 'notificationSent': 1, 'caretakersNotified': count},
+      where: 'id = ?', whereArgs: [id]);
+  }
+
 
   // ============= DATABASE CLEANUP =============
 

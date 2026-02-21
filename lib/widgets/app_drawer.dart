@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/dependents/add_dependent_screen.dart';
 import '../screens/medfriends/invite_medfriend_screen.dart';
+import '../screens/medfriends/caretaker_management_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/profile/create_profile_screen.dart';
 
@@ -59,19 +60,37 @@ class AppDrawer extends StatelessWidget {
               },
             ),
 
-    ListTile(
-    leading: const Icon(Icons.login),
-    title: const Text('Login'),
-    onTap: () {
-    Navigator.pop(context);
-    Navigator.push(
-    context,
-    MaterialPageRoute(
-    builder: (_) => const LoginScreen(),
-    ),
-    );
-    },
-    ),
+            // Caretaker Management
+            ListTile(
+              leading: const Icon(Icons.supervised_user_circle),
+              title: const Text('👨‍⚕️ Caretaker Mode'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CaretakerManagementScreen(),
+                  ),
+                );
+              },
+            ),
+
+            const Divider(),
+
+            // Login
+            ListTile(
+              leading: const Icon(Icons.login),
+              title: const Text('Login'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const LoginScreen(),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),

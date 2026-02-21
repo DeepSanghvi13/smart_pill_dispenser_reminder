@@ -73,4 +73,28 @@ class NotificationService {
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
+
+  /// 👨‍⚕️ Caretaker alert for missed medicine
+  static Future<void> showCaretakerAlert({
+    required String name,
+    required String medicine,
+    required String relationship,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'caretaker_alerts',
+      'Caretaker Alerts',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      sound: RawResourceAndroidNotificationSound('alarm'),
+    );
+
+    await _notifications.show(
+      DateTime.now().millisecondsSinceEpoch,
+      '⚠️ Medicine Missed',
+      'Your ${relationship.toLowerCase()} missed: $medicine',
+      const NotificationDetails(android: androidDetails),
+    );
+  }
 }

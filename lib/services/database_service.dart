@@ -42,6 +42,7 @@ class DatabaseService {
         name TEXT NOT NULL,
         dosage TEXT NOT NULL,
         time TEXT NOT NULL,
+        category TEXT DEFAULT 'tablets',
         createdAt TEXT NOT NULL
       )
     ''');

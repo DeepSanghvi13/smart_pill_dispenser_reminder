@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -6,6 +7,9 @@ import 'package:timezone/timezone.dart' as tz;
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
+
+  // Vibration pattern for alarms
+  static final Int64List _vibrationPattern = Int64List.fromList([0, 500, 250, 500]);
 
   // Define the channel with default settings
   static const AndroidNotificationChannel _defaultChannel =
@@ -18,6 +22,17 @@ class NotificationService {
     enableVibration: true,
   );
 
+  // Alarm channel for high-priority alarms
+  static const AndroidNotificationChannel _alarmChannel =
+      AndroidNotificationChannel(
+    'alarm_channel', // id
+    'Alarm Notifications', // title
+    description: 'This channel is used for medication alarm notifications.',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
+  );
+
   static Future<void> init() async {
     tz.initializeTimeZones();
 
@@ -25,8 +40,9 @@ class NotificationService {
         _notifications.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
-    // Create the channel
+    // Create both notification channels
     await androidImplementation?.createNotificationChannel(_defaultChannel);
+    await androidImplementation?.createNotificationChannel(_alarmChannel);
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -50,14 +66,15 @@ class NotificationService {
   static Future<void> scheduleAlarmNotification({
     required DateTime dateTime,
   }) async {
-    // Use the default channel id as defined above
+    // Use the alarm channel id
     const androidDetails = AndroidNotificationDetails(
-      'default_channel',
-      'Default Notifications',
-      importance: Importance.high,
+      'alarm_channel',
+      'Alarm Notifications',
+      importance: Importance.max,
       priority: Priority.high,
       playSound: true,
       enableVibration: true,
+      fullScreenIntent: true,
       sound: RawResourceAndroidNotificationSound('alarm'),
     );
 
@@ -96,5 +113,41 @@ class NotificationService {
       'Your ${relationship.toLowerCase()} missed: $medicine',
       const NotificationDetails(android: androidDetails),
     );
+  }
+
+  /// Show immediate alarm notification for medication
+  static Future<void> showImmediateAlarm({
+    required String medicineName,
+    required String medicineDosage,
+  }) async {
+    final androidDetails = AndroidNotificationDetails(
+      'alarm_channel',
+      'Alarm Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      fullScreenIntent: true,
+      sound: RawResourceAndroidNotificationSound('alarm'),
+      vibrationPattern: _vibrationPattern,
+    );
+
+    await _notifications.show(
+      DateTime.now().millisecondsSinceEpoch,
+      'Medication Time: $medicineName',
+      'Take $medicineDosage now',
+      NotificationDetails(android: androidDetails),
+      payload: 'alarm:$medicineName:$medicineDosage',
+    );
+  }
+
+  /// Cancel all notifications
+  static Future<void> cancelAllNotifications() async {
+    await _notifications.cancelAll();
+  }
+
+  /// Cancel specific notification by ID
+  static Future<void> cancelNotification(int id) async {
+    await _notifications.cancel(id);
   }
 }

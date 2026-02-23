@@ -16,6 +16,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   late TextEditingController nameController;
   late TextEditingController dosageController;
   late TextEditingController timeController;
+  late MedicineCategory selectedCategory;
 
   @override
   void initState() {
@@ -27,6 +28,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         TextEditingController(text: widget.medicine?.dosage ?? '');
     timeController =
         TextEditingController(text: widget.medicine?.time ?? '');
+    selectedCategory = widget.medicine?.category ?? MedicineCategory.tablets;
   }
 
   Future<void> _pickTime() async {
@@ -82,6 +84,35 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 ),
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
+              const SizedBox(height: 16),
+
+              // Category Selector
+              DropdownButtonFormField<MedicineCategory>(
+                value: selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Medicine Category',
+                  border: OutlineInputBorder(),
+                ),
+                items: MedicineCategory.values.map((category) {
+                  return DropdownMenuItem(
+                    value: category,
+                    child: Row(
+                      children: [
+                        Text(category.emoji, style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 8),
+                        Text(category.label),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      selectedCategory = value;
+                    });
+                  }
+                },
+              ),
               const SizedBox(height: 30),
 
               SizedBox(
@@ -96,6 +127,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                           name: nameController.text,
                           dosage: dosageController.text,
                           time: timeController.text,
+                          category: selectedCategory,
                         ),
                       );
                     }

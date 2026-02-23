@@ -63,7 +63,7 @@ class AppDrawer extends StatelessWidget {
             // Caretaker Management
             ListTile(
               leading: const Icon(Icons.supervised_user_circle),
-              title: const Text('👨‍⚕️ Caretaker Mode'),
+              title: const Text('Caretaker Mode'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(

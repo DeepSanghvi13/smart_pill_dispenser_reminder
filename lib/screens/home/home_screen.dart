@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../models/medicine.dart';
 import '../../services/notification_service.dart';
 import '../../services/database_service.dart';
+import '../../services/alarm_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/bottom_nav.dart';
 
@@ -243,12 +245,37 @@ class HomeBody extends StatelessWidget {
 
         return Card(
           child: ListTile(
-            leading: const Icon(Icons.medication),
+            leading: Text(
+              med.category.emoji,
+              style: const TextStyle(fontSize: 28),
+            ),
             title: Text(med.name),
-            subtitle: Text('${med.dosage} • ${med.time}'),
+            subtitle: Text('${med.dosage} • ${med.time} • ${med.category.label}'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Test Alarm Button
+                IconButton(
+                  icon: const Icon(Icons.alarm, color: Colors.orange),
+                  tooltip: 'Test alarm',
+                  onPressed: () {
+                    final alarmService = Provider.of<AlarmService>(
+                      context,
+                      listen: false,
+                    );
+                    // Trigger alarm
+                    alarmService.triggerAlarm(
+                      medicineId: med.id?.toString() ?? '',
+                      medicineName: med.name,
+                      medicineDosage: med.dosage,
+                    );
+                    // Show notification
+                    NotificationService.showImmediateAlarm(
+                      medicineName: med.name,
+                      medicineDosage: med.dosage,
+                    );
+                  },
+                ),
                 IconButton(
                   icon: const Icon(Icons.edit, color: Colors.blue),
                   onPressed: () => onEdit(index),

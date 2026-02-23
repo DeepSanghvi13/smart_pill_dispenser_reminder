@@ -43,9 +43,12 @@ class MedicationsScreen extends StatelessWidget {
 
           return Card(
             child: ListTile(
-              leading: const Icon(Icons.medication),
+              leading: Text(
+                med.category.emoji,
+                style: const TextStyle(fontSize: 28),
+              ),
               title: Text(med.name),
-              subtitle: Text('${med.dosage} • ${med.time}'),
+              subtitle: Text('${med.dosage} • ${med.time} • ${med.category.label}'),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [

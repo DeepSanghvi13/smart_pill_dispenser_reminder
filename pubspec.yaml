@@ -17,6 +17,7 @@ dependencies:
   share_plus: ^10.0.2
   intl: ^0.18.1
   url_launcher: ^6.2.2
+  provider: ^6.0.0
 
   # ⭐ SQLite
   sqflite: ^2.3.0

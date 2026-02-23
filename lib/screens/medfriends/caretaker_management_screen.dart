@@ -41,7 +41,7 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('👨‍⚕️ Caretaker Mode'),
+        title: const Text('Caretaker Mode'),
         elevation: 0,
       ),
       body: isLoading

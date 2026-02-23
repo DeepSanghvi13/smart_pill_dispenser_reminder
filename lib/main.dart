@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:provider/provider.dart';
 import 'dart:io' show Platform;
 import 'services/notification_service.dart';
 import 'services/database_service.dart';
+import 'services/alarm_service.dart';
 import 'theme/theme_controller.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/alarm/alarm_display_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,12 +36,20 @@ class MyApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (context, themeMode, _) {
-        return MaterialApp(
-          theme: ThemeData.light(),
-          darkTheme: ThemeData.dark(),
-          themeMode: themeMode,
-          debugShowCheckedModeBanner: false,
-          home: const HomeScreen(),
+        return ChangeNotifierProvider(
+          create: (_) => AlarmService(),
+          child: MaterialApp(
+            theme: ThemeData.light(),
+            darkTheme: ThemeData.dark(),
+            themeMode: themeMode,
+            debugShowCheckedModeBanner: false,
+            home: Stack(
+              children: [
+                const HomeScreen(),
+                const AlarmDisplayScreen(),
+              ],
+            ),
+          ),
         );
       },
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
@@ -216,6 +217,20 @@ class _ReminderTroubleshootingScreenState
   /// Step 1: Open Autostart Settings
   Future<void> _openAutostartSettings() async {
     try {
+      // Handle web platform first
+      if (kIsWeb) {
+        _showManualInstructions(
+          'Step 1: Enable Autostart',
+          'Autostart settings are not applicable for web browsers.',
+          () {
+            setState(() {
+              _step1Completed = true;
+            });
+          }
+        );
+        return;
+      }
+
       if (Platform.isAndroid) {
         // Android intent for autostart settings
         const platform = MethodChannel('com.example.app/autostart');
@@ -223,6 +238,18 @@ class _ReminderTroubleshootingScreenState
       } else if (Platform.isIOS) {
         // iOS - Open Settings app
         await launchUrl(Uri.parse('app-settings:'));
+      } else {
+        // Other platforms - show info dialog
+        _showManualInstructions(
+          'Step 1: Enable Autostart',
+          'Autostart settings are not applicable on this platform.',
+          () {
+            setState(() {
+              _step1Completed = true;
+            });
+          }
+        );
+        return;
       }
 
       // Mark step as completed
@@ -238,7 +265,7 @@ class _ReminderTroubleshootingScreenState
       // Fallback: Show manual instructions
       _showManualInstructions(
         'Step 1: Enable Autostart',
-        Platform.isAndroid
+        !kIsWeb && Platform.isAndroid
           ? '1. Go to Settings → Apps → Medisafe\n'
             '2. Tap "Permissions"\n'
             '3. Enable "Autostart" or "Run at startup"\n'
@@ -258,6 +285,20 @@ class _ReminderTroubleshootingScreenState
   /// Step 2: Open Notification Sound Settings
   Future<void> _openNotificationSettings() async {
     try {
+      // Handle web platform first
+      if (kIsWeb) {
+        _showManualInstructions(
+          'Step 2: Enable Notification Sound',
+          'Browser notifications work differently. Please enable notifications in your browser settings.',
+          () {
+            setState(() {
+              _step2Completed = true;
+            });
+          }
+        );
+        return;
+      }
+
       if (Platform.isAndroid) {
         // Android intent for notification settings
         const platform = MethodChannel('com.example.app/notifications');
@@ -265,6 +306,18 @@ class _ReminderTroubleshootingScreenState
       } else if (Platform.isIOS) {
         // iOS - Open Settings
         await launchUrl(Uri.parse('app-settings:'));
+      } else {
+        // Other platforms - show info dialog
+        _showManualInstructions(
+          'Step 2: Enable Notification Sound',
+          'Please enable notifications in your platform settings.',
+          () {
+            setState(() {
+              _step2Completed = true;
+            });
+          }
+        );
+        return;
       }
 
       _showCompletionDialog('Notification Sound',
@@ -308,6 +361,18 @@ class _ReminderTroubleshootingScreenState
       } else if (Platform.isIOS) {
         // iOS - Open Settings
         await launchUrl(Uri.parse('app-settings:'));
+      } else {
+        // Web and other platforms - show info dialog
+        _showManualInstructions(
+          'Step 3: Adjust Battery Settings',
+          'Battery settings are not applicable for web browsers.',
+          () {
+            setState(() {
+              _step3Completed = true;
+            });
+          }
+        );
+        return;
       }
 
       _showCompletionDialog('Battery Settings',
@@ -330,8 +395,10 @@ class _ReminderTroubleshootingScreenState
             '5. Set "Battery Optimization" to "Not Optimized"\n'
             '6. Return to confirm'
           : '1. Go to Settings → Battery\n'
-            '2. Enable "Low Power Mode" if needed (but ensure notifications work)\n'
-            '3. Return to confirm',
+            '2. Disable "Low Power Mode"\n'
+            '3. Go to Settings → General → Background App Refresh\n'
+            '4. Make sure Medisafe can run in background\n'
+            '5. Return to confirm',
         () {
           setState(() {
             _step3Completed = true;

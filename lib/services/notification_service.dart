@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -36,6 +37,16 @@ class NotificationService {
   static Future<void> init() async {
     tz.initializeTimeZones();
 
+    // Skip notification initialization on web platform
+    if (kIsWeb) {
+      return;
+    }
+
+    // Skip if not Android
+    if (!Platform.isAndroid) {
+      return;
+    }
+
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
         _notifications.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -54,18 +65,36 @@ class NotificationService {
   }
 
   static Future<void> requestPermissions() async {
-    if (Platform.isAndroid) {
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          _notifications.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      await androidImplementation?.requestNotificationsPermission();
+    // Skip on web platform
+    if (kIsWeb) {
+      return;
     }
+
+    // Only request permissions on Android
+    if (!Platform.isAndroid) {
+      return;
+    }
+
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidImplementation?.requestNotificationsPermission();
   }
 
   /// 🔔 Default Notification Reminder
   static Future<void> scheduleAlarmNotification({
     required DateTime dateTime,
   }) async {
+    // Skip notification scheduling on web platform
+    if (kIsWeb) {
+      return;
+    }
+
+    // Skip if not Android
+    if (!Platform.isAndroid) {
+      return;
+    }
+
     // Use the alarm channel id
     const androidDetails = AndroidNotificationDetails(
       'alarm_channel',
@@ -97,6 +126,16 @@ class NotificationService {
     required String medicine,
     required String relationship,
   }) async {
+    // Skip notification on web platform
+    if (kIsWeb) {
+      return;
+    }
+
+    // Skip if not Android
+    if (!Platform.isAndroid) {
+      return;
+    }
+
     const androidDetails = AndroidNotificationDetails(
       'caretaker_alerts',
       'Caretaker Alerts',
@@ -120,6 +159,16 @@ class NotificationService {
     required String medicineName,
     required String medicineDosage,
   }) async {
+    // Skip notification on web platform
+    if (kIsWeb) {
+      return;
+    }
+
+    // Skip if not Android
+    if (!Platform.isAndroid) {
+      return;
+    }
+
     final androidDetails = AndroidNotificationDetails(
       'alarm_channel',
       'Alarm Notifications',

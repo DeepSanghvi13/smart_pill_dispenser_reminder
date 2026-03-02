@@ -10,8 +10,17 @@ import 'theme/theme_controller.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/alarm/alarm_display_screen.dart';
 
+// For desktop (Windows, Linux, macOS) support with sqflite
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize sqflite for desktop platforms (Windows, Linux, macOS)
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
 
   // Initialize Hive for web and cross-platform storage
   try {

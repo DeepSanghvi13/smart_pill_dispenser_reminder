@@ -5,6 +5,9 @@ import 'package:hive/hive.dart';
 import '../models/medicine.dart';
 import '../models/caretaker.dart';
 import '../models/missed_medicine_alert.dart';
+import '../models/reminder.dart';
+import '../models/alarm_log.dart';
+import '../models/user_profile.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -170,6 +173,37 @@ class DatabaseService {
         notificationSent INTEGER DEFAULT 0,
         caretakersNotified INTEGER DEFAULT 0,
         status TEXT DEFAULT 'pending',
+        notes TEXT,
+        FOREIGN KEY (medicineId) REFERENCES medicines(id)
+      )
+    ''');
+
+    // Reminders table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS reminders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        medicineId INTEGER NOT NULL,
+        medicineName TEXT NOT NULL,
+        time TEXT NOT NULL,
+        daysOfWeek TEXT NOT NULL,
+        isActive INTEGER DEFAULT 1,
+        lastNotifiedAt TEXT,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (medicineId) REFERENCES medicines(id)
+      )
+    ''');
+
+    // Alarm logs table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS alarm_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        medicineId INTEGER NOT NULL,
+        medicineName TEXT NOT NULL,
+        scheduledTime TEXT NOT NULL,
+        triggeredTime TEXT,
+        status TEXT DEFAULT 'pending',
+        snoozeCount INTEGER DEFAULT 0,
+        takenAt TEXT,
         notes TEXT,
         FOREIGN KEY (medicineId) REFERENCES medicines(id)
       )
@@ -392,39 +426,6 @@ class DatabaseService {
     return await db.query('notification_history', orderBy: 'scheduledTime DESC');
   }
 
-  // ============= USER PROFILE OPERATIONS =============
-
-  /// Save user profile
-  Future<void> saveUserProfile({
-    required String firstName,
-    required String lastName,
-    String? gender,
-    String? birthDate,
-    String? zipCode,
-  }) async {
-    final db = await database;
-    await db.insert(
-      'user_profiles',
-      {
-        'firstName': firstName,
-        'lastName': lastName,
-        'gender': gender,
-        'birthDate': birthDate,
-        'zipCode': zipCode,
-        'createdAt': DateTime.now().toIso8601String(),
-      },
-    );
-  }
-
-  /// Get user profile
-  Future<Map<String, dynamic>?> getUserProfile() async {
-    final db = await database;
-    final result = await db.query('user_profiles', limit: 1);
-    if (result.isNotEmpty) {
-      return result.first;
-    }
-    return null;
-  }
 
   // ============= DEPENDENTS OPERATIONS =============
 
@@ -566,8 +567,223 @@ class DatabaseService {
       where: 'id = ?', whereArgs: [id]);
   }
 
+  // ============= REMINDER OPERATIONS =============
 
-  // ============= DATABASE CLEANUP =============
+  /// Add a reminder
+  Future<int> addReminder(Reminder reminder) async {
+    final db = await database;
+    return await db.insert('reminders', {
+      'medicineId': reminder.medicineId,
+      'medicineName': reminder.medicineName,
+      'time': reminder.time,
+      'daysOfWeek': reminder.daysOfWeek.join(','),
+      'isActive': reminder.isActive ? 1 : 0,
+      'lastNotifiedAt': reminder.lastNotifiedAt?.toIso8601String(),
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Get all reminders
+  Future<List<Reminder>> getAllReminders() async {
+    final db = await database;
+    final result = await db.query('reminders', orderBy: 'time ASC');
+    return result.map((m) => Reminder.fromMap(m)).toList();
+  }
+
+  /// Get active reminders
+  Future<List<Reminder>> getActiveReminders() async {
+    final db = await database;
+    final result = await db.query('reminders', where: 'isActive = ?', whereArgs: [1]);
+    return result.map((m) => Reminder.fromMap(m)).toList();
+  }
+
+  /// Get reminders by medicine ID
+  Future<List<Reminder>> getRemindersByMedicineId(int medicineId) async {
+    final db = await database;
+    final result = await db.query('reminders',
+      where: 'medicineId = ?',
+      whereArgs: [medicineId]
+    );
+    return result.map((m) => Reminder.fromMap(m)).toList();
+  }
+
+  /// Update reminder
+  Future<int> updateReminder(int id, Reminder reminder) async {
+    final db = await database;
+    return await db.update('reminders', {
+      'medicineName': reminder.medicineName,
+      'time': reminder.time,
+      'daysOfWeek': reminder.daysOfWeek.join(','),
+      'isActive': reminder.isActive ? 1 : 0,
+      'lastNotifiedAt': reminder.lastNotifiedAt?.toIso8601String(),
+    }, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Delete reminder
+  Future<int> deleteReminder(int id) async {
+    final db = await database;
+    return await db.delete('reminders', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Toggle reminder status
+  Future<int> toggleReminderStatus(int id, bool isActive) async {
+    final db = await database;
+    return await db.update('reminders',
+      {'isActive': isActive ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id]
+    );
+  }
+
+  // ============= ALARM LOG OPERATIONS =============
+
+  /// Log alarm
+  Future<int> logAlarm(AlarmLog log) async {
+    final db = await database;
+    return await db.insert('alarm_logs', {
+      'medicineId': log.medicineId,
+      'medicineName': log.medicineName,
+      'scheduledTime': log.scheduledTime.toIso8601String(),
+      'triggeredTime': log.triggeredTime?.toIso8601String(),
+      'status': log.status,
+      'snoozeCount': log.snoozeCount,
+      'takenAt': log.takenAt?.toIso8601String(),
+      'notes': log.notes,
+    });
+  }
+
+  /// Get all alarm logs
+  Future<List<AlarmLog>> getAllAlarmLogs() async {
+    final db = await database;
+    final result = await db.query('alarm_logs', orderBy: 'scheduledTime DESC');
+    return result.map((m) => AlarmLog.fromMap(m)).toList();
+  }
+
+  /// Get alarm logs by medicine ID
+  Future<List<AlarmLog>> getAlarmLogsByMedicineId(int medicineId) async {
+    final db = await database;
+    final result = await db.query('alarm_logs',
+      where: 'medicineId = ?',
+      whereArgs: [medicineId],
+      orderBy: 'scheduledTime DESC'
+    );
+    return result.map((m) => AlarmLog.fromMap(m)).toList();
+  }
+
+  /// Get today's alarm logs
+  Future<List<AlarmLog>> getTodayAlarmLogs() async {
+    final db = await database;
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+
+    final result = await db.query('alarm_logs',
+      where: 'scheduledTime >= ? AND scheduledTime < ?',
+      whereArgs: [todayStart.toIso8601String(), todayEnd.toIso8601String()],
+      orderBy: 'scheduledTime ASC'
+    );
+    return result.map((m) => AlarmLog.fromMap(m)).toList();
+  }
+
+  /// Update alarm log status
+  Future<int> updateAlarmLogStatus(int id, String status, {int? snoozeCount, DateTime? takenAt}) async {
+    final db = await database;
+    final updates = {
+      'status': status,
+      if (snoozeCount != null) 'snoozeCount': snoozeCount,
+      if (takenAt != null) 'takenAt': takenAt.toIso8601String(),
+    };
+    return await db.update('alarm_logs', updates, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Increment snooze count
+  Future<int> incrementSnoozeCount(int id) async {
+    final db = await database;
+    final log = await db.query('alarm_logs', where: 'id = ?', whereArgs: [id]);
+    if (log.isNotEmpty) {
+      final currentSnooze = (log.first['snoozeCount'] as int?) ?? 0;
+      return await db.update(
+        'alarm_logs',
+        {'snoozeCount': currentSnooze + 1},
+        where: 'id = ?',
+        whereArgs: [id]
+      );
+    }
+    return 0;
+  }
+
+  /// Mark alarm as taken
+  Future<int> markAlarmAsTaken(int id) async {
+    final db = await database;
+    return await db.update(
+      'alarm_logs',
+      {'status': 'taken', 'takenAt': DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [id]
+    );
+  }
+
+  /// Mark alarm as missed
+  Future<int> markAlarmAsMissed(int id) async {
+    final db = await database;
+    return await db.update(
+      'alarm_logs',
+      {'status': 'missed'},
+      where: 'id = ?',
+      whereArgs: [id]
+    );
+  }
+
+  /// Get missed alarms for today
+  Future<List<AlarmLog>> getTodayMissedAlarms() async {
+    final db = await database;
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+
+    final result = await db.query('alarm_logs',
+      where: 'status = ? AND scheduledTime >= ? AND scheduledTime < ?',
+      whereArgs: ['missed', todayStart.toIso8601String(), todayEnd.toIso8601String()],
+      orderBy: 'scheduledTime DESC'
+    );
+    return result.map((m) => AlarmLog.fromMap(m)).toList();
+  }
+
+  // ============= USER PROFILE OPERATIONS =============
+
+  /// Save or update user profile
+  Future<int> saveUserProfile(UserProfile profile) async {
+    final db = await database;
+    final existing = await db.query('user_profiles', limit: 1);
+
+    final data = {
+      'firstName': profile.firstName,
+      'lastName': profile.lastName,
+      'gender': profile.gender,
+      'birthDate': profile.birthDate,
+      'zipCode': profile.zipCode,
+      'phoneNumber': profile.phoneNumber,
+      'email': profile.email,
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+
+    if (existing.isEmpty) {
+      data['createdAt'] = DateTime.now().toIso8601String();
+      return await db.insert('user_profiles', data);
+    } else {
+      return await db.update('user_profiles', data);
+    }
+  }
+
+  /// Get user profile
+  Future<UserProfile?> getUserProfileData() async {
+    final db = await database;
+    final result = await db.query('user_profiles', limit: 1);
+    if (result.isNotEmpty) {
+      return UserProfile.fromMap(result.first);
+    }
+    return null;
+  }
 
   /// Clear all data (use with caution!)
   Future<void> clearAllData() async {

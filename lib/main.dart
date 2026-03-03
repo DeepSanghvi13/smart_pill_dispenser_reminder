@@ -6,9 +6,11 @@ import 'dart:io' show Platform;
 import 'services/notification_service.dart';
 import 'services/database_service.dart';
 import 'services/alarm_service.dart';
+import 'services/auth_service.dart';
 import 'theme/theme_controller.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/alarm/alarm_display_screen.dart';
+import 'screens/auth/login_screen.dart';
 
 // For desktop (Windows, Linux, macOS) support with sqflite
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -65,18 +67,30 @@ class MyApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (context, themeMode, _) {
-        return ChangeNotifierProvider(
-          create: (_) => AlarmService(),
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => AlarmService()),
+            ChangeNotifierProvider(create: (_) => AuthService()),
+          ],
           child: MaterialApp(
             theme: ThemeData.light(),
             darkTheme: ThemeData.dark(),
             themeMode: themeMode,
             debugShowCheckedModeBanner: false,
-            home: Stack(
-              children: [
-                const HomeScreen(),
-                const AlarmDisplayScreen(),
-              ],
+            home: Consumer<AuthService>(
+              builder: (context, authService, _) {
+                // If user is logged in, show home + alarm screens
+                if (authService.isLoggedIn) {
+                  return Stack(
+                    children: [
+                      const HomeScreen(),
+                      const AlarmDisplayScreen(),
+                    ],
+                  );
+                }
+                // Otherwise show login screen
+                return const LoginScreen();
+              },
             ),
           ),
         );

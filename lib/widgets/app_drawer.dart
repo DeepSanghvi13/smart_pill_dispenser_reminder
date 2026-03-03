@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:smart_pill_reminder/services/auth_service.dart';
 import '../screens/dependents/add_dependent_screen.dart';
 import '../screens/medfriends/invite_medfriend_screen.dart';
 import '../screens/medfriends/caretaker_management_screen.dart';
-import '../screens/auth/login_screen.dart';
 import '../screens/profile/create_profile_screen.dart';
 
 
@@ -77,18 +77,13 @@ class AppDrawer extends StatelessWidget {
 
             const Divider(),
 
-            // Login
+            // Logout
             ListTile(
-              leading: const Icon(Icons.login),
-              title: const Text('Login'),
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
               onTap: () {
+                authService.logout();
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const LoginScreen(),
-                  ),
-                );
               },
             ),
           ],
@@ -97,3 +92,5 @@ class AppDrawer extends StatelessWidget {
     );
   }
 }
+
+

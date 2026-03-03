@@ -1,9 +1,9 @@
-import 'models/medicine.dart';
-import 'models/reminder.dart';
-import 'models/alarm_log.dart';
-import 'models/user_profile.dart';
-import 'models/caretaker.dart';
-import 'services/medicine_repository.dart';
+import '../models/medicine.dart';
+import '../models/reminder.dart';
+import '../models/alarm_log.dart';
+import '../models/user_profile.dart';
+import '../models/caretaker.dart';
+import '../services/medicine_repository.dart';
 
 /// Helper class for database operations and testing
 class DatabaseHelper {
@@ -243,7 +243,7 @@ class DatabaseHelper {
     } else {
       print('  No profile found');
     }
-    print();
+    print('');
   }
 
   /// Print all caretakers
@@ -284,7 +284,7 @@ class DatabaseHelper {
     final profile = await _repo.getUserProfile();
     print('User Profile: ${profile != null ? 'Yes' : 'No'}');
 
-    print();
+    print('');
   }
 
   /// Full database dump
@@ -380,4 +380,3 @@ class DatabaseHelper {
     }
   }
 }
-

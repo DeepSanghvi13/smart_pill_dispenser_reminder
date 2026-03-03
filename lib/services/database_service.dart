@@ -13,11 +13,6 @@ class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   static Database? _database;
   static Box<dynamic>? _medicinesBox;
-  static Box<dynamic>? _userBox;
-  static Box<dynamic>? _dependentsBox;
-  static Box<dynamic>? _caretakersBox;
-  static Box<dynamic>? _remindersBox;
-  static Box<dynamic>? _settingsBox;
   static int _medicineIdCounter = 0;
 
   factory DatabaseService() {
@@ -31,11 +26,6 @@ class DatabaseService {
     if (kIsWeb) {
       try {
         _medicinesBox = await Hive.openBox('medicines');
-        _userBox = await Hive.openBox('user_profile');
-        _dependentsBox = await Hive.openBox('dependents');
-        _caretakersBox = await Hive.openBox('caretakers');
-        _remindersBox = await Hive.openBox('reminders');
-        _settingsBox = await Hive.openBox('settings');
 
         // Initialize counter if not exists
         if (!_medicinesBox!.containsKey('_idCounter')) {
@@ -206,6 +196,17 @@ class DatabaseService {
         takenAt TEXT,
         notes TEXT,
         FOREIGN KEY (medicineId) REFERENCES medicines(id)
+      )
+    ''');
+
+    // Users table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       )
     ''');
   }
@@ -783,6 +784,49 @@ class DatabaseService {
       return UserProfile.fromMap(result.first);
     }
     return null;
+  }
+
+  /// Register a new user
+  Future<int> registerUser(String email, String password) async {
+    final db = await database;
+    return await db.insert('users', {
+      'email': email,
+      'password_hash': password, // In real app, hash this
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Get all registered users as email -> password map
+  Future<Map<String, String>> getRegisteredUsers() async {
+    final db = await database;
+    final result = await db.query('users');
+    final users = <String, String>{};
+    for (final row in result) {
+      users[row['email'] as String] = row['password_hash'] as String;
+    }
+    return users;
+  }
+
+  /// Get all users
+  Future<List<Map<String, dynamic>>> getAllUsers() async {
+    final db = await database;
+    return await db.query('users');
+  }
+
+  /// Update user
+  Future<int> updateUser(int id, {String? email, String? passwordHash}) async {
+    final db = await database;
+    final updates = <String, dynamic>{'updated_at': DateTime.now().toIso8601String()};
+    if (email != null) updates['email'] = email;
+    if (passwordHash != null) updates['password_hash'] = passwordHash;
+    return await db.update('users', updates, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Delete user
+  Future<int> deleteUser(int id) async {
+    final db = await database;
+    return await db.delete('users', where: 'id = ?', whereArgs: [id]);
   }
 
   /// Clear all data (use with caution!)

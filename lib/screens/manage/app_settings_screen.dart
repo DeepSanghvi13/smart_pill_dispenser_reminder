@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../auth/login_screen.dart';
 import 'create_profile_screen.dart';
 import 'delete_account_reason_screen.dart';
-import 'delete_account_confirm_screen.dart';
 import 'general_settings_screen.dart';
 import 'share_app_screen.dart';
 import 'rate_medisafe_screen.dart';

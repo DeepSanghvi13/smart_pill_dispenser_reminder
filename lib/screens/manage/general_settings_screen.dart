@@ -6,12 +6,6 @@ import 'evening_reminder_screen.dart';
 import 'weekly_summary_screen.dart';
 import 'weekend_mode_screen.dart';
 
-enum ThemeModeOption {
-  system,
-  light,
-  dark,
-}
-
 class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({super.key});
 
@@ -20,9 +14,7 @@ class GeneralSettingsScreen extends StatefulWidget {
       _GeneralSettingsScreenState();
 }
 
-class _GeneralSettingsScreenState
-    extends State<GeneralSettingsScreen> {
-  ThemeModeOption _themeMode = ThemeModeOption.system;
+class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
 
   bool sound = true;
   bool vibrate = true;
@@ -36,6 +28,7 @@ class _GeneralSettingsScreenState
       ),
       body: ListView(
         children: [
+
           _sectionTitle('Reminders'),
 
           ListTile(
@@ -57,8 +50,7 @@ class _GeneralSettingsScreenState
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                  const MorningReminderScreen(),
+                  builder: (_) => const MorningReminderScreen(),
                 ),
               );
             },
@@ -74,8 +66,7 @@ class _GeneralSettingsScreenState
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                  const EveningReminderScreen(),
+                  builder: (_) => const EveningReminderScreen(),
                 ),
               );
             },
@@ -91,8 +82,7 @@ class _GeneralSettingsScreenState
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                  const WeeklySummaryScreen(),
+                  builder: (_) => const WeeklySummaryScreen(),
                 ),
               );
             },
@@ -108,8 +98,7 @@ class _GeneralSettingsScreenState
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                  const WeekendModeScreen(),
+                  builder: (_) => const WeekendModeScreen(),
                 ),
               );
             },
@@ -161,6 +150,7 @@ class _GeneralSettingsScreenState
   }
 
   // ===== DARK MODE DIALOG =====
+
   void _showDarkModeDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -170,15 +160,17 @@ class _GeneralSettingsScreenState
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+
               RadioListTile<ThemeMode>(
                 title: const Text('Follow system'),
-                value: ThemeMode.light,
+                value: ThemeMode.system,
                 groupValue: themeNotifier.value,
                 onChanged: (value) {
                   themeNotifier.value = value!;
                   Navigator.pop(context);
                 },
               ),
+
               RadioListTile<ThemeMode>(
                 title: const Text('Light'),
                 value: ThemeMode.light,
@@ -188,6 +180,7 @@ class _GeneralSettingsScreenState
                   Navigator.pop(context);
                 },
               ),
+
               RadioListTile<ThemeMode>(
                 title: const Text('Dark'),
                 value: ThemeMode.dark,
@@ -197,6 +190,7 @@ class _GeneralSettingsScreenState
                   Navigator.pop(context);
                 },
               ),
+
             ],
           ),
           actions: [
@@ -210,8 +204,8 @@ class _GeneralSettingsScreenState
     );
   }
 
-
   // ===== SECTION TITLE =====
+
   Widget _sectionTitle(String text) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),

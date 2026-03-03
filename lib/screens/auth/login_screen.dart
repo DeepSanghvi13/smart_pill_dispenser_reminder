@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:smart_pill_reminder/services/auth_service.dart';
 import 'package:smart_pill_reminder/screens/admin/admin_webpage_screen.dart';
+import 'package:smart_pill_reminder/screens/auth/register_screen.dart';
+import 'package:smart_pill_reminder/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController passwordController = TextEditingController();
 
   bool hidePassword = true;
+  bool _isGoogleLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -131,18 +133,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               );
                             } else {
-                              // Regular user login
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              final messenger = ScaffoldMessenger.of(context);
+                              messenger.showSnackBar(
                                 const SnackBar(
                                   content: Text('Login successful!'),
+                                  duration: Duration(milliseconds: 900),
                                 ),
                               );
+                              await Future.delayed(const Duration(milliseconds: 950));
+                              if (!context.mounted) return;
+                              Navigator.pop(context, true);
                             }
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Invalid email or password'),
+                                content: Text(
+                                  'Invalid credentials. Register first, then login.',
+                                ),
                               ),
                             );
                           }
@@ -157,17 +164,79 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
+
+                    const SizedBox(height: 16),
+
+                    // Navigate to Register page
+                    TextButton(
+                      onPressed: () async {
+                        final registeredEmail = await Navigator.push<String>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterScreen(),
+                          ),
+                        );
+
+                        if (!context.mounted) return;
+                        if (registeredEmail != null && registeredEmail.isNotEmpty) {
+                          setState(() {
+                            emailController.text = registeredEmail;
+                            passwordController.clear();
+                          });
+                        }
+                      },
+                      child: const Text('New user? Create an account'),
+                    ),
                   ],
                 ),
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 8),
 
-            // Google info text
-            const Text(
-              'Previously logged in with Google+?',
-              style: TextStyle(color: Colors.blue),
+            // Google sign-in action
+            TextButton.icon(
+              onPressed: _isGoogleLoading
+                  ? null
+                  : () async {
+                      setState(() => _isGoogleLoading = true);
+
+                      final success = await authService.loginWithGoogle();
+
+                      if (!context.mounted) return;
+
+                      setState(() => _isGoogleLoading = false);
+
+                      if (success) {
+                        final messenger = ScaffoldMessenger.of(context);
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Google login successful!'),
+                            duration: Duration(milliseconds: 900),
+                          ),
+                        );
+                        await Future.delayed(const Duration(milliseconds: 950));
+                        if (!context.mounted) return;
+                        Navigator.pop(context, true);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Google login failed. Try again.'),
+                          ),
+                        );
+                      }
+                    },
+              icon: _isGoogleLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.login, color: Colors.blue),
+              label: const Text(
+                'Previously logged in with Google+? Continue',
+                style: TextStyle(color: Colors.blue),
+              ),
             ),
           ],
         ),

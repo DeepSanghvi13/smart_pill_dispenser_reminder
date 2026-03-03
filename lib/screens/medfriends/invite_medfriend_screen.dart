@@ -124,7 +124,7 @@ class _InviteMedfriendScreenState extends State<InviteMedfriendScreen> {
               onChanged: (value) {
                 setState(() => shareMeds = value);
               },
-              activeColor: Theme.of(context).primaryColor,
+              activeThumbColor: Theme.of(context).primaryColor,
             ),
           ],
         ),

@@ -108,8 +108,6 @@ class SyncProvider extends ChangeNotifier {
 
       // Save to local database
       for (var medicine in medicines) {
-        // Step 1: Save to local database
-        await _dbService.addMedicine(medicine);
       }
 
       _isSyncing = false;

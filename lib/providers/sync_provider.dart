@@ -55,6 +55,7 @@ class SyncProvider extends ChangeNotifier {
         caretakers: caretakers,
         alarmLogs: alarmLogs,
         reminders: reminders,
+        userId: userId,
       );
 
       _isSyncing = false;
@@ -108,6 +109,16 @@ class SyncProvider extends ChangeNotifier {
 
       // Save to local database
       for (var medicine in medicines) {
+        if (medicine.id != null) {
+          final existing = await _dbService.getMedicineById(medicine.id!);
+          if (existing != null) {
+            await _dbService.updateMedicine(medicine.id!, medicine);
+          } else {
+            await _dbService.addMedicine(medicine);
+          }
+        } else {
+          await _dbService.addMedicine(medicine);
+        }
       }
 
       _isSyncing = false;

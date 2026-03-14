@@ -7,9 +7,11 @@ import 'services/notification_service.dart';
 import 'services/database_service.dart';
 import 'services/alarm_service.dart';
 import 'services/auth_service.dart';
+import 'providers/sync_provider.dart';
 import 'theme/theme_controller.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/alarm/alarm_display_screen.dart';
+import 'screens/admin/admin_webpage_screen.dart';
 import 'screens/auth/login_screen.dart';
 
 // For desktop (Windows, Linux, macOS) support with sqflite
@@ -56,6 +58,14 @@ Future<void> main() async {
     print('Notification service error (may be expected on web): $e');
   }
 
+  // Restore login session (so returning users are auto-logged in)
+  try {
+    await AuthService().loadSession();
+  } catch (e) {
+    // ignore: avoid_print
+    print('Session restore error: $e');
+  }
+
   runApp(const MyApp());
 }
 
@@ -71,6 +81,7 @@ class MyApp extends StatelessWidget {
           providers: [
             ChangeNotifierProvider(create: (_) => AlarmService()),
             ChangeNotifierProvider(create: (_) => AuthService()),
+            ChangeNotifierProvider(create: (_) => SyncProvider()..initialize()),
           ],
           child: MaterialApp(
             theme: ThemeData.light(),
@@ -79,7 +90,12 @@ class MyApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             home: Consumer<AuthService>(
               builder: (context, authService, _) {
-                // If user is logged in, show home + alarm screens
+                // If user is logged in as admin, show admin dashboard.
+                if (authService.isLoggedIn && authService.isAdmin) {
+                  return const AdminWebpageScreen();
+                }
+
+                // If regular user is logged in, show home + alarm screens.
                 if (authService.isLoggedIn) {
                   return Stack(
                     children: [

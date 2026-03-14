@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:smart_pill_reminder/screens/alarm/alarm_display_screen.dart';
 import 'package:smart_pill_reminder/screens/admin/admin_webpage_screen.dart';
 import 'package:smart_pill_reminder/screens/auth/register_screen.dart';
+import 'package:smart_pill_reminder/screens/home/home_screen.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String? prefilledEmail;
+  const LoginScreen({super.key, this.prefilledEmail});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -16,6 +20,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool hidePassword = true;
   bool _isGoogleLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.prefilledEmail != null && widget.prefilledEmail!.isNotEmpty) {
+      emailController.text = widget.prefilledEmail!;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         onPressed: () async {
+                          final auth = context.read<AuthService>();
                           final email = emailController.text.trim();
                           final password = passwordController.text.trim();
 
@@ -117,32 +130,42 @@ class _LoginScreenState extends State<LoginScreen> {
                           }
 
                           // Attempt login
-                          final success = await authService.login(email, password);
+                          final success = await auth.login(email, password);
 
                           if (!context.mounted) return;
 
                           if (success) {
-                            // Check if user is admin
-                            if (authService.isAdmin) {
-                              // Navigate to admin page
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const AdminWebpageScreen(),
+                            final messenger = ScaffoldMessenger.of(context);
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  auth.isAdmin
+                                      ? 'Admin login successful!'
+                                      : 'Login successful!',
                                 ),
+                                duration: const Duration(milliseconds: 900),
+                              ),
+                            );
+
+                            if (auth.isAdmin) {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (_) => const AdminWebpageScreen(),
+                                ),
+                                (route) => false,
                               );
                             } else {
-                              final messenger = ScaffoldMessenger.of(context);
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Login successful!'),
-                                  duration: Duration(milliseconds: 900),
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (_) => const Stack(
+                                    children: [
+                                      HomeScreen(),
+                                      AlarmDisplayScreen(),
+                                    ],
+                                  ),
                                 ),
+                                (route) => false,
                               );
-                              await Future.delayed(const Duration(milliseconds: 950));
-                              if (!context.mounted) return;
-                              Navigator.pop(context, true);
                             }
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -201,23 +224,30 @@ class _LoginScreenState extends State<LoginScreen> {
                   : () async {
                       setState(() => _isGoogleLoading = true);
 
-                      final success = await authService.loginWithGoogle();
+                      final success = await context.read<AuthService>().loginWithGoogle();
 
                       if (!context.mounted) return;
 
                       setState(() => _isGoogleLoading = false);
 
                       if (success) {
-                        final messenger = ScaffoldMessenger.of(context);
-                        messenger.showSnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Google login successful!'),
                             duration: Duration(milliseconds: 900),
                           ),
                         );
-                        await Future.delayed(const Duration(milliseconds: 950));
-                        if (!context.mounted) return;
-                        Navigator.pop(context, true);
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const Stack(
+                              children: [
+                                HomeScreen(),
+                                AlarmDisplayScreen(),
+                              ],
+                            ),
+                          ),
+                          (route) => false,
+                        );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(

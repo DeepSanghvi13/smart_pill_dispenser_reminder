@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:smart_pill_reminder/models/alarm_log.dart';
-import 'package:smart_pill_reminder/models/caretaker.dart';
 import 'package:smart_pill_reminder/models/medicine.dart';
 import 'package:smart_pill_reminder/models/reminder.dart';
-import 'package:smart_pill_reminder/models/user_profile.dart';
 import 'package:smart_pill_reminder/screens/auth/login_screen.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
 import 'package:smart_pill_reminder/services/database_service.dart';
@@ -29,8 +28,6 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
   List<Reminder> _reminders = <Reminder>[];
   List<AlarmLog> _todayAlarms = <AlarmLog>[];
   List<AlarmLog> _missedAlarms = <AlarmLog>[];
-  List<Caretaker> _caretakers = <Caretaker>[];
-  UserProfile? _userProfile;
   List<Map<String, dynamic>> _users = <Map<String, dynamic>>[];
 
   final List<_HelpArticle> _articles = <_HelpArticle>[];
@@ -104,8 +101,6 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       final reminders = await _dbService.getAllReminders();
       final todayAlarms = await _dbService.getTodayAlarmLogs();
       final missedAlarms = await _dbService.getTodayMissedAlarms();
-      final caretakers = await _dbService.getAllCaretakers();
-      final userProfile = await _dbService.getUserProfileData();
       final allSettings = await _dbService.getAllSettings();
       final users = await _dbService.getAllUsers();
 
@@ -114,8 +109,6 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
         _reminders = reminders;
         _todayAlarms = todayAlarms;
         _missedAlarms = missedAlarms;
-        _caretakers = caretakers;
-        _userProfile = userProfile;
         _users = users;
 
         _appSettings = {..._appSettings, ...allSettings};
@@ -138,8 +131,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
   }
 
   int get _appUsersCount {
-    final primary = _userProfile == null ? 0 : 1;
-    return primary + _caretakers.length + 1; // +1 admin
+    return _users.length + 1; // +1 admin account
   }
 
   int get _activeReminderCount => _reminders.where((r) => r.isActive).length;
@@ -171,10 +163,10 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
               IconButton(
                 icon: const Icon(Icons.logout),
                 onPressed: () {
-                  authService.logout();
-                  Navigator.pushReplacement(
-                    context,
+                  context.read<AuthService>().logout();
+                  Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
                   );
                 },
               ),
@@ -284,14 +276,43 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
   }
 
   Widget _buildUsers() {
+    final userRows = _users
+        .map(
+          (u) => DataRow(
+            cells: [
+              DataCell(Text('${u['id']}')),
+              const DataCell(Text('User')),
+              const DataCell(Text('-')),
+              DataCell(Text('${u['email'] ?? ''}')),
+              const DataCell(Text('-')),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      onPressed: () => _editUser(u),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => _deleteUser(u),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
+
     return _sectionWrapper(
       title: 'Users',
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _appUsersCount == 0
-              ? const Text('No users found.')
+          : _users.isEmpty
+              ? const Text('No registered users found.')
               : _panel(
-                  title: 'All Users ($_appUsersCount)',
+                  title: 'Registered Users (${_users.length})',
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
@@ -303,84 +324,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                         DataColumn(label: Text('Phone')),
                         DataColumn(label: Text('Actions')),
                       ],
-                      rows: [
-                        DataRow(
-                          cells: [
-                            DataCell(Text('1')),
-                            DataCell(Text('Admin')),
-                            DataCell(Text(_userProfile?.fullName ?? 'N/A')),
-                            DataCell(Text(_userProfile?.email ?? 'N/A')),
-                            DataCell(Text(_userProfile?.phoneNumber ?? 'N/A')),
-                            DataCell(
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.blue),
-                                    onPressed: () => _editUser(_userProfile!),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                    onPressed: () => _deleteUser(_userProfile!),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        ..._caretakers.map(
-                          (c) => DataRow(
-                            cells: [
-                              DataCell(Text('${c.id}')),
-                              DataCell(Text('Caretaker')),
-                              DataCell(Text(c.fullName)),
-                              DataCell(Text(c.email)),
-                              DataCell(Text(c.phoneNumber)),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit, color: Colors.blue),
-                                      onPressed: () => _editUser(c),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                      onPressed: () => _deleteUser(c),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        ..._users.map(
-                          (u) => DataRow(
-                            cells: [
-                              DataCell(Text('${u['id']}')),
-                              DataCell(Text('User')),
-                              DataCell(Text('N/A')),
-                              DataCell(Text(u['email'])),
-                              DataCell(Text('N/A')),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit, color: Colors.blue),
-                                      onPressed: () => _editUser(u),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                      onPressed: () => _deleteUser(u),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                      rows: userRows,
                     ),
                   ),
                 ),
@@ -389,19 +333,8 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
 
   Future<void> _deleteUser(dynamic user) async {
     try {
-      if (user is UserProfile) {
-        // Delete user profile
-        await _dbService.saveUserProfile(UserProfile(
-          firstName: '',
-          lastName: '',
-          email: '',
-        ));
-      } else if (user is Caretaker && user.id != null) {
-        // Delete caretaker
-        await _dbService.deleteCaretaker(user.id!);
-      } else if (user is Map<String, dynamic> && user['id'] != null) {
-        // Delete user from users table
-        await _dbService.deleteUser(user['id']);
+      if (user is Map<String, dynamic> && user['id'] != null) {
+        await _dbService.deleteUser(user['id'] as int);
       }
       await _loadAllData();
       if (!mounted) return;
@@ -412,18 +345,11 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
   }
 
   void _editUser(dynamic user) {
-    String name = '';
+    String name = '-';
     String email = '';
 
-    if (user is UserProfile) {
-      name = user.fullName;
-      email = user.email ?? '';
-    } else if (user is Caretaker) {
-      name = user.fullName;
-      email = user.email;
-    } else if (user is Map<String, dynamic>) {
-      name = 'N/A';
-      email = user['email'] ?? '';
+    if (user is Map<String, dynamic>) {
+      email = '${user['email'] ?? ''}';
     }
 
     _titleController.text = name;
@@ -451,31 +377,11 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
           ElevatedButton(
             onPressed: () async {
               try {
-                if (user is UserProfile) {
-                  // Update user profile
-                  final updatedProfile = UserProfile(
-                    firstName: _titleController.text.split(' ').first,
-                    lastName: _titleController.text.split(' ').skip(1).join(' '),
-                    email: _bodyController.text,
+                if (user is Map<String, dynamic> && user['id'] != null) {
+                  await _dbService.updateUser(
+                    user['id'] as int,
+                    email: _bodyController.text.trim(),
                   );
-                  await _dbService.saveUserProfile(updatedProfile);
-                } else if (user is Caretaker && user.id != null) {
-                  // Update caretaker
-                  final updatedCaretaker = Caretaker(
-                    firstName: _titleController.text.split(' ').first,
-                    lastName: _titleController.text.split(' ').skip(1).join(' '),
-                    phoneNumber: user.phoneNumber,
-                    email: _bodyController.text,
-                    relationship: user.relationship,
-                    notifyViaSMS: user.notifyViaSMS,
-                    notifyViaEmail: user.notifyViaEmail,
-                    notifyViaNotification: user.notifyViaNotification,
-                    isActive: user.isActive,
-                  );
-                  await _dbService.updateCaretaker(user.id!, updatedCaretaker);
-                } else if (user is Map<String, dynamic> && user['id'] != null) {
-                  // Update user in users table
-                  await _dbService.updateUser(user['id'], email: _bodyController.text);
                 }
                 await _loadAllData();
                 if (!mounted) return;

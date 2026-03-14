@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:smart_pill_reminder/screens/auth/login_screen.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
 import '../screens/dependents/add_dependent_screen.dart';
 import '../screens/medfriends/invite_medfriend_screen.dart';
@@ -82,8 +84,11 @@ class AppDrawer extends StatelessWidget {
               leading: const Icon(Icons.logout),
               title: const Text('Logout'),
               onTap: () {
-                authService.logout();
-                Navigator.pop(context);
+                context.read<AuthService>().logout();
+                Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
               },
             ),
           ],

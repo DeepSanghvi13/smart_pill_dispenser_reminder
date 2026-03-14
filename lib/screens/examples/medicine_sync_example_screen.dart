@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/medicine.dart';
-import '../services/database_service.dart';
-import '../services/mysql_api_service.dart';
-import '../providers/sync_provider.dart';
+import '../../models/medicine.dart';
+import '../../services/database_service.dart';
+import '../../services/mysql_api_service.dart';
+import '../../providers/sync_provider.dart';
 
 /// Example Medicine Sync Screen
 /// Shows how to save medicines locally and sync to MySQL
 class MedicineSyncExampleScreen extends StatefulWidget {
+  const MedicineSyncExampleScreen({super.key});
+
   @override
   State<MedicineSyncExampleScreen> createState() =>
       _MedicineSyncExampleScreenState();
@@ -61,7 +63,7 @@ class _MedicineSyncExampleScreenState extends State<MedicineSyncExampleScreen> {
       );
 
       // Step 1: Save to local database
-      final medicineId = await _dbService.saveMedicine(medicine);
+      final medicineId = await _dbService.addMedicine(medicine);
       _showSnackBar('✅ Medicine saved locally (ID: $medicineId)');
 
       // Step 2: Try to sync to server

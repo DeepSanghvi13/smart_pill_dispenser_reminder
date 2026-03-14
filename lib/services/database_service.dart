@@ -8,6 +8,7 @@ import '../models/missed_medicine_alert.dart';
 import '../models/reminder.dart';
 import '../models/alarm_log.dart';
 import '../models/user_profile.dart';
+import 'mysql_sync_helper.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -70,6 +71,10 @@ class DatabaseService {
       databasePath,
       version: 1,
       onCreate: _createTables,
+      onOpen: (db) async {
+        await _createTables(db, 1);
+        await _ensureSchemaColumns(db);
+      },
     );
   }
 
@@ -97,6 +102,9 @@ class DatabaseService {
         gender TEXT,
         birthDate TEXT,
         zipCode TEXT,
+        phoneNumber TEXT,
+        email TEXT,
+        updatedAt TEXT,
         createdAt TEXT NOT NULL
       )
     ''');
@@ -211,6 +219,25 @@ class DatabaseService {
     ''');
   }
 
+  Future<void> _ensureSchemaColumns(Database db) async {
+    await _ensureColumn(db, table: 'user_profiles', column: 'phoneNumber', type: 'TEXT');
+    await _ensureColumn(db, table: 'user_profiles', column: 'email', type: 'TEXT');
+    await _ensureColumn(db, table: 'user_profiles', column: 'updatedAt', type: 'TEXT');
+  }
+
+  Future<void> _ensureColumn(
+    Database db, {
+    required String table,
+    required String column,
+    required String type,
+  }) async {
+    final tableInfo = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = tableInfo.any((c) => c['name'] == column);
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
+    }
+  }
+
   // ============= MEDICINE OPERATIONS =============
 
   /// Add a new medicine (works on web and native)
@@ -229,20 +256,24 @@ class DatabaseService {
       };
       await _medicinesBox!.put('med_$_medicineIdCounter', medicineMap);
       await _medicinesBox!.put('_idCounter', _medicineIdCounter);
+      MySQLSyncHelper.syncMedicine(medicine.copyWith(id: _medicineIdCounter));
       return _medicineIdCounter;
     }
 
     // Native implementation using SQLite
     final db = await database;
-    return await db.insert(
+    final id = await db.insert(
       'medicines',
       {
         'name': medicine.name,
         'dosage': medicine.dosage,
         'time': medicine.time,
+        'category': medicine.category.name,
         'createdAt': DateTime.now().toIso8601String(),
       },
     );
+    MySQLSyncHelper.syncMedicine(medicine.copyWith(id: id));
+    return id;
   }
 
   /// Get all medicines (works on web and native)
@@ -768,12 +799,15 @@ class DatabaseService {
       'updatedAt': DateTime.now().toIso8601String(),
     };
 
+    int result;
     if (existing.isEmpty) {
       data['createdAt'] = DateTime.now().toIso8601String();
-      return await db.insert('user_profiles', data);
+      result = await db.insert('user_profiles', data);
     } else {
-      return await db.update('user_profiles', data);
+      result = await db.update('user_profiles', data);
     }
+    MySQLSyncHelper.syncUserProfile(profile);
+    return result;
   }
 
   /// Get user profile

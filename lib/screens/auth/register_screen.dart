@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -17,6 +18,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _hidePassword = true;
   bool _hideConfirmPassword = true;
   bool _isLoading = false;
+
 
   @override
   void dispose() {
@@ -67,7 +69,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (alreadyRegistered) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email already registered. Please login.')),
+        const SnackBar(
+          content: Text('Email already registered. Please login.'),
+        ),
+      );
+      // Redirect to login with email pre-filled
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LoginScreen(prefilledEmail: email),
+        ),
       );
       return;
     }
@@ -85,10 +98,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Registration successful. You can login now.')),
+      const SnackBar(
+        content: Text('Registration successful! Please login.'),
+        duration: Duration(seconds: 2),
+      ),
     );
 
-    Navigator.pop(context, email);
+    // Wait for snackbar, then go to Login with email pre-filled
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(prefilledEmail: email),
+      ),
+    );
   }
 
   @override

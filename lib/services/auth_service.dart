@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'database_service.dart';
+import 'mysql_api_service.dart';
+import 'mysql_sync_helper.dart';
 
 /// Authentication service to handle user login and admin access
 class AuthService extends ChangeNotifier {
   static final AuthService _instance = AuthService._internal();
+
+  // SharedPreferences keys
+  static const String _keyEmail    = 'session_email';
+  static const String _keyIsAdmin  = 'session_is_admin';
+  static const String _keyLoggedIn = 'session_logged_in';
 
   factory AuthService() {
     return _instance;
@@ -16,6 +24,7 @@ class AuthService extends ChangeNotifier {
   bool _isAdmin = false;
   bool _isLoggedIn = false;
   int? _currentUserId;
+  bool _isSyncingBackground = false;
 
   // Getters
   String? get currentUser => _currentUser;
@@ -47,6 +56,39 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Restore a previously saved session from SharedPreferences.
+  /// Call this once in main() before runApp().
+  Future<void> loadSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final loggedIn = prefs.getBool(_keyLoggedIn) ?? false;
+      if (!loggedIn) return;
+
+      final email   = prefs.getString(_keyEmail);
+      final isAdmin = prefs.getBool(_keyIsAdmin) ?? false;
+
+      if (email == null || email.isEmpty) return;
+
+      _currentUser = email;
+      _isAdmin     = isAdmin;
+      _isLoggedIn  = true;
+      _configureAndSync(email);
+      notifyListeners();
+    } catch (_) {
+      // Ignore — fresh start is fine
+    }
+  }
+
+  /// Checks whether any user (by any email) is registered on this device.
+  Future<bool> hasAnyRegisteredUser() async {
+    try {
+      final users = await DatabaseService().getRegisteredUsers();
+      return users.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Login user with email and password
   /// For admin access, use email: admin@medisafe.com, password: admin123
   Future<bool> login(String email, String password) async {
@@ -56,10 +98,12 @@ class AuthService extends ChangeNotifier {
       final normalizedEmail = email.trim().toLowerCase();
 
       // Check for admin credentials
-      if (normalizedEmail == 'admin@medisafe.com' && password == 'admin123') {
+        if (normalizedEmail == 'admin@medisafe.com' && password == 'admin123') {
         _currentUser = normalizedEmail;
         _isAdmin = true;
         _isLoggedIn = true;
+        await _saveSession(normalizedEmail, isAdmin: true);
+        _configureAndSync(normalizedEmail);
         notifyListeners();
         return true;
       }
@@ -70,6 +114,8 @@ class AuthService extends ChangeNotifier {
         _currentUser = normalizedEmail;
         _isAdmin = false;
         _isLoggedIn = true;
+        await _saveSession(normalizedEmail, isAdmin: false);
+        _configureAndSync(normalizedEmail);
         notifyListeners();
         return true;
       }
@@ -83,12 +129,13 @@ class AuthService extends ChangeNotifier {
   /// Login user with Google account (simulated)
   Future<bool> loginWithGoogle() async {
     try {
-      // Simulate Google auth delay
       await Future.delayed(const Duration(milliseconds: 800));
 
       _currentUser = 'google.user@medisafe.com';
       _isAdmin = false;
       _isLoggedIn = true;
+      await _saveSession(_currentUser!, isAdmin: false);
+      _configureAndSync(_currentUser!);
       notifyListeners();
       return true;
     } catch (e) {
@@ -101,7 +148,67 @@ class AuthService extends ChangeNotifier {
     _currentUser = null;
     _isAdmin = false;
     _isLoggedIn = false;
+    _clearSession();
+    MySQLApiService().configure(userId: 'demo-user', authToken: null);
     notifyListeners();
+  }
+
+  // ---- private helpers ----
+
+  Future<void> _saveSession(String email, {required bool isAdmin}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyEmail, email);
+      await prefs.setBool(_keyIsAdmin, isAdmin);
+      await prefs.setBool(_keyLoggedIn, true);
+    } catch (_) {}
+  }
+
+  void _clearSession() {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove(_keyEmail);
+      prefs.remove(_keyIsAdmin);
+      prefs.remove(_keyLoggedIn);
+    }).catchError((_) {});
+  }
+
+  void _configureAndSync(String userId) {
+    // Tell the MySQL service which user this is
+    final api = MySQLApiService();
+    api.configure(userId: userId);
+
+    if (_isSyncingBackground) return;
+
+    // Bulk sync in background — errors are swallowed inside syncAll
+    Future.microtask(() async {
+      _isSyncingBackground = true;
+      final db = DatabaseService();
+      try {
+        final isServerAvailable = await api.checkServerConnection();
+        if (!isServerAvailable) {
+          return;
+        }
+
+        final medicines  = await db.getAllMedicines();
+        final reminders  = await db.getAllReminders();
+        final alarmLogs  = await db.getAllAlarmLogs();
+        final caretakers = await db.getAllCaretakers();
+        final profile    = await db.getUserProfileData();
+
+        await MySQLSyncHelper.syncAll(
+          userId: userId,
+          medicines: medicines,
+          reminders: reminders,
+          alarmLogs: alarmLogs,
+          caretakers: caretakers,
+          userProfile: profile,
+        );
+      } catch (_) {
+        // ignore — offline is fine
+      } finally {
+        _isSyncingBackground = false;
+      }
+    });
   }
 
   /// Check if user is admin

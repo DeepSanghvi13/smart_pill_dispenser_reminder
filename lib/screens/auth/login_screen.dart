@@ -157,9 +157,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             } else {
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute(
-                                  builder: (_) => const Stack(
+                                  builder: (_) => Stack(
                                     children: [
-                                      HomeScreen(),
+                                      HomeScreen(
+                                        key: ValueKey(auth.currentUser ?? 'guest'),
+                                      ),
                                       AlarmDisplayScreen(),
                                     ],
                                   ),
@@ -239,9 +241,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         );
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
-                            builder: (_) => const Stack(
+                            builder: (_) => Stack(
                               children: [
-                                HomeScreen(),
+                                HomeScreen(
+                                  key: ValueKey(
+                                    context.read<AuthService>().currentUser ?? 'guest',
+                                  ),
+                                ),
                                 AlarmDisplayScreen(),
                               ],
                             ),

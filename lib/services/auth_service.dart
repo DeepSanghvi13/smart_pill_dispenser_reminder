@@ -72,7 +72,7 @@ class AuthService extends ChangeNotifier {
       _currentUser = email;
       _isAdmin     = isAdmin;
       _isLoggedIn  = true;
-      _configureAndSync(email);
+      await _configureAndSync(email);
       notifyListeners();
     } catch (_) {
       // Ignore — fresh start is fine
@@ -103,7 +103,7 @@ class AuthService extends ChangeNotifier {
         _isAdmin = true;
         _isLoggedIn = true;
         await _saveSession(normalizedEmail, isAdmin: true);
-        _configureAndSync(normalizedEmail);
+            await _configureAndSync(normalizedEmail);
         notifyListeners();
         return true;
       }
@@ -115,7 +115,7 @@ class AuthService extends ChangeNotifier {
         _isAdmin = false;
         _isLoggedIn = true;
         await _saveSession(normalizedEmail, isAdmin: false);
-        _configureAndSync(normalizedEmail);
+        await _configureAndSync(normalizedEmail);
         notifyListeners();
         return true;
       }
@@ -135,7 +135,7 @@ class AuthService extends ChangeNotifier {
       _isAdmin = false;
       _isLoggedIn = true;
       await _saveSession(_currentUser!, isAdmin: false);
-      _configureAndSync(_currentUser!);
+      await _configureAndSync(_currentUser!);
       notifyListeners();
       return true;
     } catch (e) {
@@ -149,6 +149,7 @@ class AuthService extends ChangeNotifier {
     _isAdmin = false;
     _isLoggedIn = false;
     _clearSession();
+    DatabaseService().setCurrentUser(null);
     MySQLApiService().configure(userId: 'demo-user', authToken: null);
     notifyListeners();
   }
@@ -172,8 +173,9 @@ class AuthService extends ChangeNotifier {
     }).catchError((_) {});
   }
 
-  void _configureAndSync(String userId) {
+  Future<void> _configureAndSync(String userId) async {
     // Tell the MySQL service which user this is
+    await DatabaseService().setCurrentUser(userId);
     final api = MySQLApiService();
     api.configure(userId: userId);
 

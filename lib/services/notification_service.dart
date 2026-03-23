@@ -81,8 +81,11 @@ class NotificationService {
     await androidImplementation?.requestNotificationsPermission();
   }
 
-  /// 🔔 Default Notification Reminder
+  /// Schedule daily medication alarm with sound + vibration.
   static Future<void> scheduleAlarmNotification({
+    required int id,
+    required String title,
+    required String body,
     required DateTime dateTime,
   }) async {
     // Skip notification scheduling on web platform
@@ -108,9 +111,9 @@ class NotificationService {
     );
 
     await _notifications.zonedSchedule(
-      0,
-      'Medication Reminder',
-      'Time to take your medicine',
+      id,
+      title,
+      body,
       tz.TZDateTime.from(dateTime, tz.local),
       const NotificationDetails(android: androidDetails),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -118,6 +121,55 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+  }
+
+  /// Schedule expiry reminders at 7 days and 1 day before expiry.
+  static Future<void> scheduleExpiryNotifications({
+    required int medicineId,
+    required String medicineName,
+    required DateTime expiryDate,
+  }) async {
+    if (kIsWeb || !Platform.isAndroid) {
+      return;
+    }
+
+    final reminders = <Duration>[const Duration(days: 7), const Duration(days: 1)];
+
+    for (var index = 0; index < reminders.length; index++) {
+      final reminderDate = expiryDate.subtract(reminders[index]);
+      final scheduledDate = DateTime(
+        reminderDate.year,
+        reminderDate.month,
+        reminderDate.day,
+        9,
+      );
+      if (scheduledDate.isBefore(DateTime.now())) {
+        continue;
+      }
+
+      final id = 100000 + (medicineId * 10) + index;
+      final androidDetails = AndroidNotificationDetails(
+        'alarm_channel',
+        'Alarm Notifications',
+        importance: Importance.high,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        sound: const RawResourceAndroidNotificationSound('alarm'),
+        vibrationPattern: _vibrationPattern,
+      );
+
+      await _notifications.zonedSchedule(
+        id,
+        'Expiry Reminder',
+        '$medicineName expires on ${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
+        tz.TZDateTime.from(scheduledDate, tz.local),
+        NotificationDetails(android: androidDetails),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    }
   }
 
   /// 👨‍⚕️ Caretaker alert for missed medicine

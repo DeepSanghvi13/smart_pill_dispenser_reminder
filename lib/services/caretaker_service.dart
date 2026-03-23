@@ -20,7 +20,7 @@ class CaretakerService {
     try {
       final caretakers = await _db.getActiveCaretakers();
       if (caretakers.isEmpty) return;
-
+      
       final alert = MissedMedicineAlert(
         medicineId: medicineId,
         medicineName: medicineName,
@@ -99,12 +99,35 @@ class CaretakerService {
   }
 
   // Caretaker management
-  Future<int> addCaretaker(Caretaker c) => _db.addCaretaker(c);
-  Future<List<Caretaker>> getAllCaretakers() => _db.getAllCaretakers();
-  Future<List<Caretaker>> getActiveCaretakers() => _db.getActiveCaretakers();
-  Future<int> updateCaretaker(int id, Caretaker c) => _db.updateCaretaker(id, c);
-  Future<int> deleteCaretaker(int id) => _db.deleteCaretaker(id);
-  Future<int> toggleStatus(int id, bool isActive) => _db.toggleCaretakerStatus(id, isActive);
+  Future<int> addCaretaker(Caretaker c) {
+    // Scoped to current user implicitly via DatabaseService._currentUserId
+    return _db.addCaretaker(c);
+  }
+
+  Future<List<Caretaker>> getAllCaretakers() {
+    // Scoped to current user implicitly via DatabaseService._currentUserId  
+    return _db.getAllCaretakers();
+  }
+
+  Future<List<Caretaker>> getActiveCaretakers() {
+    // Scoped to current user implicitly via DatabaseService._currentUserId
+    return _db.getActiveCaretakers();
+  }
+
+  Future<int> updateCaretaker(int id, Caretaker c) {
+    // Scoped to current user implicitly via DatabaseService._currentUserId
+    return _db.updateCaretaker(id, c);
+  }
+
+  Future<int> deleteCaretaker(int id) {
+    // Scoped to current user implicitly via DatabaseService._currentUserId
+    return _db.deleteCaretaker(id);
+  }
+
+  Future<int> toggleStatus(int id, bool isActive) {
+    // Scoped to current user implicitly via DatabaseService._currentUserId
+    return _db.toggleCaretakerStatus(id, isActive);
+  }
 
   // Alert management
   Future<List<MissedMedicineAlert>> getMissedAlerts() => _db.getMissedAlerts();

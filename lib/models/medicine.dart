@@ -23,6 +23,11 @@ class Medicine {
   final String dosage;
   final String time;
   final MedicineCategory category;
+  final DateTime? expiryDate;
+  final bool isScanned;
+  final String? scannedText;
+  final String? imagePath;
+  final String? healthCondition;
 
   Medicine({
     this.id,
@@ -30,6 +35,11 @@ class Medicine {
     required this.dosage,
     required this.time,
     this.category = MedicineCategory.tablets,
+    this.expiryDate,
+    this.isScanned = false,
+    this.scannedText,
+    this.imagePath,
+    this.healthCondition,
   });
 
   /// Create a copy of Medicine with modified fields
@@ -39,6 +49,11 @@ class Medicine {
     String? dosage,
     String? time,
     MedicineCategory? category,
+    DateTime? expiryDate,
+    bool? isScanned,
+    String? scannedText,
+    String? imagePath,
+    String? healthCondition,
   }) {
     return Medicine(
       id: id ?? this.id,
@@ -46,6 +61,11 @@ class Medicine {
       dosage: dosage ?? this.dosage,
       time: time ?? this.time,
       category: category ?? this.category,
+      expiryDate: expiryDate ?? this.expiryDate,
+      isScanned: isScanned ?? this.isScanned,
+      scannedText: scannedText ?? this.scannedText,
+      imagePath: imagePath ?? this.imagePath,
+      healthCondition: healthCondition ?? this.healthCondition,
     );
   }
 
@@ -57,6 +77,11 @@ class Medicine {
       'dosage': dosage,
       'time': time,
       'category': category.name,
+      'expiryDate': expiryDate?.toIso8601String(),
+      'isScanned': isScanned ? 1 : 0,
+      'scannedText': scannedText,
+      'imagePath': imagePath,
+      'healthCondition': healthCondition,
     };
   }
 
@@ -68,6 +93,13 @@ class Medicine {
       dosage: map['dosage'] as String,
       time: map['time'] as String,
       category: MedicineCategory.fromString(map['category'] as String? ?? 'tablets'),
+      expiryDate: map['expiryDate'] != null
+          ? DateTime.tryParse(map['expiryDate'] as String)
+          : null,
+      isScanned: (map['isScanned'] as int? ?? 0) == 1,
+      scannedText: map['scannedText'] as String?,
+      imagePath: map['imagePath'] as String?,
+      healthCondition: map['healthCondition'] as String?,
     );
   }
 }

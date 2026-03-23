@@ -6,12 +6,14 @@ import '../../models/medicine.dart';
 import '../../services/notification_service.dart';
 import '../../services/database_service.dart';
 import '../../services/alarm_service.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/bottom_nav.dart';
 
 import '../medications/add_medication_screen.dart';
 import '../updates/updates_screen.dart';
 import '../medications/medications_screen.dart';
+import '../medications/expiry_calendar_screen.dart';
 import '../manage/manage_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -75,7 +77,19 @@ class _HomeScreenState extends State<HomeScreen> {
           time.hour,
           time.minute,
         );
-        await NotificationService.scheduleAlarmNotification(dateTime: dateTime);
+        await NotificationService.scheduleAlarmNotification(
+          id: 1000 + id,
+          title: 'Medication Reminder',
+          body: 'Time to take ${result.name} (${result.dosage})',
+          dateTime: dateTime,
+        );
+        if (result.expiryDate != null) {
+          await NotificationService.scheduleExpiryNotifications(
+            medicineId: id,
+            medicineName: result.name,
+            expiryDate: result.expiryDate!,
+          );
+        }
 
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -120,7 +134,19 @@ class _HomeScreenState extends State<HomeScreen> {
             time.minute,
           );
 
-          await NotificationService.scheduleAlarmNotification(dateTime: dateTime);
+          await NotificationService.scheduleAlarmNotification(
+            id: 1000 + medicineId,
+            title: 'Medication Reminder',
+            body: 'Time to take ${result.name} (${result.dosage})',
+            dateTime: dateTime,
+          );
+          if (result.expiryDate != null) {
+            await NotificationService.scheduleExpiryNotifications(
+              medicineId: medicineId,
+              medicineName: result.name,
+              expiryDate: result.expiryDate!,
+            );
+          }
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Medicine updated successfully')),
@@ -132,6 +158,15 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
+  }
+
+  void _openExpiryCalendar() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExpiryCalendarScreen(medicines: _medicines),
+      ),
+    );
   }
 
   // DELETE
@@ -190,13 +225,16 @@ class _HomeScreenState extends State<HomeScreen> {
         onAddMed: _addMedicine,
         onEdit: _editMedicine,
         onDelete: _deleteMedicine,
+        onOpenExpiryCalendar: _openExpiryCalendar,
       ),
       const ManageScreen(),
     ];
 
+    final currentUserEmail = context.watch<AuthService>().currentUser ?? 'Guest';
+
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(title: const Text('Guest')),
+      appBar: AppBar(title: Text(currentUserEmail)),
       body: pages[_currentIndex],
       floatingActionButton: (_currentIndex == 0 || _currentIndex == 2)
           ? FloatingActionButton(
@@ -242,6 +280,9 @@ class HomeBody extends StatelessWidget {
       itemCount: medicines.length,
       itemBuilder: (context, index) {
         final med = medicines[index];
+        final expiryText = med.expiryDate == null
+            ? 'No expiry'
+            : 'Expiry ${DateFormat.yMMMd().format(med.expiryDate!)}';
 
         return Card(
           child: ListTile(
@@ -250,7 +291,7 @@ class HomeBody extends StatelessWidget {
               style: const TextStyle(fontSize: 28),
             ),
             title: Text(med.name),
-            subtitle: Text('${med.dosage} • ${med.time} • ${med.category.label}'),
+            subtitle: Text('${med.dosage} • ${med.time} • ${med.category.label} • $expiryText'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

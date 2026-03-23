@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const https = require('https');
 const { pool, query } = require('./db');
 
 const app = express();
@@ -42,15 +43,108 @@ function decodeDaysJson(value) {
   }
 }
 
+function digitsOnly(value) {
+  return String(value || '').replace(/[^0-9]/g, '');
+}
+
+function toNdcCandidates(digits) {
+  const ndc = new Set();
+
+  if (digits.length === 11) {
+    ndc.add(`${digits.slice(0, 5)}-${digits.slice(5, 9)}-${digits.slice(9, 11)}`);
+  }
+
+  if (digits.length >= 10) {
+    const tail10 = digits.slice(-10);
+    ndc.add(`${tail10.slice(0, 4)}-${tail10.slice(4, 8)}-${tail10.slice(8, 10)}`);
+    ndc.add(`${tail10.slice(0, 5)}-${tail10.slice(5, 8)}-${tail10.slice(8, 10)}`);
+    ndc.add(`${tail10.slice(0, 5)}-${tail10.slice(5, 9)}-${tail10.slice(9, 10)}`);
+  }
+
+  return [...ndc];
+}
+
+function getJson(url) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+          body += chunk;
+        });
+        response.on('end', () => {
+          if (response.statusCode < 200 || response.statusCode >= 300) {
+            resolve(null);
+            return;
+          }
+          try {
+            resolve(JSON.parse(body));
+          } catch (_) {
+            resolve(null);
+          }
+        });
+      })
+      .on('error', reject);
+  });
+}
+
+async function lookupDrugByBarcode(barcodeDigits) {
+  const baseUrl = process.env.OPENFDA_BASE_URL || 'https://api.fda.gov';
+  const apiKey = process.env.OPENFDA_API_KEY || '';
+
+  for (const ndc of toNdcCandidates(barcodeDigits)) {
+    const queryText = `product_ndc:"${ndc}"+OR+package_ndc:"${ndc}"`;
+    const params = new URLSearchParams({ search: queryText, limit: '1' });
+    if (apiKey) {
+      params.set('api_key', apiKey);
+    }
+
+    const body = await getJson(`${baseUrl}/drug/ndc.json?${params.toString()}`);
+    const first = Array.isArray(body?.results) ? body.results[0] : null;
+    if (!first || typeof first !== 'object') {
+      continue;
+    }
+
+    const name = (first.brand_name || first.generic_name || first.labeler_name || 'Unknown medicine').trim();
+    const ingredient = Array.isArray(first.active_ingredients) ? first.active_ingredients[0] : null;
+    const dosage = (ingredient?.strength || 'N/A').toString().trim() || 'N/A';
+    const dosageForm = String(first.dosage_form || '').toLowerCase();
+    const category = dosageForm.includes('inject')
+      ? 'injection'
+      : (dosageForm.includes('solution') || dosageForm.includes('syrup') || dosageForm.includes('liquid'))
+        ? 'syrup'
+        : 'tablets';
+
+    return {
+      barcode: barcodeDigits,
+      name,
+      dosage,
+      category,
+      source: 'onlineApi',
+    };
+  }
+
+  return null;
+}
+
 async function upsertMedicine(connection, userId, medicine) {
   await connection.execute(
-    `INSERT INTO medicines (user_id, local_id, name, dosage, time, category, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO medicines (
+      user_id, local_id, name, dosage, time, category, expiry_date,
+      is_scanned, scanned_text, image_path, health_condition, created_at
+    )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        name = VALUES(name),
        dosage = VALUES(dosage),
        time = VALUES(time),
        category = VALUES(category),
+       expiry_date = VALUES(expiry_date),
+       is_scanned = VALUES(is_scanned),
+       scanned_text = VALUES(scanned_text),
+       image_path = VALUES(image_path),
+       health_condition = VALUES(health_condition),
        created_at = VALUES(created_at)`,
     [
       userId,
@@ -59,6 +153,11 @@ async function upsertMedicine(connection, userId, medicine) {
       medicine.dosage ?? '',
       medicine.time ?? '',
       medicine.category ?? 'tablets',
+      medicine.expiryDate ? toSqlDate(medicine.expiryDate) : null,
+      boolToInt(medicine.isScanned),
+      medicine.scannedText ?? null,
+      medicine.imagePath ?? null,
+      medicine.healthCondition ?? null,
       toSqlDate(medicine.createdAt),
     ],
   );
@@ -263,11 +362,31 @@ app.get('/api/medicines', async (req, res) => {
   const userId = (req.query.userId || 'demo-user').toString();
   try {
     const rows = await query(
-      `SELECT local_id AS id, name, dosage, time, category, created_at AS createdAt
+      `SELECT local_id AS id, name, dosage, time, category,
+              expiry_date AS expiryDate, is_scanned AS isScanned,
+              scanned_text AS scannedText, image_path AS imagePath,
+              health_condition AS healthCondition,
+              created_at AS createdAt
        FROM medicines WHERE user_id = ? ORDER BY id DESC`,
       [userId],
     );
     res.json({ ok: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.put('/api/medicines/:id', async (req, res) => {
+  const userId = (req.body?.userId || 'demo-user').toString();
+  const localId = Number(req.params.id);
+  try {
+    const connection = await pool.getConnection();
+    await upsertMedicine(connection, userId, {
+      ...(req.body || {}),
+      id: localId,
+    });
+    connection.release();
+    res.status(200).json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -385,6 +504,81 @@ app.post('/api/user-profile', async (req, res) => {
     res.status(200).json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/barcode-lookup/:barcode', async (req, res) => {
+  const digits = digitsOnly(req.params.barcode);
+  if (digits.length < 8) {
+    return res.status(400).json({ ok: false, message: 'Invalid barcode' });
+  }
+
+  try {
+    const match = await lookupDrugByBarcode(digits);
+    return res.json({ ok: true, data: match });
+  } catch (error) {
+    return res.status(502).json({ ok: false, message: 'Drug lookup failed', error: error.message });
+  }
+});
+
+app.post('/api/professional-reviews', async (req, res) => {
+  const { userId = 'demo-user' } = req.body || {};
+  const {
+    patientName = '',
+    contact = '',
+    concern = '',
+    preferredHospital = null,
+    urgency = 'normal',
+  } = req.body || {};
+
+  if (!patientName.trim() || !contact.trim() || !concern.trim()) {
+    return res.status(400).json({
+      ok: false,
+      message: 'patientName, contact and concern are required',
+    });
+  }
+
+  try {
+    await query(
+      `INSERT INTO professional_review_requests (
+        user_id, patient_name, contact, concern, preferred_hospital,
+        urgency, status, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      [
+        userId,
+        patientName.trim(),
+        contact.trim(),
+        concern.trim(),
+        preferredHospital ? preferredHospital.trim() : null,
+        urgency,
+        toSqlDate(new Date()),
+      ],
+    );
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Professional review request submitted',
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/professional-reviews', async (req, res) => {
+  const userId = (req.query.userId || 'demo-user').toString();
+  try {
+    const rows = await query(
+      `SELECT id, patient_name AS patientName, contact, concern,
+              preferred_hospital AS preferredHospital, urgency,
+              status, created_at AS createdAt
+       FROM professional_review_requests
+       WHERE user_id = ?
+       ORDER BY id DESC`,
+      [userId],
+    );
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
   }
 });
 

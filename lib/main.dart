@@ -99,7 +99,7 @@ class MyApp extends StatelessWidget {
                 if (authService.isLoggedIn) {
                   return Stack(
                     children: [
-                      const HomeScreen(),
+                      HomeScreen(key: ValueKey(authService.currentUser ?? 'guest')),
                       const AlarmDisplayScreen(),
                     ],
                   );

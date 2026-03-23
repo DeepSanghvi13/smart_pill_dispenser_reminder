@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS medicines (
   dosage VARCHAR(190) NOT NULL,
   time VARCHAR(32) NOT NULL,
   category VARCHAR(32) NOT NULL DEFAULT 'tablets',
+  expiry_date DATETIME NULL,
+  is_scanned TINYINT(1) NOT NULL DEFAULT 0,
+  scanned_text TEXT NULL,
+  image_path VARCHAR(512) NULL,
+  health_condition VARCHAR(190) NULL,
   created_at DATETIME NOT NULL,
   UNIQUE KEY uq_medicines_user_local (user_id, local_id),
   INDEX idx_medicines_user (user_id)
@@ -75,5 +80,19 @@ CREATE TABLE IF NOT EXISTS caretakers (
   created_at DATETIME NOT NULL,
   UNIQUE KEY uq_caretakers_user_local (user_id, local_id),
   INDEX idx_caretakers_user (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS professional_review_requests (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(128) NOT NULL,
+  patient_name VARCHAR(190) NOT NULL,
+  contact VARCHAR(190) NOT NULL,
+  concern TEXT NOT NULL,
+  preferred_hospital VARCHAR(255) NULL,
+  urgency VARCHAR(32) NOT NULL DEFAULT 'normal',
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  created_at DATETIME NOT NULL,
+  INDEX idx_review_requests_user (user_id),
+  INDEX idx_review_requests_status (status)
 );
 

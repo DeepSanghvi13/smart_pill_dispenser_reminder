@@ -5,6 +5,8 @@ import 'reminder_troubleshooting_screen.dart';
 import 'create_profile_screen.dart';
 import 'share_medisafe_screen.dart';
 import 'help_center_screen.dart';
+import 'professional_review_request_screen.dart';
+import '../reminders/reminders_screen.dart';
 
 class ManageScreen extends StatelessWidget {
   const ManageScreen({super.key});
@@ -47,6 +49,20 @@ class ManageScreen extends StatelessWidget {
           ),
 
           _cardTile(
+            icon: Icons.alarm,
+            title: 'Manage Reminders',
+            subtitle: 'Add, edit, delete and toggle reminders',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RemindersScreen(),
+                ),
+              );
+            },
+          ),
+
+          _cardTile(
             icon: Icons.settings,
             title: 'App Settings',
             subtitle: 'Customize your app',
@@ -55,6 +71,20 @@ class ManageScreen extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => AppSettingsScreen(), // ❌ no const
+                ),
+              );
+            },
+          ),
+
+          _cardTile(
+            icon: Icons.local_hospital,
+            title: 'Doctor/Hospital Review',
+            subtitle: 'Send medication concerns for professional review',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ProfessionalReviewRequestScreen(),
                 ),
               );
             },

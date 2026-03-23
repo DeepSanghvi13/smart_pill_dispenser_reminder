@@ -14,7 +14,9 @@ class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   static Database? _database;
   static Box<dynamic>? _medicinesBox;
+  static Box<dynamic>? _barcodeCacheBox;
   static int _medicineIdCounter = 0;
+  static String _currentUserId = 'guest';
 
   factory DatabaseService() {
     return _instance;
@@ -22,17 +24,43 @@ class DatabaseService {
 
   DatabaseService._internal();
 
+  String get currentUserId => _currentUserId;
+
+  static String _normalizeUserId(String? userId) {
+    final value = userId?.trim().toLowerCase() ?? '';
+    return value.isEmpty ? 'guest' : value;
+  }
+
+  String _currentCounterKey() => '_idCounter_$_currentUserId';
+
+  String _medicineHiveKey(int id) => 'med_${_currentUserId}_$id';
+
+  Future<void> _syncWebCounterForCurrentUser() async {
+    if (!kIsWeb || _medicinesBox == null) return;
+    _medicineIdCounter = _medicinesBox!.get(_currentCounterKey(), defaultValue: 0) ?? 0;
+  }
+
+  Future<void> setCurrentUser(String? userId) async {
+    _currentUserId = _normalizeUserId(userId);
+    if (kIsWeb) {
+      await initializeHiveBoxes();
+      await _syncWebCounterForCurrentUser();
+    }
+  }
+
   /// Initialize Hive boxes for web
   Future<void> initializeHiveBoxes() async {
     if (kIsWeb) {
       try {
         _medicinesBox = await Hive.openBox('medicines');
+        _barcodeCacheBox = await Hive.openBox('barcode_lookup_cache');
 
-        // Initialize counter if not exists
-        if (!_medicinesBox!.containsKey('_idCounter')) {
-          _medicinesBox!.put('_idCounter', 0);
+        // Maintain a per-user medicine id counter so web data stays isolated.
+        final counterKey = _currentCounterKey();
+        if (!_medicinesBox!.containsKey(counterKey)) {
+          _medicinesBox!.put(counterKey, 0);
         }
-        _medicineIdCounter = _medicinesBox!.get('_idCounter', defaultValue: 0) ?? 0;
+        _medicineIdCounter = _medicinesBox!.get(counterKey, defaultValue: 0) ?? 0;
       } catch (e) {
         print('Error initializing Hive boxes: $e');
       }
@@ -85,10 +113,16 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS medicines (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ownerUserId TEXT NOT NULL DEFAULT 'guest',
         name TEXT NOT NULL,
         dosage TEXT NOT NULL,
         time TEXT NOT NULL,
         category TEXT DEFAULT 'tablets',
+        expiryDate TEXT,
+        isScanned INTEGER DEFAULT 0,
+        scannedText TEXT,
+        imagePath TEXT,
+        healthCondition TEXT,
         createdAt TEXT NOT NULL
       )
     ''');
@@ -147,6 +181,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS caretakers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ownerUserId TEXT NOT NULL DEFAULT 'guest',
         firstName TEXT NOT NULL,
         lastName TEXT NOT NULL,
         phoneNumber TEXT NOT NULL,
@@ -180,6 +215,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS reminders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ownerUserId TEXT NOT NULL DEFAULT 'guest',
         medicineId INTEGER NOT NULL,
         medicineName TEXT NOT NULL,
         time TEXT NOT NULL,
@@ -217,12 +253,31 @@ class DatabaseService {
         updated_at TEXT NOT NULL
       )
     ''');
+
+    // Barcode lookup cache table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS barcode_lookup_cache (
+        barcode TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        dosage TEXT NOT NULL,
+        category TEXT NOT NULL,
+        cachedAt TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _ensureSchemaColumns(Database db) async {
     await _ensureColumn(db, table: 'user_profiles', column: 'phoneNumber', type: 'TEXT');
     await _ensureColumn(db, table: 'user_profiles', column: 'email', type: 'TEXT');
     await _ensureColumn(db, table: 'user_profiles', column: 'updatedAt', type: 'TEXT');
+    await _ensureColumn(db, table: 'medicines', column: 'expiryDate', type: 'TEXT');
+    await _ensureColumn(db, table: 'medicines', column: 'isScanned', type: 'INTEGER DEFAULT 0');
+    await _ensureColumn(db, table: 'medicines', column: 'scannedText', type: 'TEXT');
+    await _ensureColumn(db, table: 'medicines', column: 'imagePath', type: 'TEXT');
+    await _ensureColumn(db, table: 'medicines', column: 'healthCondition', type: 'TEXT');
+    await _ensureColumn(db, table: 'medicines', column: 'ownerUserId', type: "TEXT NOT NULL DEFAULT 'guest'");
+    await _ensureColumn(db, table: 'reminders', column: 'ownerUserId', type: "TEXT NOT NULL DEFAULT 'guest'");
+    await _ensureColumn(db, table: 'caretakers', column: 'ownerUserId', type: "TEXT NOT NULL DEFAULT 'guest'");
   }
 
   Future<void> _ensureColumn(
@@ -248,14 +303,20 @@ class DatabaseService {
       _medicineIdCounter++;
       final medicineMap = {
         'id': _medicineIdCounter,
+        'ownerUserId': _currentUserId,
         'name': medicine.name,
         'dosage': medicine.dosage,
         'time': medicine.time,
         'category': medicine.category.name,
+        'expiryDate': medicine.expiryDate?.toIso8601String(),
+        'isScanned': medicine.isScanned ? 1 : 0,
+        'scannedText': medicine.scannedText,
+        'imagePath': medicine.imagePath,
+        'healthCondition': medicine.healthCondition,
         'createdAt': DateTime.now().toIso8601String(),
       };
-      await _medicinesBox!.put('med_$_medicineIdCounter', medicineMap);
-      await _medicinesBox!.put('_idCounter', _medicineIdCounter);
+      await _medicinesBox!.put(_medicineHiveKey(_medicineIdCounter), medicineMap);
+      await _medicinesBox!.put(_currentCounterKey(), _medicineIdCounter);
       MySQLSyncHelper.syncMedicine(medicine.copyWith(id: _medicineIdCounter));
       return _medicineIdCounter;
     }
@@ -265,10 +326,16 @@ class DatabaseService {
     final id = await db.insert(
       'medicines',
       {
+        'ownerUserId': _currentUserId,
         'name': medicine.name,
         'dosage': medicine.dosage,
         'time': medicine.time,
         'category': medicine.category.name,
+        'expiryDate': medicine.expiryDate?.toIso8601String(),
+        'isScanned': medicine.isScanned ? 1 : 0,
+        'scannedText': medicine.scannedText,
+        'imagePath': medicine.imagePath,
+        'healthCondition': medicine.healthCondition,
         'createdAt': DateTime.now().toIso8601String(),
       },
     );
@@ -282,8 +349,9 @@ class DatabaseService {
       // Web implementation using Hive
       await initializeHiveBoxes();
       final medicines = <Medicine>[];
+      final keyPrefix = 'med_${_currentUserId}_';
       for (var key in _medicinesBox!.keys) {
-        if (key == '_idCounter') continue; // Skip counter
+        if (key is! String || !key.startsWith(keyPrefix)) continue;
         final data = _medicinesBox!.get(key) as Map?;
         if (data != null) {
           medicines.add(Medicine(
@@ -292,6 +360,13 @@ class DatabaseService {
             dosage: data['dosage'] as String,
             time: data['time'] as String,
             category: MedicineCategory.fromString(data['category'] as String? ?? 'tablets'),
+            expiryDate: data['expiryDate'] != null
+                ? DateTime.tryParse(data['expiryDate'] as String)
+                : null,
+            isScanned: (data['isScanned'] as int? ?? 0) == 1,
+            scannedText: data['scannedText'] as String?,
+            imagePath: data['imagePath'] as String?,
+            healthCondition: data['healthCondition'] as String?,
           ));
         }
       }
@@ -300,7 +375,11 @@ class DatabaseService {
 
     // Native implementation using SQLite
     final db = await database;
-    final result = await db.query('medicines');
+    final result = await db.query(
+      'medicines',
+      where: 'ownerUserId = ?',
+      whereArgs: [_currentUserId],
+    );
     return result.map((map) => Medicine.fromMap(map)).toList();
   }
 
@@ -309,7 +388,7 @@ class DatabaseService {
     if (kIsWeb) {
       // Web implementation using Hive
       await initializeHiveBoxes();
-      final data = _medicinesBox!.get('med_$id') as Map?;
+      final data = _medicinesBox!.get(_medicineHiveKey(id)) as Map?;
       if (data != null) {
         return Medicine(
           id: data['id'] as int?,
@@ -317,6 +396,13 @@ class DatabaseService {
           dosage: data['dosage'] as String,
           time: data['time'] as String,
           category: MedicineCategory.fromString(data['category'] as String? ?? 'tablets'),
+          expiryDate: data['expiryDate'] != null
+              ? DateTime.tryParse(data['expiryDate'] as String)
+              : null,
+          isScanned: (data['isScanned'] as int? ?? 0) == 1,
+          scannedText: data['scannedText'] as String?,
+          imagePath: data['imagePath'] as String?,
+          healthCondition: data['healthCondition'] as String?,
         );
       }
       return null;
@@ -326,8 +412,8 @@ class DatabaseService {
     final db = await database;
     final result = await db.query(
       'medicines',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND ownerUserId = ?',
+      whereArgs: [id, _currentUserId],
     );
     if (result.isNotEmpty) {
       return Medicine.fromMap(result.first);
@@ -342,13 +428,19 @@ class DatabaseService {
       await initializeHiveBoxes();
       final medicineMap = {
         'id': id,
+        'ownerUserId': _currentUserId,
         'name': medicine.name,
         'dosage': medicine.dosage,
         'time': medicine.time,
         'category': medicine.category.name,
+        'expiryDate': medicine.expiryDate?.toIso8601String(),
+        'isScanned': medicine.isScanned ? 1 : 0,
+        'scannedText': medicine.scannedText,
+        'imagePath': medicine.imagePath,
+        'healthCondition': medicine.healthCondition,
         'createdAt': DateTime.now().toIso8601String(),
       };
-      await _medicinesBox!.put('med_$id', medicineMap);
+      await _medicinesBox!.put(_medicineHiveKey(id), medicineMap);
       return 1; // Return 1 to indicate success
     }
 
@@ -357,12 +449,19 @@ class DatabaseService {
     return await db.update(
       'medicines',
       {
+        'ownerUserId': _currentUserId,
         'name': medicine.name,
         'dosage': medicine.dosage,
         'time': medicine.time,
+        'category': medicine.category.name,
+        'expiryDate': medicine.expiryDate?.toIso8601String(),
+        'isScanned': medicine.isScanned ? 1 : 0,
+        'scannedText': medicine.scannedText,
+        'imagePath': medicine.imagePath,
+        'healthCondition': medicine.healthCondition,
       },
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND ownerUserId = ?',
+      whereArgs: [id, _currentUserId],
     );
   }
 
@@ -371,7 +470,7 @@ class DatabaseService {
     if (kIsWeb) {
       // Web implementation using Hive
       await initializeHiveBoxes();
-      await _medicinesBox!.delete('med_$id');
+      await _medicinesBox!.delete(_medicineHiveKey(id));
       return 1; // Return 1 to indicate success
     }
 
@@ -379,8 +478,8 @@ class DatabaseService {
     final db = await database;
     return await db.delete(
       'medicines',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND ownerUserId = ?',
+      whereArgs: [id, _currentUserId],
     );
   }
 
@@ -505,6 +604,7 @@ class DatabaseService {
   Future<int> addCaretaker(Caretaker caretaker) async {
     final db = await database;
     return await db.insert('caretakers', {
+      'ownerUserId': _currentUserId,
       'firstName': caretaker.firstName,
       'lastName': caretaker.lastName,
       'phoneNumber': caretaker.phoneNumber,
@@ -521,14 +621,23 @@ class DatabaseService {
   /// Get all caretakers
   Future<List<Caretaker>> getAllCaretakers() async {
     final db = await database;
-    final result = await db.query('caretakers', orderBy: 'createdAt DESC');
+    final result = await db.query(
+      'caretakers',
+      where: 'ownerUserId = ?',
+      whereArgs: [_currentUserId],
+      orderBy: 'createdAt DESC',
+    );
     return result.map((m) => Caretaker.fromMap(m)).toList();
   }
 
   /// Get active caretakers
   Future<List<Caretaker>> getActiveCaretakers() async {
     final db = await database;
-    final result = await db.query('caretakers', where: 'isActive = ?', whereArgs: [1]);
+    final result = await db.query(
+      'caretakers',
+      where: 'ownerUserId = ? AND isActive = ?',
+      whereArgs: [_currentUserId, 1],
+    );
     return result.map((m) => Caretaker.fromMap(m)).toList();
   }
 
@@ -545,19 +654,28 @@ class DatabaseService {
       'notifyViaEmail': caretaker.notifyViaEmail ? 1 : 0,
       'notifyViaNotification': caretaker.notifyViaNotification ? 1 : 0,
       'isActive': caretaker.isActive ? 1 : 0,
-    }, where: 'id = ?', whereArgs: [id]);
+    }, where: 'id = ? AND ownerUserId = ?', whereArgs: [id, _currentUserId]);
   }
 
   /// Delete caretaker
   Future<int> deleteCaretaker(int id) async {
     final db = await database;
-    return await db.delete('caretakers', where: 'id = ?', whereArgs: [id]);
+    return await db.delete(
+      'caretakers',
+      where: 'id = ? AND ownerUserId = ?',
+      whereArgs: [id, _currentUserId],
+    );
   }
 
   /// Toggle caretaker status
   Future<int> toggleCaretakerStatus(int id, bool isActive) async {
     final db = await database;
-    return await db.update('caretakers', {'isActive': isActive ? 1 : 0}, where: 'id = ?', whereArgs: [id]);
+    return await db.update(
+      'caretakers',
+      {'isActive': isActive ? 1 : 0},
+      where: 'id = ? AND ownerUserId = ?',
+      whereArgs: [id, _currentUserId],
+    );
   }
 
   // ============= MISSED MEDICINE ALERTS =============
@@ -605,6 +723,7 @@ class DatabaseService {
   Future<int> addReminder(Reminder reminder) async {
     final db = await database;
     return await db.insert('reminders', {
+      'ownerUserId': _currentUserId,
       'medicineId': reminder.medicineId,
       'medicineName': reminder.medicineName,
       'time': reminder.time,
@@ -618,14 +737,23 @@ class DatabaseService {
   /// Get all reminders
   Future<List<Reminder>> getAllReminders() async {
     final db = await database;
-    final result = await db.query('reminders', orderBy: 'time ASC');
+    final result = await db.query(
+      'reminders',
+      where: 'ownerUserId = ?',
+      whereArgs: [_currentUserId],
+      orderBy: 'time ASC',
+    );
     return result.map((m) => Reminder.fromMap(m)).toList();
   }
 
   /// Get active reminders
   Future<List<Reminder>> getActiveReminders() async {
     final db = await database;
-    final result = await db.query('reminders', where: 'isActive = ?', whereArgs: [1]);
+    final result = await db.query(
+      'reminders',
+      where: 'ownerUserId = ? AND isActive = ?',
+      whereArgs: [_currentUserId, 1],
+    );
     return result.map((m) => Reminder.fromMap(m)).toList();
   }
 
@@ -633,8 +761,8 @@ class DatabaseService {
   Future<List<Reminder>> getRemindersByMedicineId(int medicineId) async {
     final db = await database;
     final result = await db.query('reminders',
-      where: 'medicineId = ?',
-      whereArgs: [medicineId]
+      where: 'ownerUserId = ? AND medicineId = ?',
+      whereArgs: [_currentUserId, medicineId]
     );
     return result.map((m) => Reminder.fromMap(m)).toList();
   }
@@ -648,13 +776,17 @@ class DatabaseService {
       'daysOfWeek': reminder.daysOfWeek.join(','),
       'isActive': reminder.isActive ? 1 : 0,
       'lastNotifiedAt': reminder.lastNotifiedAt?.toIso8601String(),
-    }, where: 'id = ?', whereArgs: [id]);
+    }, where: 'id = ? AND ownerUserId = ?', whereArgs: [id, _currentUserId]);
   }
 
   /// Delete reminder
   Future<int> deleteReminder(int id) async {
     final db = await database;
-    return await db.delete('reminders', where: 'id = ?', whereArgs: [id]);
+    return await db.delete(
+      'reminders',
+      where: 'id = ? AND ownerUserId = ?',
+      whereArgs: [id, _currentUserId],
+    );
   }
 
   /// Toggle reminder status
@@ -662,8 +794,8 @@ class DatabaseService {
     final db = await database;
     return await db.update('reminders',
       {'isActive': isActive ? 1 : 0},
-      where: 'id = ?',
-      whereArgs: [id]
+      where: 'id = ? AND ownerUserId = ?',
+      whereArgs: [id, _currentUserId]
     );
   }
 
@@ -783,6 +915,61 @@ class DatabaseService {
 
   // ============= USER PROFILE OPERATIONS =============
 
+  // ============= BARCODE CACHE OPERATIONS =============
+
+  Future<Map<String, dynamic>?> getBarcodeLookupCache(String barcode) async {
+    final key = barcode.trim();
+    if (key.isEmpty) return null;
+
+    if (kIsWeb) {
+      await initializeHiveBoxes();
+      final map = _barcodeCacheBox?.get(key) as Map?;
+      if (map == null) return null;
+      return Map<String, dynamic>.from(map);
+    }
+
+    final db = await database;
+    final result = await db.query(
+      'barcode_lookup_cache',
+      where: 'barcode = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (result.isEmpty) return null;
+    return result.first;
+  }
+
+  Future<void> upsertBarcodeLookupCache({
+    required String barcode,
+    required String name,
+    required String dosage,
+    required String category,
+  }) async {
+    final key = barcode.trim();
+    if (key.isEmpty) return;
+
+    final map = {
+      'barcode': key,
+      'name': name,
+      'dosage': dosage,
+      'category': category,
+      'cachedAt': DateTime.now().toIso8601String(),
+    };
+
+    if (kIsWeb) {
+      await initializeHiveBoxes();
+      await _barcodeCacheBox?.put(key, map);
+      return;
+    }
+
+    final db = await database;
+    await db.insert(
+      'barcode_lookup_cache',
+      map,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   /// Save or update user profile
   Future<int> saveUserProfile(UserProfile profile) async {
     final db = await database;
@@ -871,6 +1058,7 @@ class DatabaseService {
     await db.delete('user_profiles');
     await db.delete('dependents');
     await db.delete('settings');
+    await db.delete('barcode_lookup_cache');
   }
 
   /// Close database

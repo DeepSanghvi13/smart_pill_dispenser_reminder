@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/alarm_log.dart';
 import '../models/caretaker.dart';
 import '../models/medicine.dart';
+import '../models/professional_review_request.dart';
 import '../models/reminder.dart';
 import '../models/user_profile.dart';
 
@@ -74,6 +75,11 @@ class MySQLApiService {
           'dosage': medicine.dosage,
           'time': medicine.time,
           'category': medicine.category.name,
+          'expiryDate': medicine.expiryDate?.toIso8601String(),
+          'isScanned': medicine.isScanned,
+          'scannedText': medicine.scannedText,
+          'imagePath': medicine.imagePath,
+          'healthCondition': medicine.healthCondition,
           'createdAt': DateTime.now().toIso8601String(),
         }),
       );
@@ -108,6 +114,13 @@ class MySQLApiService {
               category: MedicineCategory.fromString(
                 item['category'] as String? ?? 'tablets',
               ),
+              expiryDate: item['expiryDate'] != null
+                  ? DateTime.tryParse(item['expiryDate'] as String)
+                  : null,
+              isScanned: (item['isScanned'] == true || item['isScanned'] == 1),
+              scannedText: item['scannedText'] as String?,
+              imagePath: item['imagePath'] as String?,
+              healthCondition: item['healthCondition'] as String?,
             ),
           )
           .toList();
@@ -128,6 +141,11 @@ class MySQLApiService {
           'dosage': medicine.dosage,
           'time': medicine.time,
           'category': medicine.category.name,
+          'expiryDate': medicine.expiryDate?.toIso8601String(),
+          'isScanned': medicine.isScanned,
+          'scannedText': medicine.scannedText,
+          'imagePath': medicine.imagePath,
+          'healthCondition': medicine.healthCondition,
         }),
       );
       return _isSuccess(response);
@@ -400,6 +418,58 @@ class MySQLApiService {
     } catch (e) {
       print('Error fetching reminders: $e');
       return [];
+    }
+  }
+
+  // ============= PROFESSIONAL REVIEWS =============
+
+  Future<bool> submitProfessionalReviewRequest(
+    ProfessionalReviewRequest request,
+  ) async {
+    try {
+      final response = await _client.post(
+        _uri('/professional-reviews'),
+        headers: _headers(),
+        body: jsonEncode({
+          'userId': _userId,
+          ...request.toJson(),
+        }),
+      );
+      return _isSuccess(response);
+    } catch (e) {
+      print('Error submitting professional review request: $e');
+      return false;
+    }
+  }
+
+  // ============= BARCODE LOOKUP =============
+
+  Future<Map<String, dynamic>?> lookupBarcodeFromServer(String barcode) async {
+    final sanitized = barcode.replaceAll(RegExp(r'[^0-9]'), '');
+    if (sanitized.isEmpty) {
+      return null;
+    }
+
+    try {
+      final response = await _client.get(
+        _uri('/barcode-lookup/$sanitized', {'userId': _userId}),
+        headers: _headers(json: false),
+      );
+
+      if (!_isSuccess(response)) {
+        return null;
+      }
+
+      final body = _safeBody(response);
+      if (body is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final data = body['data'];
+      return data is Map<String, dynamic> ? data : null;
+    } catch (e) {
+      print('Error looking up barcode on server: $e');
+      return null;
     }
   }
 

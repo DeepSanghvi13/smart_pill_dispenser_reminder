@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../../services/alarm_service.dart';
+import '../../services/voice_reminder_service.dart';
 
 class AlarmDisplayScreen extends StatefulWidget {
   const AlarmDisplayScreen({super.key});
@@ -15,11 +16,55 @@ class _AlarmDisplayScreenState extends State<AlarmDisplayScreen>
   late AnimationController _pulseController;
   late AnimationController _scaleController;
   Timer? _alarmAnimationTimer;
+  AlarmService? _alarmService;
+  String _lastSpeechKey = '';
+  bool _listenerAttached = false;
 
   @override
   void initState() {
     super.initState();
     _setupAnimations();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_listenerAttached) {
+      return;
+    }
+
+    _alarmService = Provider.of<AlarmService>(context, listen: false);
+    _alarmService?.addListener(_onAlarmStateChanged);
+    _listenerAttached = true;
+  }
+
+  Future<void> _onAlarmStateChanged() async {
+    final service = _alarmService;
+    if (!mounted || service == null) {
+      return;
+    }
+
+    if (!service.isAlarmActive) {
+      _lastSpeechKey = '';
+      await VoiceReminderService.stop();
+      return;
+    }
+
+    if (service.snoozeMinutesRemaining > 0) {
+      return;
+    }
+
+    final key =
+        '${service.currentMedicineId}:${service.alarmTriggeredTime?.millisecondsSinceEpoch ?? 0}';
+    if (key == _lastSpeechKey) {
+      return;
+    }
+
+    _lastSpeechKey = key;
+    await VoiceReminderService.speakReminder(
+      medicineName: service.currentMedicineName,
+      dosage: service.currentMedicineDosage,
+    );
   }
 
   void _setupAnimations() {
@@ -38,6 +83,8 @@ class _AlarmDisplayScreenState extends State<AlarmDisplayScreen>
 
   @override
   void dispose() {
+    _alarmService?.removeListener(_onAlarmStateChanged);
+    VoiceReminderService.stop();
     _pulseController.dispose();
     _scaleController.dispose();
     _alarmAnimationTimer?.cancel();
@@ -47,12 +94,14 @@ class _AlarmDisplayScreenState extends State<AlarmDisplayScreen>
   void _handleSnooze(BuildContext context, int minutes) {
     final alarmService = Provider.of<AlarmService>(context, listen: false);
     alarmService.snoozeAlarm(minutes);
+    VoiceReminderService.speakMessage('Alarm snoozed for $minutes minutes');
     _showSnoozeConfirmation(minutes);
   }
 
   void _handleStop(BuildContext context) {
     final alarmService = Provider.of<AlarmService>(context, listen: false);
     alarmService.stopAlarm();
+    VoiceReminderService.stop();
     _showStopConfirmation();
   }
 
@@ -141,7 +190,7 @@ class _AlarmDisplayScreenState extends State<AlarmDisplayScreen>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.red.withOpacity(0.3),
+                              color: Colors.red.withValues(alpha: 0.3),
                               blurRadius: 20,
                               spreadRadius: 5,
                             ),
@@ -164,7 +213,7 @@ class _AlarmDisplayScreenState extends State<AlarmDisplayScreen>
                         borderRadius: BorderRadius.circular(15),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: Colors.grey.withValues(alpha: 0.1),
                             blurRadius: 10,
                             spreadRadius: 2,
                           ),
@@ -320,7 +369,7 @@ class _AlarmDisplayScreenState extends State<AlarmDisplayScreen>
       child: ElevatedButton(
         onPressed: () => _handleSnooze(context, minutes),
         style: ElevatedButton.styleFrom(
-          backgroundColor: color.withOpacity(0.9),
+          backgroundColor: color.withValues(alpha: 0.9),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(

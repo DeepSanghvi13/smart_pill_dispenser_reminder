@@ -52,6 +52,28 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
+# Some Windows plugins (e.g. flutter_tts) require NuGet at configure-time.
+# Try to resolve it from PATH and common install locations before plugin load.
+if(WIN32 AND NOT NUGET_EXE)
+  find_program(_NUGET_FROM_PATH NAMES nuget nuget.exe)
+  if(_NUGET_FROM_PATH)
+    set(NUGET_EXE "${_NUGET_FROM_PATH}" CACHE FILEPATH "Path to nuget executable" FORCE)
+  else()
+    set(_NUGET_CANDIDATES
+      "$ENV{ChocolateyInstall}/bin/nuget.exe"
+      "$ENV{ProgramFiles}/NuGet/nuget.exe"
+      "$ENV{ProgramW6432}/NuGet/nuget.exe"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tools/nuget.exe"
+    )
+    foreach(_NUGET_CANDIDATE ${_NUGET_CANDIDATES})
+      if(EXISTS "${_NUGET_CANDIDATE}")
+        set(NUGET_EXE "${_NUGET_CANDIDATE}" CACHE FILEPATH "Path to nuget executable" FORCE)
+        break()
+      endif()
+    endforeach()
+  endif()
+endif()
+
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.

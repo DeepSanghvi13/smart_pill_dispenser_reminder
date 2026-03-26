@@ -312,7 +312,7 @@ class _SqlConnectionStatusScreenState extends State<SqlConnectionStatusScreen> {
             SqlStatusCard(
               icon: Icons.speed_outlined,
               title: 'Last Check Latency',
-              status: _latencyMs == null ? '-' : '${_latencyMs} ms',
+              status: _latencyMs == null ? '-' : '$_latencyMs ms',
               subtitle: _lastCheckedAt == null
                   ? null
                   : 'Checked at ${_lastCheckedAt!.toLocal()}',

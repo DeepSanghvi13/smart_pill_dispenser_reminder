@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
 import '../models/medicine.dart';
 import '../models/reminder.dart';
@@ -334,4 +336,3 @@ class MedicineProvider extends ChangeNotifier {
     return _todayAlarms.where((a) => a.status == 'snoozed').toList();
   }
 }
-

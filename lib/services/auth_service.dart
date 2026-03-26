@@ -7,10 +7,11 @@ import 'mysql_sync_helper.dart';
 /// Authentication service to handle user login and admin access
 class AuthService extends ChangeNotifier {
   static final AuthService _instance = AuthService._internal();
+  static const String _keyPendingSync = 'pending_mysql_sync';
 
   // SharedPreferences keys
-  static const String _keyEmail    = 'session_email';
-  static const String _keyIsAdmin  = 'session_is_admin';
+  static const String _keyEmail = 'session_email';
+  static const String _keyIsAdmin = 'session_is_admin';
   static const String _keyLoggedIn = 'session_logged_in';
 
   factory AuthService() {
@@ -44,14 +45,14 @@ class AuthService extends ChangeNotifier {
         return false;
       }
 
-      final users = await DatabaseService().getRegisteredUsers();
-      if (users.containsKey(normalizedEmail)) {
+      final api = MySQLApiService();
+      final exists = await api.isEmailRegistered(normalizedEmail);
+      if (exists) {
         return false;
       }
 
-      await DatabaseService().registerUser(normalizedEmail, password);
-      return true;
-    } catch (e) {
+      return await api.registerUser(normalizedEmail, password);
+    } catch (_) {
       return false;
     }
   }
@@ -64,14 +65,14 @@ class AuthService extends ChangeNotifier {
       final loggedIn = prefs.getBool(_keyLoggedIn) ?? false;
       if (!loggedIn) return;
 
-      final email   = prefs.getString(_keyEmail);
+      final email = prefs.getString(_keyEmail);
       final isAdmin = prefs.getBool(_keyIsAdmin) ?? false;
 
       if (email == null || email.isEmpty) return;
 
       _currentUser = email;
-      _isAdmin     = isAdmin;
-      _isLoggedIn  = true;
+      _isAdmin = isAdmin;
+      _isLoggedIn = true;
       await _configureAndSync(email);
       notifyListeners();
     } catch (_) {
@@ -82,8 +83,8 @@ class AuthService extends ChangeNotifier {
   /// Checks whether any user (by any email) is registered on this device.
   Future<bool> hasAnyRegisteredUser() async {
     try {
-      final users = await DatabaseService().getRegisteredUsers();
-      return users.isNotEmpty;
+      final totalUsers = await MySQLApiService().getTotalRegisteredUsers();
+      return totalUsers > 0;
     } catch (_) {
       return false;
     }
@@ -98,24 +99,26 @@ class AuthService extends ChangeNotifier {
       final normalizedEmail = email.trim().toLowerCase();
 
       // Check for admin credentials
-        if (normalizedEmail == 'admin@medisafe.com' && password == 'admin123') {
+      if (normalizedEmail == 'admin@medisafe.com' && password == 'admin123') {
         _currentUser = normalizedEmail;
         _isAdmin = true;
         _isLoggedIn = true;
+        _currentUserId = null;
         await _saveSession(normalizedEmail, isAdmin: true);
-            await _configureAndSync(normalizedEmail);
+        await _configureAndSync(normalizedEmail);
         notifyListeners();
         return true;
       }
 
-      // Check for registered user credentials
-      final users = await DatabaseService().getRegisteredUsers();
-      if (users[normalizedEmail] == password) {
-        _currentUser = normalizedEmail;
-        _isAdmin = false;
+      final response =
+          await MySQLApiService().loginUser(normalizedEmail, password);
+      if (response != null) {
+        _currentUser = response['email'] as String? ?? normalizedEmail;
+        _isAdmin = response['isAdmin'] == true;
         _isLoggedIn = true;
-        await _saveSession(normalizedEmail, isAdmin: false);
-        await _configureAndSync(normalizedEmail);
+        _currentUserId = response['id'] as int?;
+        await _saveSession(_currentUser!, isAdmin: _isAdmin);
+        await _configureAndSync(_currentUser!);
         notifyListeners();
         return true;
       }
@@ -186,18 +189,20 @@ class AuthService extends ChangeNotifier {
       _isSyncingBackground = true;
       final db = DatabaseService();
       try {
+        final prefs = await SharedPreferences.getInstance();
         final isServerAvailable = await api.checkServerConnection();
         if (!isServerAvailable) {
+          await prefs.setBool(_keyPendingSync, true);
           return;
         }
 
-        final medicines  = await db.getAllMedicines();
-        final reminders  = await db.getAllReminders();
-        final alarmLogs  = await db.getAllAlarmLogs();
+        final medicines = await db.getAllMedicines();
+        final reminders = await db.getAllReminders();
+        final alarmLogs = await db.getAllAlarmLogs();
         final caretakers = await db.getAllCaretakers();
-        final profile    = await db.getUserProfileData();
+        final profile = await db.getUserProfileData();
 
-        await MySQLSyncHelper.syncAll(
+        final synced = await MySQLSyncHelper.syncAll(
           userId: userId,
           medicines: medicines,
           reminders: reminders,
@@ -205,7 +210,10 @@ class AuthService extends ChangeNotifier {
           caretakers: caretakers,
           userProfile: profile,
         );
+        await prefs.setBool(_keyPendingSync, !synced);
       } catch (_) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_keyPendingSync, true);
         // ignore — offline is fine
       } finally {
         _isSyncingBackground = false;
@@ -220,11 +228,9 @@ class AuthService extends ChangeNotifier {
 
   /// Check whether user is already registered.
   Future<bool> isRegistered(String email) async {
-    final users = await DatabaseService().getRegisteredUsers();
-    return users.containsKey(email.trim().toLowerCase());
+    return MySQLApiService().isEmailRegistered(email.trim().toLowerCase());
   }
 }
 
 // Global instance
 final authService = AuthService();
-

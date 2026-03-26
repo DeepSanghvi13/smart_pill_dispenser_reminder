@@ -1,0 +1,4 @@
+# Optional Python dependencies for SQL tooling and migration scripts.
+# Main backend runtime for this project remains Node.js (see backend/package.json).
+mysql-connector-python==9.3.0
+PyMySQL==1.1.1

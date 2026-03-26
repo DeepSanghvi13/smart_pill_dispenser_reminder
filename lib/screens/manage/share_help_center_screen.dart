@@ -25,6 +25,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
     const String helpLink = 'https://www.medisafe.com/help';
     const String messageText =
         'Check out the Smart Pill Dispenser Reminder Help Center for medication management tips and support!';
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
       if (platform == 'whatsapp') {
@@ -37,7 +38,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
         if (await canLaunchUrl(whatsappUri)) {
           await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             const SnackBar(
               content: Text('WhatsApp not installed. Please install WhatsApp.'),
             ),
@@ -57,7 +58,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
         if (await canLaunchUrl(emailUri)) {
           await launchUrl(emailUri);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             const SnackBar(
               content: Text('No email app found. Please check your settings.'),
             ),
@@ -76,7 +77,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
         if (await canLaunchUrl(smsUri)) {
           await launchUrl(smsUri);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             const SnackBar(
               content: Text('SMS not available on this device.'),
             ),
@@ -90,7 +91,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
         ),
@@ -317,7 +318,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
+            color: color.withAlpha(51),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: color, size: 24),

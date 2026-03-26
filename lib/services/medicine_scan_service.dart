@@ -55,7 +55,7 @@ class MedicineScanService {
     }
   }
 
-  static _ParsedMedicineText parseMedicineText(String text) {
+  static ParsedMedicineText parseMedicineText(String text) {
     final normalized = text
         .replaceAll('\r', '\n')
         .split('\n')
@@ -94,14 +94,13 @@ class MedicineScanService {
 
     medicineName ??= normalized.isNotEmpty ? normalized.first : null;
 
-    return _ParsedMedicineText(medicineName: medicineName, dosage: dosage);
+    return ParsedMedicineText(medicineName: medicineName, dosage: dosage);
   }
 }
 
-class _ParsedMedicineText {
+class ParsedMedicineText {
   final String? medicineName;
   final String? dosage;
 
-  const _ParsedMedicineText({required this.medicineName, required this.dosage});
+  const ParsedMedicineText({required this.medicineName, required this.dosage});
 }
-

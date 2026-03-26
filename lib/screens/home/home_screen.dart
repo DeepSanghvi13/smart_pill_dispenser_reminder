@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/medicine.dart';
+import '../../providers/sync_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/database_service.dart';
 import '../../services/alarm_service.dart';
@@ -29,6 +30,51 @@ class _HomeScreenState extends State<HomeScreen> {
   final DatabaseService _dbService = DatabaseService();
   bool _isLoading = true;
 
+  Widget _buildCurrentPage() {
+    switch (_currentIndex) {
+      case 0:
+        return HomeBody(
+          medicines: _medicines,
+          onEdit: _editMedicine,
+          onDelete: _deleteMedicine,
+        );
+      case 1:
+        return const UpdatesScreen();
+      case 2:
+        return MedicationsScreen(
+          medicines: _medicines,
+          onAddMed: _addMedicine,
+          onEdit: _editMedicine,
+          onDelete: _deleteMedicine,
+          onOpenExpiryCalendar: _openExpiryCalendar,
+        );
+      case 3:
+        return const ManageScreen();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Future<void> _retryPendingSync() async {
+    final auth = context.read<AuthService>();
+    final userId = auth.currentUser;
+    if (userId == null || userId.isEmpty) return;
+
+    final sync = context.read<SyncProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await sync.retryPendingSync(userId);
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Pending sync completed successfully.'
+              : 'Sync still pending. Check connection and retry.',
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading medicines: $e');
+      debugPrint('Error loading medicines: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -58,8 +104,10 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => const AddMedicationScreen(),
       ),
     );
+    if (!mounted) return;
 
     if (result != null && result is Medicine) {
+      final messenger = ScaffoldMessenger.of(context);
       try {
         // Save to database
         final id = await _dbService.addMedicine(result);
@@ -91,12 +139,14 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
+        if (!mounted) return;
         // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(content: Text('Medicine added successfully')),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        if (!mounted) return;
+        messenger.showSnackBar(
           SnackBar(content: Text('Error adding medicine: $e')),
         );
       }
@@ -113,8 +163,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+    if (!mounted) return;
 
     if (result != null && result is Medicine) {
+      final messenger = ScaffoldMessenger.of(context);
       try {
         final medicineId = _medicines[index].id;
         if (medicineId != null) {
@@ -148,12 +200,14 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          ScaffoldMessenger.of(context).showSnackBar(
+          if (!mounted) return;
+          messenger.showSnackBar(
             const SnackBar(content: Text('Medicine updated successfully')),
           );
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        if (!mounted) return;
+        messenger.showSnackBar(
           SnackBar(content: Text('Error updating medicine: $e')),
         );
       }
@@ -183,21 +237,25 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           TextButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               try {
                 final medicineId = _medicines[index].id;
                 if (medicineId != null) {
                   await _dbService.deleteMedicine(medicineId);
+                  if (!mounted) return;
                   setState(() => _medicines.removeAt(index));
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(content: Text('Medicine deleted')),
                   );
                 }
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                if (!mounted) return;
+                messenger.showSnackBar(
                   SnackBar(content: Text('Error deleting medicine: $e')),
                 );
               }
+              if (!mounted) return;
               Navigator.pop(context);
             },
             child: const Text('Delete'),
@@ -213,29 +271,32 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final pages = [
-      HomeBody(
-        medicines: _medicines,
-        onEdit: _editMedicine,
-        onDelete: _deleteMedicine,
-      ),
-      const UpdatesScreen(),
-      MedicationsScreen(
-        medicines: _medicines,
-        onAddMed: _addMedicine,
-        onEdit: _editMedicine,
-        onDelete: _deleteMedicine,
-        onOpenExpiryCalendar: _openExpiryCalendar,
-      ),
-      const ManageScreen(),
-    ];
-
-    final currentUserEmail = context.watch<AuthService>().currentUser ?? 'Guest';
+    final currentUserEmail =
+        context.watch<AuthService>().currentUser ?? 'Guest';
+    final syncProvider = context.watch<SyncProvider>();
 
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(title: Text(currentUserEmail)),
-      body: pages[_currentIndex],
+      appBar: AppBar(
+        title: Text(currentUserEmail),
+        actions: [
+          if (syncProvider.hasPendingSync || syncProvider.isSyncing)
+            IconButton(
+              tooltip: syncProvider.isSyncing
+                  ? 'Sync in progress'
+                  : 'Retry pending sync',
+              onPressed: syncProvider.isSyncing ? null : _retryPendingSync,
+              icon: syncProvider.isSyncing
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_problem),
+            ),
+        ],
+      ),
+      body: _buildCurrentPage(),
       floatingActionButton: (_currentIndex == 0 || _currentIndex == 2)
           ? FloatingActionButton(
               backgroundColor: const Color(0xFF0D4F8B),
@@ -291,7 +352,8 @@ class HomeBody extends StatelessWidget {
               style: const TextStyle(fontSize: 28),
             ),
             title: Text(med.name),
-            subtitle: Text('${med.dosage} • ${med.time} • ${med.category.label} • $expiryText'),
+            subtitle: Text(
+                '${med.dosage} • ${med.time} • ${med.category.label} • $expiryText'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

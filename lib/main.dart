@@ -49,24 +49,26 @@ Future<void> main() async {
     print('Database initialization error: $e');
   }
 
-  // Initialize notifications
-  try {
-    await NotificationService.init();
-    await NotificationService.requestPermissions();
-  } catch (e) {
-    // ignore: avoid_print
-    print('Notification service error (may be expected on web): $e');
-  }
-
-  // Restore login session (so returning users are auto-logged in)
-  try {
-    await AuthService().loadSession();
-  } catch (e) {
-    // ignore: avoid_print
-    print('Session restore error: $e');
-  }
-
   runApp(const MyApp());
+
+  // Defer non-critical startup work so first frame appears sooner.
+  Future.microtask(() async {
+    try {
+      await NotificationService.init();
+      await NotificationService.requestPermissions();
+    } catch (e) {
+      // ignore: avoid_print
+      print('Notification service error (may be expected on web): $e');
+    }
+
+    // Restore login session in background; provider notifies UI when ready.
+    try {
+      await AuthService().loadSession();
+    } catch (e) {
+      // ignore: avoid_print
+      print('Session restore error: $e');
+    }
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -81,7 +83,14 @@ class MyApp extends StatelessWidget {
           providers: [
             ChangeNotifierProvider(create: (_) => AlarmService()),
             ChangeNotifierProvider(create: (_) => AuthService()),
-            ChangeNotifierProvider(create: (_) => SyncProvider()..initialize()),
+            ChangeNotifierProvider(
+              create: (_) {
+                final provider = SyncProvider();
+                // Defer sync connectivity checks so core UI is interactive first.
+                Future.delayed(const Duration(seconds: 2), provider.initialize);
+                return provider;
+              },
+            ),
           ],
           child: MaterialApp(
             theme: ThemeData.light(),
@@ -99,7 +108,8 @@ class MyApp extends StatelessWidget {
                 if (authService.isLoggedIn) {
                   return Stack(
                     children: [
-                      HomeScreen(key: ValueKey(authService.currentUser ?? 'guest')),
+                      HomeScreen(
+                          key: ValueKey(authService.currentUser ?? 'guest')),
                       const AlarmDisplayScreen(),
                     ],
                   );

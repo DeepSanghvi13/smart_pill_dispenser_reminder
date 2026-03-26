@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print, prefer_interpolation_to_compose_strings
+
 import '../models/medicine.dart';
 import '../models/reminder.dart';
 import '../models/alarm_log.dart';
@@ -116,7 +118,8 @@ class DatabaseHelper {
 
     for (final reminder in reminders) {
       final id = await _repo.addReminder(reminder);
-      print('✓ Added reminder: ${reminder.medicineName} at ${reminder.time} (ID: $id)');
+      print(
+          '✓ Added reminder: ${reminder.medicineName} at ${reminder.time} (ID: $id)');
     }
   }
 
@@ -165,7 +168,8 @@ class DatabaseHelper {
 
     for (final caretaker in caretakers) {
       await _repo.addCaretaker(caretaker);
-      print('✓ Added caretaker: ${caretaker.fullName} (${caretaker.relationship})');
+      print(
+          '✓ Added caretaker: ${caretaker.fullName} (${caretaker.relationship})');
     }
   }
 
@@ -289,9 +293,9 @@ class DatabaseHelper {
 
   /// Full database dump
   Future<void> fullDump() async {
-    print('\n' + '='*50);
+    print('\n' + '=' * 50);
     print('📂 FULL DATABASE DUMP');
-    print('='*50);
+    print('=' * 50);
 
     await printUserProfile();
     await printAllMedicines();
@@ -301,7 +305,7 @@ class DatabaseHelper {
     await printMissedAlarms();
     await printDatabaseStats();
 
-    print('='*50 + '\n');
+    print('=' * 50 + '\n');
   }
 
   // ============= UTILITY METHODS =============
@@ -349,7 +353,9 @@ class DatabaseHelper {
       'pending': pending,
       'snoozed': snoozed,
       'missed': missedAlarms.length,
-      'adherenceRate': todayAlarms.isEmpty ? 0 : (taken / todayAlarms.length * 100).toStringAsFixed(2),
+      'adherenceRate': todayAlarms.isEmpty
+          ? 0
+          : (taken / todayAlarms.length * 100).toStringAsFixed(2),
     };
   }
 

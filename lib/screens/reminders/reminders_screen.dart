@@ -47,7 +47,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
   Future<void> _openReminderForm({Reminder? reminder}) async {
     if (_medicines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one medicine before creating reminders.')),
+        const SnackBar(
+            content:
+                Text('Add at least one medicine before creating reminders.')),
       );
       return;
     }
@@ -123,18 +125,21 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       final reminder = _reminders[index];
                       return Card(
                         child: ListTile(
-                          title: Text('${reminder.medicineName} - ${reminder.time}'),
+                          title: Text(
+                              '${reminder.medicineName} - ${reminder.time}'),
                           subtitle: Text(reminder.daysOfWeek.join(', ')),
                           leading: Switch(
                             value: reminder.isActive,
-                            onChanged: (value) => _toggleReminder(reminder, value),
+                            onChanged: (value) =>
+                                _toggleReminder(reminder, value),
                           ),
                           trailing: Wrap(
                             spacing: 4,
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.edit),
-                                onPressed: () => _openReminderForm(reminder: reminder),
+                                onPressed: () =>
+                                    _openReminderForm(reminder: reminder),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
@@ -154,4 +159,3 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 }
-

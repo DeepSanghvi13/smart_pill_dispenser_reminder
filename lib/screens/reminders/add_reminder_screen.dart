@@ -57,8 +57,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
   }
 
   Future<void> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
     if (selectedDays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Select at least one day')),
       );
       return;
@@ -71,19 +72,22 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
         id: widget.reminder?.id,
         medicineId: selectedMedicine.id ?? 0,
         medicineName: selectedMedicine.name,
-        time: '${reminderTime.hour.toString().padLeft(2, '0')}:${reminderTime.minute.toString().padLeft(2, '0')}',
+        time:
+            '${reminderTime.hour.toString().padLeft(2, '0')}:${reminderTime.minute.toString().padLeft(2, '0')}',
         daysOfWeek: selectedDays.toList(),
         isActive: isActive,
       );
 
       if (widget.reminder != null && widget.reminder!.id != null) {
         await _dbService.updateReminder(widget.reminder!.id!, reminder);
-        ScaffoldMessenger.of(context).showSnackBar(
+        if (!mounted) return;
+        messenger.showSnackBar(
           const SnackBar(content: Text('Reminder updated successfully!')),
         );
       } else {
         await _dbService.addReminder(reminder);
-        ScaffoldMessenger.of(context).showSnackBar(
+        if (!mounted) return;
+        messenger.showSnackBar(
           const SnackBar(content: Text('Reminder added successfully!')),
         );
       }
@@ -95,7 +99,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       if (!mounted) return;
       setState(() => _isSaving = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
     }
@@ -115,7 +119,8 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Select Medicine
-            const Text('Medicine', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Text('Medicine',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 8),
             DropdownButton<Medicine>(
               isExpanded: true,
@@ -130,18 +135,21 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
             const SizedBox(height: 24),
 
             // Select Time
-            const Text('Time', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Text('Time',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 8),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text('${reminderTime.hour.toString().padLeft(2, '0')}:${reminderTime.minute.toString().padLeft(2, '0')}'),
+              title: Text(
+                  '${reminderTime.hour.toString().padLeft(2, '0')}:${reminderTime.minute.toString().padLeft(2, '0')}'),
               trailing: const Icon(Icons.access_time),
               onTap: _pickTime,
             ),
             const SizedBox(height: 24),
 
             // Select Days
-            const Text('Days', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Text('Days',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -194,8 +202,11 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                         ),
                       )
                     : Text(
-                        widget.reminder == null ? 'Add Reminder' : 'Update Reminder',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        widget.reminder == null
+                            ? 'Add Reminder'
+                            : 'Update Reminder',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
               ),
             ),
@@ -205,4 +216,3 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
     );
   }
 }
-

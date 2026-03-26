@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
@@ -8,7 +10,7 @@ import '../models/missed_medicine_alert.dart';
 import '../models/reminder.dart';
 import '../models/alarm_log.dart';
 import '../models/user_profile.dart';
-import 'mysql_sync_helper.dart';
+import 'mysql_api_service.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -17,6 +19,7 @@ class DatabaseService {
   static Box<dynamic>? _barcodeCacheBox;
   static int _medicineIdCounter = 0;
   static String _currentUserId = 'guest';
+  static final MySQLApiService _apiService = MySQLApiService();
 
   factory DatabaseService() {
     return _instance;
@@ -35,9 +38,16 @@ class DatabaseService {
 
   String _medicineHiveKey(int id) => 'med_${_currentUserId}_$id';
 
+  Future<MySQLApiService?> _connectedApi() async {
+    _apiService.configure(userId: _currentUserId);
+    final connected = await _apiService.checkServerConnection();
+    return connected ? _apiService : null;
+  }
+
   Future<void> _syncWebCounterForCurrentUser() async {
     if (!kIsWeb || _medicinesBox == null) return;
-    _medicineIdCounter = _medicinesBox!.get(_currentCounterKey(), defaultValue: 0) ?? 0;
+    _medicineIdCounter =
+        _medicinesBox!.get(_currentCounterKey(), defaultValue: 0) ?? 0;
   }
 
   Future<void> setCurrentUser(String? userId) async {
@@ -60,7 +70,8 @@ class DatabaseService {
         if (!_medicinesBox!.containsKey(counterKey)) {
           _medicinesBox!.put(counterKey, 0);
         }
-        _medicineIdCounter = _medicinesBox!.get(counterKey, defaultValue: 0) ?? 0;
+        _medicineIdCounter =
+            _medicinesBox!.get(counterKey, defaultValue: 0) ?? 0;
       } catch (e) {
         print('Error initializing Hive boxes: $e');
       }
@@ -105,7 +116,6 @@ class DatabaseService {
       },
     );
   }
-
 
   /// Create all tables
   Future<void> _createTables(Database db, int version) async {
@@ -267,17 +277,34 @@ class DatabaseService {
   }
 
   Future<void> _ensureSchemaColumns(Database db) async {
-    await _ensureColumn(db, table: 'user_profiles', column: 'phoneNumber', type: 'TEXT');
-    await _ensureColumn(db, table: 'user_profiles', column: 'email', type: 'TEXT');
-    await _ensureColumn(db, table: 'user_profiles', column: 'updatedAt', type: 'TEXT');
-    await _ensureColumn(db, table: 'medicines', column: 'expiryDate', type: 'TEXT');
-    await _ensureColumn(db, table: 'medicines', column: 'isScanned', type: 'INTEGER DEFAULT 0');
-    await _ensureColumn(db, table: 'medicines', column: 'scannedText', type: 'TEXT');
-    await _ensureColumn(db, table: 'medicines', column: 'imagePath', type: 'TEXT');
-    await _ensureColumn(db, table: 'medicines', column: 'healthCondition', type: 'TEXT');
-    await _ensureColumn(db, table: 'medicines', column: 'ownerUserId', type: "TEXT NOT NULL DEFAULT 'guest'");
-    await _ensureColumn(db, table: 'reminders', column: 'ownerUserId', type: "TEXT NOT NULL DEFAULT 'guest'");
-    await _ensureColumn(db, table: 'caretakers', column: 'ownerUserId', type: "TEXT NOT NULL DEFAULT 'guest'");
+    await _ensureColumn(db,
+        table: 'user_profiles', column: 'phoneNumber', type: 'TEXT');
+    await _ensureColumn(db,
+        table: 'user_profiles', column: 'email', type: 'TEXT');
+    await _ensureColumn(db,
+        table: 'user_profiles', column: 'updatedAt', type: 'TEXT');
+    await _ensureColumn(db,
+        table: 'medicines', column: 'expiryDate', type: 'TEXT');
+    await _ensureColumn(db,
+        table: 'medicines', column: 'isScanned', type: 'INTEGER DEFAULT 0');
+    await _ensureColumn(db,
+        table: 'medicines', column: 'scannedText', type: 'TEXT');
+    await _ensureColumn(db,
+        table: 'medicines', column: 'imagePath', type: 'TEXT');
+    await _ensureColumn(db,
+        table: 'medicines', column: 'healthCondition', type: 'TEXT');
+    await _ensureColumn(db,
+        table: 'medicines',
+        column: 'ownerUserId',
+        type: "TEXT NOT NULL DEFAULT 'guest'");
+    await _ensureColumn(db,
+        table: 'reminders',
+        column: 'ownerUserId',
+        type: "TEXT NOT NULL DEFAULT 'guest'");
+    await _ensureColumn(db,
+        table: 'caretakers',
+        column: 'ownerUserId',
+        type: "TEXT NOT NULL DEFAULT 'guest'");
   }
 
   Future<void> _ensureColumn(
@@ -315,9 +342,13 @@ class DatabaseService {
         'healthCondition': medicine.healthCondition,
         'createdAt': DateTime.now().toIso8601String(),
       };
-      await _medicinesBox!.put(_medicineHiveKey(_medicineIdCounter), medicineMap);
+      await _medicinesBox!
+          .put(_medicineHiveKey(_medicineIdCounter), medicineMap);
       await _medicinesBox!.put(_currentCounterKey(), _medicineIdCounter);
-      MySQLSyncHelper.syncMedicine(medicine.copyWith(id: _medicineIdCounter));
+      final api = await _connectedApi();
+      if (api != null) {
+        await api.syncMedicine(medicine.copyWith(id: _medicineIdCounter));
+      }
       return _medicineIdCounter;
     }
 
@@ -339,12 +370,20 @@ class DatabaseService {
         'createdAt': DateTime.now().toIso8601String(),
       },
     );
-    MySQLSyncHelper.syncMedicine(medicine.copyWith(id: id));
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.syncMedicine(medicine.copyWith(id: id));
+    }
     return id;
   }
 
   /// Get all medicines (works on web and native)
   Future<List<Medicine>> getAllMedicines() async {
+    final api = await _connectedApi();
+    if (api != null) {
+      return api.getMedicinesFromServer();
+    }
+
     if (kIsWeb) {
       // Web implementation using Hive
       await initializeHiveBoxes();
@@ -359,7 +398,8 @@ class DatabaseService {
             name: data['name'] as String,
             dosage: data['dosage'] as String,
             time: data['time'] as String,
-            category: MedicineCategory.fromString(data['category'] as String? ?? 'tablets'),
+            category: MedicineCategory.fromString(
+                data['category'] as String? ?? 'tablets'),
             expiryDate: data['expiryDate'] != null
                 ? DateTime.tryParse(data['expiryDate'] as String)
                 : null,
@@ -395,7 +435,8 @@ class DatabaseService {
           name: data['name'] as String,
           dosage: data['dosage'] as String,
           time: data['time'] as String,
-          category: MedicineCategory.fromString(data['category'] as String? ?? 'tablets'),
+          category: MedicineCategory.fromString(
+              data['category'] as String? ?? 'tablets'),
           expiryDate: data['expiryDate'] != null
               ? DateTime.tryParse(data['expiryDate'] as String)
               : null,
@@ -441,12 +482,16 @@ class DatabaseService {
         'createdAt': DateTime.now().toIso8601String(),
       };
       await _medicinesBox!.put(_medicineHiveKey(id), medicineMap);
+      final api = await _connectedApi();
+      if (api != null) {
+        await api.updateMedicineOnServer(id, medicine);
+      }
       return 1; // Return 1 to indicate success
     }
 
     // Native implementation using SQLite
     final db = await database;
-    return await db.update(
+    final updated = await db.update(
       'medicines',
       {
         'ownerUserId': _currentUserId,
@@ -463,6 +508,11 @@ class DatabaseService {
       where: 'id = ? AND ownerUserId = ?',
       whereArgs: [id, _currentUserId],
     );
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.updateMedicineOnServer(id, medicine);
+    }
+    return updated;
   }
 
   /// Delete medicine (works on web and native)
@@ -471,22 +521,36 @@ class DatabaseService {
       // Web implementation using Hive
       await initializeHiveBoxes();
       await _medicinesBox!.delete(_medicineHiveKey(id));
+      final api = await _connectedApi();
+      if (api != null) {
+        await api.deleteMedicineFromServer(id);
+      }
       return 1; // Return 1 to indicate success
     }
 
     // Native implementation using SQLite
     final db = await database;
-    return await db.delete(
+    final deleted = await db.delete(
       'medicines',
       where: 'id = ? AND ownerUserId = ?',
       whereArgs: [id, _currentUserId],
     );
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.deleteMedicineFromServer(id);
+    }
+    return deleted;
   }
 
   // ============= SETTINGS OPERATIONS =============
 
   /// Save a setting
   Future<void> saveSetting(String key, String value) async {
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.saveSettingToServer(key, value);
+    }
+
     final db = await database;
     await db.insert(
       'settings',
@@ -497,6 +561,11 @@ class DatabaseService {
 
   /// Get a setting
   Future<String?> getSetting(String key) async {
+    final all = await getAllSettings();
+    if (all.containsKey(key)) {
+      return all[key];
+    }
+
     final db = await database;
     final result = await db.query(
       'settings',
@@ -511,6 +580,14 @@ class DatabaseService {
 
   /// Get all settings
   Future<Map<String, String>> getAllSettings() async {
+    final api = await _connectedApi();
+    if (api != null) {
+      final serverSettings = await api.getSettingsFromServer();
+      if (serverSettings.isNotEmpty) {
+        return serverSettings;
+      }
+    }
+
     final db = await database;
     final result = await db.query('settings');
     final map = <String, String>{};
@@ -554,9 +631,9 @@ class DatabaseService {
   /// Get notification history
   Future<List<Map<String, dynamic>>> getNotificationHistory() async {
     final db = await database;
-    return await db.query('notification_history', orderBy: 'scheduledTime DESC');
+    return await db.query('notification_history',
+        orderBy: 'scheduledTime DESC');
   }
-
 
   // ============= DEPENDENTS OPERATIONS =============
 
@@ -569,7 +646,7 @@ class DatabaseService {
     String? color,
   }) async {
     final db = await database;
-    return await db.insert(
+    final id = await db.insert(
       'dependents',
       {
         'firstName': firstName,
@@ -580,10 +657,30 @@ class DatabaseService {
         'createdAt': DateTime.now().toIso8601String(),
       },
     );
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.saveDependentToServer({
+        'id': id,
+        'firstName': firstName,
+        'lastName': lastName,
+        'gender': gender,
+        'birthDate': birthDate,
+        'color': color,
+      });
+    }
+    return id;
   }
 
   /// Get all dependents
   Future<List<Map<String, dynamic>>> getAllDependents() async {
+    final api = await _connectedApi();
+    if (api != null) {
+      final dependents = await api.getDependentsFromServer();
+      if (dependents.isNotEmpty) {
+        return dependents;
+      }
+    }
+
     final db = await database;
     return await db.query('dependents');
   }
@@ -591,11 +688,16 @@ class DatabaseService {
   /// Delete dependent
   Future<int> deleteDependent(int id) async {
     final db = await database;
-    return await db.delete(
+    final deleted = await db.delete(
       'dependents',
       where: 'id = ?',
       whereArgs: [id],
     );
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.deleteDependentFromServer(id);
+    }
+    return deleted;
   }
 
   // ============= CARETAKER OPERATIONS =============
@@ -603,7 +705,7 @@ class DatabaseService {
   /// Add caretaker
   Future<int> addCaretaker(Caretaker caretaker) async {
     final db = await database;
-    return await db.insert('caretakers', {
+    final id = await db.insert('caretakers', {
       'ownerUserId': _currentUserId,
       'firstName': caretaker.firstName,
       'lastName': caretaker.lastName,
@@ -616,10 +718,20 @@ class DatabaseService {
       'isActive': caretaker.isActive ? 1 : 0,
       'createdAt': DateTime.now().toIso8601String(),
     });
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.saveCaretakerToServer(caretaker.copyWith(id: id));
+    }
+    return id;
   }
 
   /// Get all caretakers
   Future<List<Caretaker>> getAllCaretakers() async {
+    final api = await _connectedApi();
+    if (api != null) {
+      return api.getCaretakersFromServer();
+    }
+
     final db = await database;
     final result = await db.query(
       'caretakers',
@@ -632,50 +744,72 @@ class DatabaseService {
 
   /// Get active caretakers
   Future<List<Caretaker>> getActiveCaretakers() async {
-    final db = await database;
-    final result = await db.query(
-      'caretakers',
-      where: 'ownerUserId = ? AND isActive = ?',
-      whereArgs: [_currentUserId, 1],
-    );
-    return result.map((m) => Caretaker.fromMap(m)).toList();
+    final all = await getAllCaretakers();
+    return all.where((c) => c.isActive).toList();
   }
 
   /// Update caretaker
   Future<int> updateCaretaker(int id, Caretaker caretaker) async {
     final db = await database;
-    return await db.update('caretakers', {
-      'firstName': caretaker.firstName,
-      'lastName': caretaker.lastName,
-      'phoneNumber': caretaker.phoneNumber,
-      'email': caretaker.email,
-      'relationship': caretaker.relationship,
-      'notifyViaSMS': caretaker.notifyViaSMS ? 1 : 0,
-      'notifyViaEmail': caretaker.notifyViaEmail ? 1 : 0,
-      'notifyViaNotification': caretaker.notifyViaNotification ? 1 : 0,
-      'isActive': caretaker.isActive ? 1 : 0,
-    }, where: 'id = ? AND ownerUserId = ?', whereArgs: [id, _currentUserId]);
+    final updated = await db.update(
+        'caretakers',
+        {
+          'firstName': caretaker.firstName,
+          'lastName': caretaker.lastName,
+          'phoneNumber': caretaker.phoneNumber,
+          'email': caretaker.email,
+          'relationship': caretaker.relationship,
+          'notifyViaSMS': caretaker.notifyViaSMS ? 1 : 0,
+          'notifyViaEmail': caretaker.notifyViaEmail ? 1 : 0,
+          'notifyViaNotification': caretaker.notifyViaNotification ? 1 : 0,
+          'isActive': caretaker.isActive ? 1 : 0,
+        },
+        where: 'id = ? AND ownerUserId = ?',
+        whereArgs: [id, _currentUserId]);
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.saveCaretakerToServer(caretaker.copyWith(id: id));
+    }
+    return updated;
   }
 
   /// Delete caretaker
   Future<int> deleteCaretaker(int id) async {
     final db = await database;
-    return await db.delete(
+    final deleted = await db.delete(
       'caretakers',
       where: 'id = ? AND ownerUserId = ?',
       whereArgs: [id, _currentUserId],
     );
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.deleteCaretakerFromServer(id);
+    }
+    return deleted;
   }
 
   /// Toggle caretaker status
   Future<int> toggleCaretakerStatus(int id, bool isActive) async {
     final db = await database;
-    return await db.update(
+    final updated = await db.update(
       'caretakers',
       {'isActive': isActive ? 1 : 0},
       where: 'id = ? AND ownerUserId = ?',
       whereArgs: [id, _currentUserId],
     );
+    final existing = await db.query(
+      'caretakers',
+      where: 'id = ? AND ownerUserId = ?',
+      whereArgs: [id, _currentUserId],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      final api = await _connectedApi();
+      if (api != null) {
+        await api.saveCaretakerToServer(Caretaker.fromMap(existing.first));
+      }
+    }
+    return updated;
   }
 
   // ============= MISSED MEDICINE ALERTS =============
@@ -698,14 +832,16 @@ class DatabaseService {
   /// Get all missed alerts
   Future<List<MissedMedicineAlert>> getMissedAlerts() async {
     final db = await database;
-    final result = await db.query('missed_medicine_alerts', orderBy: 'detectedTime DESC');
+    final result =
+        await db.query('missed_medicine_alerts', orderBy: 'detectedTime DESC');
     return result.map((m) => MissedMedicineAlert.fromMap(m)).toList();
   }
 
   /// Get pending alerts
   Future<List<MissedMedicineAlert>> getPendingAlerts() async {
     final db = await database;
-    final result = await db.query('missed_medicine_alerts', where: 'status = ?', whereArgs: ['pending']);
+    final result = await db.query('missed_medicine_alerts',
+        where: 'status = ?', whereArgs: ['pending']);
     return result.map((m) => MissedMedicineAlert.fromMap(m)).toList();
   }
 
@@ -713,8 +849,8 @@ class DatabaseService {
   Future<int> updateAlertStatus(int id, String status, int count) async {
     final db = await database;
     return await db.update('missed_medicine_alerts',
-      {'status': status, 'notificationSent': 1, 'caretakersNotified': count},
-      where: 'id = ?', whereArgs: [id]);
+        {'status': status, 'notificationSent': 1, 'caretakersNotified': count},
+        where: 'id = ?', whereArgs: [id]);
   }
 
   // ============= REMINDER OPERATIONS =============
@@ -722,7 +858,7 @@ class DatabaseService {
   /// Add a reminder
   Future<int> addReminder(Reminder reminder) async {
     final db = await database;
-    return await db.insert('reminders', {
+    final id = await db.insert('reminders', {
       'ownerUserId': _currentUserId,
       'medicineId': reminder.medicineId,
       'medicineName': reminder.medicineName,
@@ -732,10 +868,20 @@ class DatabaseService {
       'lastNotifiedAt': reminder.lastNotifiedAt?.toIso8601String(),
       'createdAt': DateTime.now().toIso8601String(),
     });
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.saveReminderToServer(reminder.copyWith(id: id));
+    }
+    return id;
   }
 
   /// Get all reminders
   Future<List<Reminder>> getAllReminders() async {
+    final api = await _connectedApi();
+    if (api != null) {
+      return api.getRemindersFromServer();
+    }
+
     final db = await database;
     final result = await db.query(
       'reminders',
@@ -748,55 +894,70 @@ class DatabaseService {
 
   /// Get active reminders
   Future<List<Reminder>> getActiveReminders() async {
-    final db = await database;
-    final result = await db.query(
-      'reminders',
-      where: 'ownerUserId = ? AND isActive = ?',
-      whereArgs: [_currentUserId, 1],
-    );
-    return result.map((m) => Reminder.fromMap(m)).toList();
+    final all = await getAllReminders();
+    return all.where((r) => r.isActive).toList();
   }
 
   /// Get reminders by medicine ID
   Future<List<Reminder>> getRemindersByMedicineId(int medicineId) async {
-    final db = await database;
-    final result = await db.query('reminders',
-      where: 'ownerUserId = ? AND medicineId = ?',
-      whereArgs: [_currentUserId, medicineId]
-    );
-    return result.map((m) => Reminder.fromMap(m)).toList();
+    final all = await getAllReminders();
+    return all.where((r) => r.medicineId == medicineId).toList();
   }
 
   /// Update reminder
   Future<int> updateReminder(int id, Reminder reminder) async {
     final db = await database;
-    return await db.update('reminders', {
-      'medicineName': reminder.medicineName,
-      'time': reminder.time,
-      'daysOfWeek': reminder.daysOfWeek.join(','),
-      'isActive': reminder.isActive ? 1 : 0,
-      'lastNotifiedAt': reminder.lastNotifiedAt?.toIso8601String(),
-    }, where: 'id = ? AND ownerUserId = ?', whereArgs: [id, _currentUserId]);
+    final updated = await db.update(
+        'reminders',
+        {
+          'medicineName': reminder.medicineName,
+          'time': reminder.time,
+          'daysOfWeek': reminder.daysOfWeek.join(','),
+          'isActive': reminder.isActive ? 1 : 0,
+          'lastNotifiedAt': reminder.lastNotifiedAt?.toIso8601String(),
+        },
+        where: 'id = ? AND ownerUserId = ?',
+        whereArgs: [id, _currentUserId]);
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.saveReminderToServer(reminder.copyWith(id: id));
+    }
+    return updated;
   }
 
   /// Delete reminder
   Future<int> deleteReminder(int id) async {
     final db = await database;
-    return await db.delete(
+    final deleted = await db.delete(
       'reminders',
       where: 'id = ? AND ownerUserId = ?',
       whereArgs: [id, _currentUserId],
     );
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.deleteReminderFromServer(id);
+    }
+    return deleted;
   }
 
   /// Toggle reminder status
   Future<int> toggleReminderStatus(int id, bool isActive) async {
     final db = await database;
-    return await db.update('reminders',
-      {'isActive': isActive ? 1 : 0},
+    final updated = await db.update('reminders', {'isActive': isActive ? 1 : 0},
+        where: 'id = ? AND ownerUserId = ?', whereArgs: [id, _currentUserId]);
+    final existing = await db.query(
+      'reminders',
       where: 'id = ? AND ownerUserId = ?',
-      whereArgs: [id, _currentUserId]
+      whereArgs: [id, _currentUserId],
+      limit: 1,
     );
+    if (existing.isNotEmpty) {
+      final api = await _connectedApi();
+      if (api != null) {
+        await api.saveReminderToServer(Reminder.fromMap(existing.first));
+      }
+    }
+    return updated;
   }
 
   // ============= ALARM LOG OPERATIONS =============
@@ -804,7 +965,7 @@ class DatabaseService {
   /// Log alarm
   Future<int> logAlarm(AlarmLog log) async {
     final db = await database;
-    return await db.insert('alarm_logs', {
+    final id = await db.insert('alarm_logs', {
       'medicineId': log.medicineId,
       'medicineName': log.medicineName,
       'scheduledTime': log.scheduledTime.toIso8601String(),
@@ -814,10 +975,20 @@ class DatabaseService {
       'takenAt': log.takenAt?.toIso8601String(),
       'notes': log.notes,
     });
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.logAlarmToServer(log.copyWith(id: id));
+    }
+    return id;
   }
 
   /// Get all alarm logs
   Future<List<AlarmLog>> getAllAlarmLogs() async {
+    final api = await _connectedApi();
+    if (api != null) {
+      return api.getAlarmLogsFromServer();
+    }
+
     final db = await database;
     final result = await db.query('alarm_logs', orderBy: 'scheduledTime DESC');
     return result.map((m) => AlarmLog.fromMap(m)).toList();
@@ -825,39 +996,44 @@ class DatabaseService {
 
   /// Get alarm logs by medicine ID
   Future<List<AlarmLog>> getAlarmLogsByMedicineId(int medicineId) async {
-    final db = await database;
-    final result = await db.query('alarm_logs',
-      where: 'medicineId = ?',
-      whereArgs: [medicineId],
-      orderBy: 'scheduledTime DESC'
-    );
-    return result.map((m) => AlarmLog.fromMap(m)).toList();
+    final all = await getAllAlarmLogs();
+    return all.where((a) => a.medicineId == medicineId).toList();
   }
 
   /// Get today's alarm logs
   Future<List<AlarmLog>> getTodayAlarmLogs() async {
-    final db = await database;
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd = todayStart.add(const Duration(days: 1));
-
-    final result = await db.query('alarm_logs',
-      where: 'scheduledTime >= ? AND scheduledTime < ?',
-      whereArgs: [todayStart.toIso8601String(), todayEnd.toIso8601String()],
-      orderBy: 'scheduledTime ASC'
-    );
-    return result.map((m) => AlarmLog.fromMap(m)).toList();
+    final all = await getAllAlarmLogs();
+    return all
+        .where((a) =>
+            !a.scheduledTime.isBefore(todayStart) &&
+            a.scheduledTime.isBefore(todayEnd))
+        .toList();
   }
 
   /// Update alarm log status
-  Future<int> updateAlarmLogStatus(int id, String status, {int? snoozeCount, DateTime? takenAt}) async {
+  Future<int> updateAlarmLogStatus(int id, String status,
+      {int? snoozeCount, DateTime? takenAt}) async {
     final db = await database;
     final updates = {
       'status': status,
       if (snoozeCount != null) 'snoozeCount': snoozeCount,
       if (takenAt != null) 'takenAt': takenAt.toIso8601String(),
     };
-    return await db.update('alarm_logs', updates, where: 'id = ?', whereArgs: [id]);
+    final updated = await db
+        .update('alarm_logs', updates, where: 'id = ?', whereArgs: [id]);
+
+    final log = await db.query('alarm_logs',
+        where: 'id = ?', whereArgs: [id], limit: 1);
+    if (log.isNotEmpty) {
+      final api = await _connectedApi();
+      if (api != null) {
+        await api.logAlarmToServer(AlarmLog.fromMap(log.first));
+      }
+    }
+    return updated;
   }
 
   /// Increment snooze count
@@ -866,12 +1042,8 @@ class DatabaseService {
     final log = await db.query('alarm_logs', where: 'id = ?', whereArgs: [id]);
     if (log.isNotEmpty) {
       final currentSnooze = (log.first['snoozeCount'] as int?) ?? 0;
-      return await db.update(
-        'alarm_logs',
-        {'snoozeCount': currentSnooze + 1},
-        where: 'id = ?',
-        whereArgs: [id]
-      );
+      return await db.update('alarm_logs', {'snoozeCount': currentSnooze + 1},
+          where: 'id = ?', whereArgs: [id]);
     }
     return 0;
   }
@@ -879,38 +1051,22 @@ class DatabaseService {
   /// Mark alarm as taken
   Future<int> markAlarmAsTaken(int id) async {
     final db = await database;
-    return await db.update(
-      'alarm_logs',
-      {'status': 'taken', 'takenAt': DateTime.now().toIso8601String()},
-      where: 'id = ?',
-      whereArgs: [id]
-    );
+    return await db.update('alarm_logs',
+        {'status': 'taken', 'takenAt': DateTime.now().toIso8601String()},
+        where: 'id = ?', whereArgs: [id]);
   }
 
   /// Mark alarm as missed
   Future<int> markAlarmAsMissed(int id) async {
     final db = await database;
-    return await db.update(
-      'alarm_logs',
-      {'status': 'missed'},
-      where: 'id = ?',
-      whereArgs: [id]
-    );
+    return await db.update('alarm_logs', {'status': 'missed'},
+        where: 'id = ?', whereArgs: [id]);
   }
 
   /// Get missed alarms for today
   Future<List<AlarmLog>> getTodayMissedAlarms() async {
-    final db = await database;
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final todayEnd = todayStart.add(const Duration(days: 1));
-
-    final result = await db.query('alarm_logs',
-      where: 'status = ? AND scheduledTime >= ? AND scheduledTime < ?',
-      whereArgs: ['missed', todayStart.toIso8601String(), todayEnd.toIso8601String()],
-      orderBy: 'scheduledTime DESC'
-    );
-    return result.map((m) => AlarmLog.fromMap(m)).toList();
+    final today = await getTodayAlarmLogs();
+    return today.where((a) => a.status == 'missed').toList();
   }
 
   // ============= USER PROFILE OPERATIONS =============
@@ -972,6 +1128,11 @@ class DatabaseService {
 
   /// Save or update user profile
   Future<int> saveUserProfile(UserProfile profile) async {
+    final api = await _connectedApi();
+    if (api != null) {
+      await api.saveUserProfileToServer(profile);
+    }
+
     final db = await database;
     final existing = await db.query('user_profiles', limit: 1);
 
@@ -993,12 +1154,19 @@ class DatabaseService {
     } else {
       result = await db.update('user_profiles', data);
     }
-    MySQLSyncHelper.syncUserProfile(profile);
     return result;
   }
 
   /// Get user profile
   Future<UserProfile?> getUserProfileData() async {
+    final api = await _connectedApi();
+    if (api != null) {
+      final profile = await api.getUserProfileFromServer(_currentUserId);
+      if (profile != null) {
+        return profile;
+      }
+    }
+
     final db = await database;
     final result = await db.query('user_profiles', limit: 1);
     if (result.isNotEmpty) {
@@ -1038,7 +1206,9 @@ class DatabaseService {
   /// Update user
   Future<int> updateUser(int id, {String? email, String? passwordHash}) async {
     final db = await database;
-    final updates = <String, dynamic>{'updated_at': DateTime.now().toIso8601String()};
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String()
+    };
     if (email != null) updates['email'] = email;
     if (passwordHash != null) updates['password_hash'] = passwordHash;
     return await db.update('users', updates, where: 'id = ?', whereArgs: [id]);
@@ -1069,4 +1239,3 @@ class DatabaseService {
     }
   }
 }
-

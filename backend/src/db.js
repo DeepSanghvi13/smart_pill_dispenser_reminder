@@ -16,8 +16,19 @@ async function query(sql, params = []) {
   return rows;
 }
 
+async function ping() {
+  const connection = await pool.getConnection();
+  try {
+    await connection.ping();
+    await connection.query('SELECT 1');
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   pool,
   query,
+  ping,
 };
 

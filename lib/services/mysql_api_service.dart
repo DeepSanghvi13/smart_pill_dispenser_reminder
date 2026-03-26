@@ -1,3 +1,6 @@
+// ignore_for_file: avoid_print
+
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -11,9 +14,10 @@ import '../models/user_profile.dart';
 
 class MySQLApiService {
   static final MySQLApiService _instance = MySQLApiService._internal();
+  static const Duration _requestTimeout = Duration(seconds: 10);
 
   // Set at runtime with --dart-define=MYSQL_API_BASE_URL=http://<your-ip>:3000/api
-  static const String baseUrl = String.fromEnvironment(
+  static const String _configuredBaseUrl = String.fromEnvironment(
     'MYSQL_API_BASE_URL',
     defaultValue: 'http://localhost:3000/api',
   );
@@ -21,12 +25,15 @@ class MySQLApiService {
   late http.Client _client;
   String _userId = 'demo-user';
   String? _authToken;
+  String _activeBaseUrl = _configuredBaseUrl;
 
   factory MySQLApiService() => _instance;
 
   MySQLApiService._internal() {
     _client = http.Client();
   }
+
+  String get currentBaseUrl => _activeBaseUrl;
 
   void configure({String? userId, String? authToken}) {
     if (userId != null && userId.trim().isNotEmpty) {
@@ -36,8 +43,42 @@ class MySQLApiService {
   }
 
   Uri _uri(String path, [Map<String, String>? query]) {
-    final fullPath = path.startsWith('/') ? '$baseUrl$path' : '$baseUrl/$path';
+    final fullPath =
+        path.startsWith('/') ? '$_activeBaseUrl$path' : '$_activeBaseUrl/$path';
     return Uri.parse(fullPath).replace(queryParameters: query);
+  }
+
+  List<String> _candidateBaseUrls() {
+    final candidates = <String>{_configuredBaseUrl};
+    final uri = Uri.tryParse(_configuredBaseUrl);
+    if (uri != null && uri.host == 'localhost') {
+      candidates.add(
+        uri.replace(host: '10.0.2.2').toString(),
+      );
+      candidates.add(
+        uri.replace(host: '127.0.0.1').toString(),
+      );
+    } else if (uri != null && uri.host == '127.0.0.1') {
+      candidates.add(
+        uri.replace(host: 'localhost').toString(),
+      );
+      candidates.add(
+        uri.replace(host: '10.0.2.2').toString(),
+      );
+    }
+    return candidates.toList();
+  }
+
+  Future<bool> _checkHealthAt(String baseUrl) async {
+    try {
+      final healthUri = Uri.parse('$baseUrl/health');
+      final response = await _client
+          .get(healthUri, headers: _headers(json: false))
+          .timeout(const Duration(seconds: 4));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   Map<String, String> _headers({bool json = true}) {
@@ -52,6 +93,14 @@ class MySQLApiService {
   bool _isSuccess(http.Response response) =>
       response.statusCode >= 200 && response.statusCode < 300;
 
+  String? _extractErrorMessage(http.Response response) {
+    final body = _safeBody(response);
+    if (body is Map<String, dynamic>) {
+      return body['message'] as String?;
+    }
+    return null;
+  }
+
   dynamic _safeBody(http.Response response) {
     if (response.body.isEmpty) return null;
     try {
@@ -61,28 +110,147 @@ class MySQLApiService {
     }
   }
 
+  // ============= AUTH =============
+
+  Future<bool> registerUser(String email, String password) async {
+    try {
+      final response = await _client
+          .post(
+            _uri('/auth/register'),
+            headers: _headers(),
+            body: jsonEncode({
+              'email': email.trim().toLowerCase(),
+              'password': password,
+            }),
+          )
+          .timeout(_requestTimeout);
+      return _isSuccess(response);
+    } catch (e) {
+      print('Error registering user: $e');
+      return false;
+    }
+  }
+
+  Future<String?> registerUserWithMessage(String email, String password) async {
+    try {
+      final response = await _client
+          .post(
+            _uri('/auth/register'),
+            headers: _headers(),
+            body: jsonEncode({
+              'email': email.trim().toLowerCase(),
+              'password': password,
+            }),
+          )
+          .timeout(_requestTimeout);
+
+      if (_isSuccess(response)) return null;
+      return _extractErrorMessage(response) ?? 'Registration failed';
+    } catch (e) {
+      print('Error registering user with message: $e');
+      return 'Registration request failed';
+    }
+  }
+
+  Future<Map<String, dynamic>?> loginUser(String email, String password) async {
+    try {
+      final response = await _client
+          .post(
+            _uri('/auth/login'),
+            headers: _headers(),
+            body: jsonEncode({
+              'email': email.trim().toLowerCase(),
+              'password': password,
+            }),
+          )
+          .timeout(_requestTimeout);
+
+      if (!_isSuccess(response)) return null;
+      final body = _safeBody(response);
+      if (body is! Map<String, dynamic>) return null;
+      final data = body['data'];
+      return data is Map<String, dynamic> ? data : null;
+    } catch (e) {
+      print('Error logging in user: $e');
+      return null;
+    }
+  }
+
+  Future<bool> isEmailRegistered(String email) async {
+    try {
+      final response = await _client
+          .get(
+            _uri('/auth/exists', {'email': email.trim().toLowerCase()}),
+            headers: _headers(json: false),
+          )
+          .timeout(_requestTimeout);
+
+      if (!_isSuccess(response)) return false;
+      final body = _safeBody(response);
+      if (body is! Map<String, dynamic>) return false;
+      return body['exists'] == true;
+    } catch (e) {
+      print('Error checking registered email: $e');
+      return false;
+    }
+  }
+
+  Future<int> getTotalRegisteredUsers() async {
+    try {
+      final response = await _client
+          .get(_uri('/auth/stats'), headers: _headers(json: false))
+          .timeout(_requestTimeout);
+      if (!_isSuccess(response)) return 0;
+      final body = _safeBody(response);
+      if (body is! Map<String, dynamic>) return 0;
+      return body['totalUsers'] as int? ?? 0;
+    } catch (e) {
+      print('Error fetching auth stats: $e');
+      return 0;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getAdminSqlEntries() async {
+    try {
+      final response = await _client
+          .get(_uri('/admin/sql-entries'), headers: _headers(json: false))
+          .timeout(const Duration(seconds: 15));
+
+      if (!_isSuccess(response)) return null;
+      final body = _safeBody(response);
+      if (body is! Map<String, dynamic>) return null;
+      final data = body['data'];
+      return data is Map<String, dynamic> ? data : null;
+    } catch (e) {
+      print('Error fetching admin SQL entries: $e');
+      return null;
+    }
+  }
+
   // ============= MEDICINES =============
 
   Future<bool> syncMedicine(Medicine medicine) async {
     try {
-      final response = await _client.post(
-        _uri('/medicines'),
-        headers: _headers(),
-        body: jsonEncode({
-          'userId': _userId,
-          'id': medicine.id,
-          'name': medicine.name,
-          'dosage': medicine.dosage,
-          'time': medicine.time,
-          'category': medicine.category.name,
-          'expiryDate': medicine.expiryDate?.toIso8601String(),
-          'isScanned': medicine.isScanned,
-          'scannedText': medicine.scannedText,
-          'imagePath': medicine.imagePath,
-          'healthCondition': medicine.healthCondition,
-          'createdAt': DateTime.now().toIso8601String(),
-        }),
-      );
+      final response = await _client
+          .post(
+            _uri('/medicines'),
+            headers: _headers(),
+            body: jsonEncode({
+              'userId': _userId,
+              'id': medicine.id,
+              'name': medicine.name,
+              'dosage': medicine.dosage,
+              'time': medicine.time,
+              'category': medicine.category.name,
+              'expiryDate': medicine.expiryDate?.toIso8601String(),
+              'isScanned': medicine.isScanned,
+              'scannedText': medicine.scannedText,
+              'imagePath': medicine.imagePath,
+              'healthCondition': medicine.healthCondition,
+              'createdAt': DateTime.now().toIso8601String(),
+            }),
+          )
+          .timeout(_requestTimeout);
       return _isSuccess(response);
     } catch (e) {
       print('Error syncing medicine: $e');
@@ -92,10 +260,12 @@ class MySQLApiService {
 
   Future<List<Medicine>> getMedicinesFromServer() async {
     try {
-      final response = await _client.get(
-        _uri('/medicines', {'userId': _userId}),
-        headers: _headers(json: false),
-      );
+      final response = await _client
+          .get(
+            _uri('/medicines', {'userId': _userId}),
+            headers: _headers(json: false),
+          )
+          .timeout(_requestTimeout);
 
       if (!_isSuccess(response)) return [];
       final body = _safeBody(response);
@@ -274,10 +444,12 @@ class MySQLApiService {
               phoneNumber: item['phoneNumber'] as String? ?? '',
               email: item['email'] as String? ?? '',
               relationship: item['relationship'] as String? ?? '',
-              notifyViaSMS: item['notifyViaSMS'] == true || item['notifyViaSMS'] == 1,
-              notifyViaEmail: item['notifyViaEmail'] == true || item['notifyViaEmail'] == 1,
-              notifyViaNotification:
-                  item['notifyViaNotification'] == true || item['notifyViaNotification'] == 1,
+              notifyViaSMS:
+                  item['notifyViaSMS'] == true || item['notifyViaSMS'] == 1,
+              notifyViaEmail:
+                  item['notifyViaEmail'] == true || item['notifyViaEmail'] == 1,
+              notifyViaNotification: item['notifyViaNotification'] == true ||
+                  item['notifyViaNotification'] == 1,
               isActive: item['isActive'] == true || item['isActive'] == 1,
               createdAt: item['createdAt'] as String?,
             ),
@@ -286,6 +458,21 @@ class MySQLApiService {
     } catch (e) {
       print('Error fetching caretakers: $e');
       return [];
+    }
+  }
+
+  Future<bool> deleteCaretakerFromServer(int id) async {
+    try {
+      final response = await _client
+          .delete(
+            _uri('/caretakers/$id', {'userId': _userId}),
+            headers: _headers(json: false),
+          )
+          .timeout(_requestTimeout);
+      return _isSuccess(response);
+    } catch (e) {
+      print('Error deleting caretaker: $e');
+      return false;
     }
   }
 
@@ -421,6 +608,21 @@ class MySQLApiService {
     }
   }
 
+  Future<bool> deleteReminderFromServer(int id) async {
+    try {
+      final response = await _client
+          .delete(
+            _uri('/reminders/$id', {'userId': _userId}),
+            headers: _headers(json: false),
+          )
+          .timeout(_requestTimeout);
+      return _isSuccess(response);
+    } catch (e) {
+      print('Error deleting reminder: $e');
+      return false;
+    }
+  }
+
   // ============= PROFESSIONAL REVIEWS =============
 
   Future<bool> submitProfessionalReviewRequest(
@@ -473,14 +675,125 @@ class MySQLApiService {
     }
   }
 
+  // ============= DEPENDENTS =============
+
+  Future<bool> saveDependentToServer(Map<String, dynamic> dependent) async {
+    try {
+      final response = await _client
+          .post(
+            _uri('/dependents'),
+            headers: _headers(),
+            body: jsonEncode({
+              'userId': _userId,
+              ...dependent,
+            }),
+          )
+          .timeout(_requestTimeout);
+      return _isSuccess(response);
+    } catch (e) {
+      print('Error saving dependent: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDependentsFromServer() async {
+    try {
+      final response = await _client
+          .get(
+            _uri('/dependents', {'userId': _userId}),
+            headers: _headers(json: false),
+          )
+          .timeout(_requestTimeout);
+
+      if (!_isSuccess(response)) return <Map<String, dynamic>>[];
+      final body = _safeBody(response);
+      final list = (body is Map<String, dynamic>)
+          ? (body['data'] as List<dynamic>? ?? const <dynamic>[])
+          : const <dynamic>[];
+      return list.whereType<Map<String, dynamic>>().toList();
+    } catch (e) {
+      print('Error fetching dependents: $e');
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<bool> deleteDependentFromServer(int id) async {
+    try {
+      final response = await _client
+          .delete(
+            _uri('/dependents/$id', {'userId': _userId}),
+            headers: _headers(json: false),
+          )
+          .timeout(_requestTimeout);
+      return _isSuccess(response);
+    } catch (e) {
+      print('Error deleting dependent: $e');
+      return false;
+    }
+  }
+
+  // ============= SETTINGS =============
+
+  Future<bool> saveSettingToServer(String key, String value) async {
+    try {
+      final response = await _client
+          .post(
+            _uri('/settings'),
+            headers: _headers(),
+            body: jsonEncode({
+              'userId': _userId,
+              'key': key,
+              'value': value,
+            }),
+          )
+          .timeout(_requestTimeout);
+      return _isSuccess(response);
+    } catch (e) {
+      print('Error saving setting: $e');
+      return false;
+    }
+  }
+
+  Future<Map<String, String>> getSettingsFromServer() async {
+    try {
+      final response = await _client
+          .get(
+            _uri('/settings', {'userId': _userId}),
+            headers: _headers(json: false),
+          )
+          .timeout(_requestTimeout);
+      if (!_isSuccess(response)) return <String, String>{};
+
+      final body = _safeBody(response);
+      final list = (body is Map<String, dynamic>)
+          ? (body['data'] as List<dynamic>? ?? const <dynamic>[])
+          : const <dynamic>[];
+
+      final map = <String, String>{};
+      for (final row in list.whereType<Map<String, dynamic>>()) {
+        final key = row['keyName']?.toString();
+        if (key == null || key.isEmpty) continue;
+        map[key] = row['value']?.toString() ?? '';
+      }
+      return map;
+    } catch (e) {
+      print('Error fetching settings: $e');
+      return <String, String>{};
+    }
+  }
+
   // ============= UTILITY METHODS =============
 
   Future<bool> checkServerConnection() async {
     try {
-      final response = await _client
-          .get(_uri('/health'), headers: _headers(json: false))
-          .timeout(const Duration(seconds: 5));
-      return response.statusCode == 200;
+      for (final candidate in _candidateBaseUrls()) {
+        final ok = await _checkHealthAt(candidate);
+        if (ok) {
+          _activeBaseUrl = candidate;
+          return true;
+        }
+      }
+      return false;
     } catch (e) {
       print('Server connection error: $e');
       return false;
@@ -500,18 +813,20 @@ class MySQLApiService {
         _userId = userId.trim();
       }
 
-      final response = await _client.post(
-        _uri('/sync/all'),
-        headers: _headers(),
-        body: jsonEncode({
-          'userId': _userId,
-          'userProfile': userProfile?.toMap(),
-          'medicines': medicines.map((m) => m.toMap()).toList(),
-          'caretakers': caretakers.map((c) => c.toMap()).toList(),
-          'alarmLogs': alarmLogs.map((a) => a.toMap()).toList(),
-          'reminders': reminders.map((r) => r.toMap()).toList(),
-        }),
-      );
+      final response = await _client
+          .post(
+            _uri('/sync/all'),
+            headers: _headers(),
+            body: jsonEncode({
+              'userId': _userId,
+              'userProfile': userProfile?.toMap(),
+              'medicines': medicines.map((m) => m.toMap()).toList(),
+              'caretakers': caretakers.map((c) => c.toMap()).toList(),
+              'alarmLogs': alarmLogs.map((a) => a.toMap()).toList(),
+              'reminders': reminders.map((r) => r.toMap()).toList(),
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
       return _isSuccess(response);
     } catch (e) {

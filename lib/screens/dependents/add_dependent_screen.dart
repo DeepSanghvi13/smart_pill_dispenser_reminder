@@ -49,7 +49,8 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
             },
             child: const Text(
               'DONE',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           )
         ],
@@ -113,8 +114,7 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
                     // Gender
                     ListTile(
                       title: const Text('Gender'),
-                      subtitle:
-                      Text(gender.isEmpty ? 'Gender' : gender),
+                      subtitle: Text(gender.isEmpty ? 'Gender' : gender),
                       trailing: const Icon(Icons.arrow_drop_down),
                       onTap: () async {
                         final value = await showModalBottomSheet<String>(
@@ -166,7 +166,7 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'By clicking the \"Done\" button, you confirm that you received the consent of the dependent (when applicable) to the association of the dependent’s personal information with their health information and confirm you have read and agreed to our Terms and Privacy Policy.',
+                'By clicking the "Done" button, you confirm that you received the consent of the dependent (when applicable) to the association of the dependent’s personal information with their health information and confirm you have read and agreed to our Terms and Privacy Policy.',
                 style: TextStyle(color: Colors.grey.shade600),
               ),
             ),

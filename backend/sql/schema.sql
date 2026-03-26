@@ -15,6 +15,52 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   updated_at DATETIME NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  is_admin TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  INDEX idx_users_email (email)
+);
+
+CREATE TABLE IF NOT EXISTS auth_logs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(190) NOT NULL,
+  event_type VARCHAR(32) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  source VARCHAR(32) NOT NULL,
+  ip_address VARCHAR(64) NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_auth_logs_email (email),
+  INDEX idx_auth_logs_created_at (created_at)
+);
+
+CREATE TABLE IF NOT EXISTS dependents (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(128) NOT NULL,
+  local_id BIGINT NULL,
+  first_name VARCHAR(100) NOT NULL,
+  last_name VARCHAR(100) NOT NULL,
+  gender VARCHAR(32) NULL,
+  birth_date VARCHAR(32) NULL,
+  color VARCHAR(32) NULL,
+  created_at DATETIME NOT NULL,
+  UNIQUE KEY uq_dependents_user_local (user_id, local_id),
+  INDEX idx_dependents_user (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(128) NOT NULL,
+  key_name VARCHAR(128) NOT NULL,
+  value TEXT NOT NULL,
+  updated_at DATETIME NOT NULL,
+  UNIQUE KEY uq_settings_user_key (user_id, key_name),
+  INDEX idx_settings_user (user_id)
+);
+
 CREATE TABLE IF NOT EXISTS medicines (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id VARCHAR(128) NOT NULL,

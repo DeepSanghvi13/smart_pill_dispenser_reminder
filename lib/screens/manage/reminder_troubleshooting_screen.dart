@@ -20,10 +20,12 @@ class _ReminderTroubleshootingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        _confirmCancel();
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _confirmCancel();
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -52,7 +54,6 @@ class _ReminderTroubleshootingScreenState
                 isCompleted: _step1Completed,
                 onTap: () => _openAutostartSettings(),
               ),
-
               _stepCard(
                 step: 'Step 2: Verify notification sound is enabled',
                 icon: Icons.volume_up,
@@ -61,7 +62,6 @@ class _ReminderTroubleshootingScreenState
                 isCompleted: _step2Completed,
                 onTap: () => _openNotificationSettings(),
               ),
-
               _stepCard(
                 step: 'Step 3: Adjust advanced battery settings',
                 icon: Icons.settings,
@@ -70,15 +70,12 @@ class _ReminderTroubleshootingScreenState
                 isCompleted: _step3Completed,
                 onTap: () => _openBatterySettings(),
               ),
-
               const SizedBox(height: 24),
-
               const Text(
                 'Also, please take note:',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-
               const Text(
                 "Beware of 'task killers'",
                 style: TextStyle(
@@ -90,13 +87,11 @@ class _ReminderTroubleshootingScreenState
               const SizedBox(height: 6),
               const Text(
                 'Battery savers, anti-viruses or task killers such as Clean Master, '
-                    '360 Security, CM Security, Fast Booster, may terminate Medisafe\'s '
-                    'reminders and put your health at risk.\n\n'
-                    'Please deactivate them to make sure they don\'t interfere with your reminders.',
+                '360 Security, CM Security, Fast Booster, may terminate Medisafe\'s '
+                'reminders and put your health at risk.\n\n'
+                'Please deactivate them to make sure they don\'t interfere with your reminders.',
               ),
-
               const SizedBox(height: 16),
-
               const Text(
                 "Don't 'force stop'",
                 style: TextStyle(
@@ -109,9 +104,7 @@ class _ReminderTroubleshootingScreenState
               const Text(
                 'Closing Medisafe through the task manager (force stop) might block your reminders.',
               ),
-
               const SizedBox(height: 32),
-
               Center(
                 child: Column(
                   children: [
@@ -193,7 +186,8 @@ class _ReminderTroubleshootingScreenState
             child: ElevatedButton(
               onPressed: onTap,
               style: ElevatedButton.styleFrom(
-                backgroundColor: isCompleted ? Colors.green : const Color(0xFF0D4F8B),
+                backgroundColor:
+                    isCompleted ? Colors.green : const Color(0xFF0D4F8B),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
@@ -219,15 +213,12 @@ class _ReminderTroubleshootingScreenState
     try {
       // Handle web platform first
       if (kIsWeb) {
-        _showManualInstructions(
-          'Step 1: Enable Autostart',
-          'Autostart settings are not applicable for web browsers.',
-          () {
-            setState(() {
-              _step1Completed = true;
-            });
-          }
-        );
+        _showManualInstructions('Step 1: Enable Autostart',
+            'Autostart settings are not applicable for web browsers.', () {
+          setState(() {
+            _step1Completed = true;
+          });
+        });
         return;
       }
 
@@ -240,45 +231,38 @@ class _ReminderTroubleshootingScreenState
         await launchUrl(Uri.parse('app-settings:'));
       } else {
         // Other platforms - show info dialog
-        _showManualInstructions(
-          'Step 1: Enable Autostart',
-          'Autostart settings are not applicable on this platform.',
-          () {
-            setState(() {
-              _step1Completed = true;
-            });
-          }
-        );
+        _showManualInstructions('Step 1: Enable Autostart',
+            'Autostart settings are not applicable on this platform.', () {
+          setState(() {
+            _step1Completed = true;
+          });
+        });
         return;
       }
 
       // Mark step as completed
       _showCompletionDialog('Autostart Settings',
-        'Step 1: Check Autostart settings has been completed!',
-        () {
-          setState(() {
-            _step1Completed = true;
-          });
-        }
-      );
+          'Step 1: Check Autostart settings has been completed!', () {
+        setState(() {
+          _step1Completed = true;
+        });
+      });
     } catch (e) {
       // Fallback: Show manual instructions
       _showManualInstructions(
-        'Step 1: Enable Autostart',
-        !kIsWeb && Platform.isAndroid
-          ? '1. Go to Settings → Apps → Medisafe\n'
-            '2. Tap "Permissions"\n'
-            '3. Enable "Autostart" or "Run at startup"\n'
-            '4. Tap "Done" and come back to confirm'
-          : '1. Go to Settings → General → Background App Refresh\n'
-            '2. Find Medisafe and enable it\n'
-            '3. Return to confirm',
-        () {
-          setState(() {
-            _step1Completed = true;
-          });
-        }
-      );
+          'Step 1: Enable Autostart',
+          !kIsWeb && Platform.isAndroid
+              ? '1. Go to Settings → Apps → Medisafe\n'
+                  '2. Tap "Permissions"\n'
+                  '3. Enable "Autostart" or "Run at startup"\n'
+                  '4. Tap "Done" and come back to confirm'
+              : '1. Go to Settings → General → Background App Refresh\n'
+                  '2. Find Medisafe and enable it\n'
+                  '3. Return to confirm', () {
+        setState(() {
+          _step1Completed = true;
+        });
+      });
     }
   }
 
@@ -287,15 +271,13 @@ class _ReminderTroubleshootingScreenState
     try {
       // Handle web platform first
       if (kIsWeb) {
-        _showManualInstructions(
-          'Step 2: Enable Notification Sound',
-          'Browser notifications work differently. Please enable notifications in your browser settings.',
-          () {
-            setState(() {
-              _step2Completed = true;
-            });
-          }
-        );
+        _showManualInstructions('Step 2: Enable Notification Sound',
+            'Browser notifications work differently. Please enable notifications in your browser settings.',
+            () {
+          setState(() {
+            _step2Completed = true;
+          });
+        });
         return;
       }
 
@@ -308,46 +290,40 @@ class _ReminderTroubleshootingScreenState
         await launchUrl(Uri.parse('app-settings:'));
       } else {
         // Other platforms - show info dialog
-        _showManualInstructions(
-          'Step 2: Enable Notification Sound',
-          'Please enable notifications in your platform settings.',
-          () {
-            setState(() {
-              _step2Completed = true;
-            });
-          }
-        );
+        _showManualInstructions('Step 2: Enable Notification Sound',
+            'Please enable notifications in your platform settings.', () {
+          setState(() {
+            _step2Completed = true;
+          });
+        });
         return;
       }
 
-      _showCompletionDialog('Notification Sound',
-        'Step 2: Verify notification sound is enabled!',
-        () {
-          setState(() {
-            _step2Completed = true;
-          });
-        }
-      );
+      _showCompletionDialog(
+          'Notification Sound', 'Step 2: Verify notification sound is enabled!',
+          () {
+        setState(() {
+          _step2Completed = true;
+        });
+      });
     } catch (e) {
       // Fallback: Show manual instructions
       _showManualInstructions(
-        'Step 2: Enable Notification Sound',
-        Platform.isAndroid
-          ? '1. Go to Settings → Apps → Medisafe\n'
-            '2. Tap "Notifications"\n'
-            '3. Enable "Sound"\n'
-            '4. Make sure "Volume" is set to high\n'
-            '5. Return to confirm'
-          : '1. Go to Settings → Notifications → Medisafe\n'
-            '2. Enable "Allow Notifications"\n'
-            '3. Enable "Sound"\n'
-            '4. Return to confirm',
-        () {
-          setState(() {
-            _step2Completed = true;
-          });
-        }
-      );
+          'Step 2: Enable Notification Sound',
+          Platform.isAndroid
+              ? '1. Go to Settings → Apps → Medisafe\n'
+                  '2. Tap "Notifications"\n'
+                  '3. Enable "Sound"\n'
+                  '4. Make sure "Volume" is set to high\n'
+                  '5. Return to confirm'
+              : '1. Go to Settings → Notifications → Medisafe\n'
+                  '2. Enable "Allow Notifications"\n'
+                  '3. Enable "Sound"\n'
+                  '4. Return to confirm', () {
+        setState(() {
+          _step2Completed = true;
+        });
+      });
     }
   }
 
@@ -363,48 +339,41 @@ class _ReminderTroubleshootingScreenState
         await launchUrl(Uri.parse('app-settings:'));
       } else {
         // Web and other platforms - show info dialog
-        _showManualInstructions(
-          'Step 3: Adjust Battery Settings',
-          'Battery settings are not applicable for web browsers.',
-          () {
-            setState(() {
-              _step3Completed = true;
-            });
-          }
-        );
+        _showManualInstructions('Step 3: Adjust Battery Settings',
+            'Battery settings are not applicable for web browsers.', () {
+          setState(() {
+            _step3Completed = true;
+          });
+        });
         return;
       }
 
       _showCompletionDialog('Battery Settings',
-        'Step 3: Adjust advanced battery settings completed!',
-        () {
-          setState(() {
-            _step3Completed = true;
-          });
-        }
-      );
+          'Step 3: Adjust advanced battery settings completed!', () {
+        setState(() {
+          _step3Completed = true;
+        });
+      });
     } catch (e) {
       // Fallback: Show manual instructions
       _showManualInstructions(
-        'Step 3: Adjust Battery Settings',
-        Platform.isAndroid
-          ? '1. Go to Settings → Battery\n'
-            '2. Find Medisafe in the battery optimization list\n'
-            '3. Remove it from "Battery Saver" or "Doze" mode\n'
-            '4. Go to Settings → Apps → Medisafe\n'
-            '5. Set "Battery Optimization" to "Not Optimized"\n'
-            '6. Return to confirm'
-          : '1. Go to Settings → Battery\n'
-            '2. Disable "Low Power Mode"\n'
-            '3. Go to Settings → General → Background App Refresh\n'
-            '4. Make sure Medisafe can run in background\n'
-            '5. Return to confirm',
-        () {
-          setState(() {
-            _step3Completed = true;
-          });
-        }
-      );
+          'Step 3: Adjust Battery Settings',
+          Platform.isAndroid
+              ? '1. Go to Settings → Battery\n'
+                  '2. Find Medisafe in the battery optimization list\n'
+                  '3. Remove it from "Battery Saver" or "Doze" mode\n'
+                  '4. Go to Settings → Apps → Medisafe\n'
+                  '5. Set "Battery Optimization" to "Not Optimized"\n'
+                  '6. Return to confirm'
+              : '1. Go to Settings → Battery\n'
+                  '2. Disable "Low Power Mode"\n'
+                  '3. Go to Settings → General → Background App Refresh\n'
+                  '4. Make sure Medisafe can run in background\n'
+                  '5. Return to confirm', () {
+        setState(() {
+          _step3Completed = true;
+        });
+      });
     }
   }
 
@@ -474,7 +443,8 @@ class _ReminderTroubleshootingScreenState
   }
 
   /// Show Completion Dialog
-  void _showCompletionDialog(String title, String message, VoidCallback onConfirm) {
+  void _showCompletionDialog(
+      String title, String message, VoidCallback onConfirm) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -499,7 +469,8 @@ class _ReminderTroubleshootingScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 48),
+        icon: const Icon(Icons.warning_amber_rounded,
+            color: Colors.orange, size: 48),
         title: const Text('Cancel Troubleshooting?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -545,11 +516,9 @@ class _ReminderTroubleshootingScreenState
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context); // Close dialog
-              Future.delayed(const Duration(milliseconds: 100), () {
-                if (mounted) {
-                  Navigator.pop(context); // Exit screen
-                }
-              });
+              if (Navigator.of(context).canPop()) {
+                Navigator.pop(context); // Exit screen
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -563,7 +532,8 @@ class _ReminderTroubleshootingScreenState
   }
 
   /// Show Manual Instructions
-  void _showManualInstructions(String title, String instructions, VoidCallback onConfirm) {
+  void _showManualInstructions(
+      String title, String instructions, VoidCallback onConfirm) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

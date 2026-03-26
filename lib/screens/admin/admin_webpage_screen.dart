@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_pill_reminder/models/alarm_log.dart';
+import 'package:smart_pill_reminder/models/caretaker.dart';
 import 'package:smart_pill_reminder/models/medicine.dart';
 import 'package:smart_pill_reminder/models/reminder.dart';
 import 'package:smart_pill_reminder/screens/auth/login_screen.dart';
+import 'package:smart_pill_reminder/screens/manage/sql_connection_status_screen.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
-import 'package:smart_pill_reminder/services/database_service.dart';
+import 'package:smart_pill_reminder/services/mysql_api_service.dart';
 
 class AdminWebpageScreen extends StatefulWidget {
   const AdminWebpageScreen({super.key});
@@ -16,128 +18,110 @@ class AdminWebpageScreen extends StatefulWidget {
 }
 
 class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
-  final DatabaseService _dbService = DatabaseService();
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _bodyController = TextEditingController();
+  final MySQLApiService _api = MySQLApiService();
 
   int _selectedIndex = 0;
   bool _isLoading = true;
+  bool _serverConnected = false;
   String _systemStatus = 'Checking...';
 
   List<Medicine> _medicines = <Medicine>[];
   List<Reminder> _reminders = <Reminder>[];
-  List<AlarmLog> _todayAlarms = <AlarmLog>[];
-  List<AlarmLog> _missedAlarms = <AlarmLog>[];
-  List<Map<String, dynamic>> _users = <Map<String, dynamic>>[];
-
-  final List<_HelpArticle> _articles = <_HelpArticle>[];
-  final List<_SupportTicket> _tickets = <_SupportTicket>[];
-
-  Map<String, String> _appSettings = {
-    'app_name': 'Smart Pill Dispenser',
-    'app_version': '1.0.0',
-    'database_type': 'SQLite',
-    'admin_email': 'admin@medisafe.com',
-    'support_email': 'support@medisafe.com',
-    'support_phone': '+91-878-009-5396',
-    'help_center_url': 'medisafe.com/help',
-  };
-
-  Map<String, bool> _notificationSettings = {
-    'reminder_notifications': true,
-    'success_messages': true,
-    'error_alerts': true,
-    'email_notifications': false,
-  };
-
-  bool _settingsDirty = false;
+  List<AlarmLog> _alarmLogs = <AlarmLog>[];
+  List<Caretaker> _caretakers = <Caretaker>[];
 
   static const List<_AdminSection> _sections = <_AdminSection>[
     _AdminSection('Dashboard', Icons.dashboard_outlined),
-    _AdminSection('Users', Icons.people),
     _AdminSection('Medicines', Icons.medication),
-    _AdminSection('Help Articles', Icons.article_outlined),
-    _AdminSection('Support Tickets', Icons.support_agent_outlined),
+    _AdminSection('Reminders', Icons.alarm),
+    _AdminSection('Alarm Logs', Icons.history),
+    _AdminSection('Caretakers', Icons.supervised_user_circle),
     _AdminSection('System Settings', Icons.settings_outlined),
   ];
 
   @override
   void initState() {
     super.initState();
-    _seedSampleData();
     _loadAllData();
   }
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _bodyController.dispose();
-    super.dispose();
-  }
-
-  void _seedSampleData() {
-    _articles
-      ..clear()
-      ..addAll(<_HelpArticle>[
-        _HelpArticle('How to add a medicine', 'Getting Started', 'Use the + button and enter medicine details.'),
-        _HelpArticle('Setting up reminders', 'Features', 'Create time-based reminders for each medicine.'),
-        _HelpArticle('Managing caretakers', 'Family Mode', 'Add family members to receive missed-dose alerts.'),
-      ]);
-
-    _tickets
-      ..clear()
-      ..addAll(<_SupportTicket>[
-        _SupportTicket('#2401', 'Alarm not ringing at scheduled time', 'High', 'Open'),
-        _SupportTicket('#2402', 'Medicine list not syncing', 'High', 'In Progress'),
-        _SupportTicket('#2403', 'Notification permission issue', 'Medium', 'Open'),
-      ]);
-  }
-
   Future<void> _loadAllData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      final medicines = await _dbService.getAllMedicines();
-      final reminders = await _dbService.getAllReminders();
-      final todayAlarms = await _dbService.getTodayAlarmLogs();
-      final missedAlarms = await _dbService.getTodayMissedAlarms();
-      final allSettings = await _dbService.getAllSettings();
-      final users = await _dbService.getAllUsers();
+      final auth = context.read<AuthService>();
+      final userId = auth.currentUser ?? 'demo-user';
+      _api.configure(userId: userId);
 
+      final connected = await _api.checkServerConnection();
+      if (!connected) {
+        if (!mounted) return;
+        setState(() {
+          _serverConnected = false;
+          _systemStatus = 'Offline';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final medicines = await _api.getMedicinesFromServer();
+      final reminders = await _api.getRemindersFromServer();
+      final alarmLogs = await _api.getAlarmLogsFromServer();
+      final caretakers = await _api.getCaretakersFromServer();
+
+      if (!mounted) return;
       setState(() {
+        _serverConnected = true;
+        _systemStatus = 'Online';
         _medicines = medicines;
         _reminders = reminders;
-        _todayAlarms = todayAlarms;
-        _missedAlarms = missedAlarms;
-        _users = users;
-
-        _appSettings = {..._appSettings, ...allSettings};
-        _notificationSettings = {
-          'reminder_notifications': (allSettings['reminder_notifications'] ?? 'true') == 'true',
-          'success_messages': (allSettings['success_messages'] ?? 'true') == 'true',
-          'error_alerts': (allSettings['error_alerts'] ?? 'true') == 'true',
-          'email_notifications': (allSettings['email_notifications'] ?? 'false') == 'true',
-        };
-        _settingsDirty = false;
-        _systemStatus = 'Online';
+        _alarmLogs = alarmLogs;
+        _caretakers = caretakers;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
+        _serverConnected = false;
         _systemStatus = 'Error';
         _isLoading = false;
       });
     }
   }
 
-  int get _appUsersCount {
-    return _users.length + 1; // +1 admin account
+  int get _activeReminderCount => _reminders.where((r) => r.isActive).length;
+
+  int get _todayAlarmCount {
+    final now = DateTime.now();
+    return _alarmLogs.where((a) {
+      return a.scheduledTime.year == now.year &&
+          a.scheduledTime.month == now.month &&
+          a.scheduledTime.day == now.day;
+    }).length;
   }
 
-  int get _activeReminderCount => _reminders.where((r) => r.isActive).length;
+  int get _todayMissedAlarmCount {
+    final now = DateTime.now();
+    return _alarmLogs.where((a) {
+      final isToday = a.scheduledTime.year == now.year &&
+          a.scheduledTime.month == now.month &&
+          a.scheduledTime.day == now.day;
+      return isToday && a.status.toLowerCase() == 'missed';
+    }).length;
+  }
+
+  void _openSqlStatus() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SqlConnectionStatusScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = context.watch<AuthService>().currentUser ?? 'Unknown';
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 900;
@@ -150,10 +134,15 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Center(
                   child: Text(
-                    'Admin: ${authService.currentUser ?? 'Unknown'}',
+                    'Admin: $currentUser',
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.storage),
+                onPressed: _openSqlStatus,
+                tooltip: 'SQL Status',
               ),
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -190,8 +179,17 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       onDestinationSelected: (index) => setState(() => _selectedIndex = index),
       labelType: NavigationRailLabelType.all,
       destinations: _sections
-          .map((s) => NavigationRailDestination(icon: Icon(s.icon), label: Text(s.title)))
+          .map((s) => NavigationRailDestination(
+              icon: Icon(s.icon), label: Text(s.title)))
           .toList(),
+      trailing: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: IconButton(
+          onPressed: _openSqlStatus,
+          icon: const Icon(Icons.storage),
+          tooltip: 'SQL Status',
+        ),
+      ),
     );
   }
 
@@ -211,6 +209,15 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                     },
                   ),
                 ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.storage),
+              title: const Text('SQL'),
+              onTap: () {
+                Navigator.pop(context);
+                _openSqlStatus();
+              },
+            ),
           ],
         ),
       ),
@@ -222,13 +229,13 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       case 0:
         return _buildDashboard();
       case 1:
-        return _buildUsers();
-      case 2:
         return _buildMedicines();
+      case 2:
+        return _buildReminders();
       case 3:
-        return _buildArticles();
+        return _buildAlarmLogs();
       case 4:
-        return _buildTickets();
+        return _buildCaretakers();
       case 5:
         return _buildSettings();
       default:
@@ -237,9 +244,6 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
   }
 
   Widget _buildDashboard() {
-    final taken = _todayAlarms.where((a) => a.status == 'taken').length;
-    final adherence = _todayAlarms.isEmpty ? 0.0 : (taken / _todayAlarms.length) * 100;
-
     return _sectionWrapper(
       title: 'Dashboard',
       child: _isLoading
@@ -250,12 +254,42 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    _StatCard(title: 'Total Medicines', value: '${_medicines.length}', color: Colors.blue, icon: Icons.medication),
-                    _StatCard(title: 'Today\'s Reminders', value: '$_activeReminderCount', color: Colors.green, icon: Icons.notifications_active),
-                    _StatCard(title: 'App Users', value: '$_appUsersCount', color: Colors.orange, icon: Icons.people),
-                    _StatCard(title: 'System Status', value: _systemStatus, color: Colors.purple, icon: Icons.health_and_safety),
-                    _StatCard(title: 'Adherence', value: '${adherence.toStringAsFixed(1)}%', color: Colors.teal, icon: Icons.trending_up),
-                    _StatCard(title: 'Missed Alarms', value: '${_missedAlarms.length}', color: Colors.red, icon: Icons.warning_amber),
+                    _StatCard(
+                      title: 'Total Medicines',
+                      value: '${_medicines.length}',
+                      color: Colors.blue,
+                      icon: Icons.medication,
+                    ),
+                    _StatCard(
+                      title: 'Active Reminders',
+                      value: '$_activeReminderCount',
+                      color: Colors.green,
+                      icon: Icons.notifications_active,
+                    ),
+                    _StatCard(
+                      title: 'Today Alarm Logs',
+                      value: '$_todayAlarmCount',
+                      color: Colors.orange,
+                      icon: Icons.history,
+                    ),
+                    _StatCard(
+                      title: 'Missed Today',
+                      value: '$_todayMissedAlarmCount',
+                      color: Colors.red,
+                      icon: Icons.warning_amber,
+                    ),
+                    _StatCard(
+                      title: 'Caretakers',
+                      value: '${_caretakers.length}',
+                      color: Colors.purple,
+                      icon: Icons.supervised_user_circle,
+                    ),
+                    _StatCard(
+                      title: 'System Status',
+                      value: _systemStatus,
+                      color: _serverConnected ? Colors.teal : Colors.grey,
+                      icon: Icons.health_and_safety,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -263,138 +297,33 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                   title: 'Recent System Activity',
                   child: Column(
                     children: [
-                      _ActivityRow('Database Status', 'Connected (${_appSettings['database_type']})', 'OK'),
-                      _ActivityRow('Medicines Synced', '${_medicines.length} records available', DateFormat('HH:mm').format(DateTime.now())),
-                      _ActivityRow('Reminders Active', '$_activeReminderCount active reminders', 'LIVE'),
-                      _ActivityRow('Support Queue', '${_tickets.where((t) => t.status != 'Resolved').length} open tickets', 'OPEN'),
+                      _ActivityRow(
+                        'Database Status',
+                        _serverConnected
+                            ? 'Connected (MySQL)'
+                            : 'Disconnected (MySQL)',
+                        _serverConnected ? 'OK' : 'OFFLINE',
+                      ),
+                      _ActivityRow(
+                        'Medicines Synced',
+                        '${_medicines.length} records in MySQL',
+                        DateFormat('HH:mm').format(DateTime.now()),
+                      ),
+                      _ActivityRow(
+                        'Reminders Active',
+                        '$_activeReminderCount active reminders',
+                        'LIVE',
+                      ),
+                      _ActivityRow(
+                        'Alarm Logs',
+                        '${_alarmLogs.length} records available',
+                        'MYSQL',
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
-    );
-  }
-
-  Widget _buildUsers() {
-    final userRows = _users
-        .map(
-          (u) => DataRow(
-            cells: [
-              DataCell(Text('${u['id']}')),
-              const DataCell(Text('User')),
-              const DataCell(Text('-')),
-              DataCell(Text('${u['email'] ?? ''}')),
-              const DataCell(Text('-')),
-              DataCell(
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () => _editUser(u),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      onPressed: () => _deleteUser(u),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        )
-        .toList();
-
-    return _sectionWrapper(
-      title: 'Users',
-      child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _users.isEmpty
-              ? const Text('No registered users found.')
-              : _panel(
-                  title: 'Registered Users (${_users.length})',
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('ID')),
-                        DataColumn(label: Text('Role')),
-                        DataColumn(label: Text('Name')),
-                        DataColumn(label: Text('Email')),
-                        DataColumn(label: Text('Phone')),
-                        DataColumn(label: Text('Actions')),
-                      ],
-                      rows: userRows,
-                    ),
-                  ),
-                ),
-    );
-  }
-
-  Future<void> _deleteUser(dynamic user) async {
-    try {
-      if (user is Map<String, dynamic> && user['id'] != null) {
-        await _dbService.deleteUser(user['id'] as int);
-      }
-      await _loadAllData();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('User deleted')));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting user: $e')));
-    }
-  }
-
-  void _editUser(dynamic user) {
-    String name = '-';
-    String email = '';
-
-    if (user is Map<String, dynamic>) {
-      email = '${user['email'] ?? ''}';
-    }
-
-    _titleController.text = name;
-    _bodyController.text = email;
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit User'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(labelText: 'Name'),
-            ),
-            TextFormField(
-              controller: _bodyController,
-              decoration: const InputDecoration(labelText: 'Email'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                if (user is Map<String, dynamic> && user['id'] != null) {
-                  await _dbService.updateUser(
-                    user['id'] as int,
-                    email: _bodyController.text.trim(),
-                  );
-                }
-                await _loadAllData();
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('User updated')));
-                Navigator.pop(ctx);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating user: $e')));
-              }
-            },
-            child: const Text('Update'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -404,7 +333,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _medicines.isEmpty
-              ? const Text('No medicines found.')
+              ? const Text('No medicines found on MySQL server.')
               : _panel(
                   title: 'All Medicines (${_medicines.length})',
                   child: SingleChildScrollView(
@@ -416,7 +345,6 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                         DataColumn(label: Text('Name')),
                         DataColumn(label: Text('Dosage')),
                         DataColumn(label: Text('Time')),
-                        DataColumn(label: Text('Actions')),
                       ],
                       rows: _medicines
                           .map(
@@ -427,12 +355,6 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                                 DataCell(Text(m.name)),
                                 DataCell(Text(m.dosage)),
                                 DataCell(Text(m.time)),
-                                DataCell(
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                    onPressed: () => _deleteMedicine(m),
-                                  ),
-                                ),
                               ],
                             ),
                           )
@@ -443,326 +365,171 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
     );
   }
 
-  Future<void> _deleteMedicine(Medicine medicine) async {
-    if (medicine.id == null) return;
-    await _dbService.deleteMedicine(medicine.id!);
-    await _loadAllData();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${medicine.name} deleted')));
-  }
-
-  Widget _buildArticles() {
+  Widget _buildReminders() {
     return _sectionWrapper(
-      title: 'Help Center Articles',
-      action: ElevatedButton.icon(
-        onPressed: _showAddArticle,
-        icon: const Icon(Icons.add),
-        label: const Text('New Article'),
-      ),
-      child: _panel(
-        title: 'Published Articles (${_articles.length})',
-        child: Column(
-          children: _articles
-              .map(
-                (a) => _articleRow(
-                  a.title,
-                  a.category,
-                  a.description,
-                  onEdit: () => _editArticle(a),
-                  onDelete: () => _deleteArticle(a),
+      title: 'Reminders',
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _reminders.isEmpty
+              ? const Text('No reminders found on MySQL server.')
+              : _panel(
+                  title: 'All Reminders (${_reminders.length})',
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('ID')),
+                        DataColumn(label: Text('Medicine')),
+                        DataColumn(label: Text('Time')),
+                        DataColumn(label: Text('Days')),
+                        DataColumn(label: Text('Status')),
+                      ],
+                      rows: _reminders
+                          .map(
+                            (r) => DataRow(
+                              cells: [
+                                DataCell(Text('${r.id ?? '-'}')),
+                                DataCell(Text(r.medicineName)),
+                                DataCell(Text(r.time)),
+                                DataCell(Text(r.daysOfWeek.join(', '))),
+                                DataCell(
+                                    Text(r.isActive ? 'Active' : 'Paused')),
+                              ],
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
                 ),
-              )
-              .toList(),
-        ),
-      ),
     );
   }
 
-  Widget _buildTickets() {
+  Widget _buildAlarmLogs() {
     return _sectionWrapper(
-      title: 'Support Tickets',
-      action: ElevatedButton.icon(
-        onPressed: _addNewTicket,
-        icon: const Icon(Icons.add),
-        label: const Text('New Ticket'),
-      ),
-      child: _panel(
-        title: 'Tickets (${_tickets.length})',
-        child: Column(
-          children: _tickets
-              .map(
-                (t) => _ticketRowWithActions(
-                  t.id,
-                  t.issue,
-                  t.priority,
-                  t.status,
-                  onStatusChange: () => _changeTicketStatus(t),
-                  onDelete: () => _deleteTicket(t),
+      title: 'Alarm Logs',
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _alarmLogs.isEmpty
+              ? const Text('No alarm logs found on MySQL server.')
+              : _panel(
+                  title: 'Alarm Logs (${_alarmLogs.length})',
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('ID')),
+                        DataColumn(label: Text('Medicine')),
+                        DataColumn(label: Text('Scheduled')),
+                        DataColumn(label: Text('Status')),
+                        DataColumn(label: Text('Snoozes')),
+                      ],
+                      rows: _alarmLogs
+                          .map(
+                            (a) => DataRow(
+                              cells: [
+                                DataCell(Text('${a.id ?? '-'}')),
+                                DataCell(Text(a.medicineName)),
+                                DataCell(
+                                  Text(
+                                    DateFormat('yyyy-MM-dd HH:mm')
+                                        .format(a.scheduledTime),
+                                  ),
+                                ),
+                                DataCell(Text(a.status)),
+                                DataCell(Text('${a.snoozeCount}')),
+                              ],
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
                 ),
-              )
-              .toList(),
-        ),
-      ),
+    );
+  }
+
+  Widget _buildCaretakers() {
+    return _sectionWrapper(
+      title: 'Caretakers',
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _caretakers.isEmpty
+              ? const Text('No caretakers found on MySQL server.')
+              : _panel(
+                  title: 'Caretakers (${_caretakers.length})',
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('ID')),
+                        DataColumn(label: Text('Name')),
+                        DataColumn(label: Text('Phone')),
+                        DataColumn(label: Text('Email')),
+                        DataColumn(label: Text('Relationship')),
+                      ],
+                      rows: _caretakers
+                          .map(
+                            (c) => DataRow(
+                              cells: [
+                                DataCell(Text('${c.id ?? '-'}')),
+                                DataCell(Text('${c.firstName} ${c.lastName}')),
+                                DataCell(Text(c.phoneNumber)),
+                                DataCell(Text(c.email)),
+                                DataCell(Text(c.relationship)),
+                              ],
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
     );
   }
 
   Widget _buildSettings() {
     return _sectionWrapper(
       title: 'System Settings',
-      action: ElevatedButton.icon(
-        onPressed: _settingsDirty ? _saveSettings : null,
-        icon: const Icon(Icons.save),
-        label: const Text('Save'),
-      ),
-      child: Column(
-        children: [
-          _panel(
-            title: 'Application Settings',
-            child: Column(
-              children: [
-                _editableSettingRow('App Name', 'app_name'),
-                _editableSettingRow('App Version', 'app_version'),
-                _editableSettingRow('Database Type', 'database_type', readOnly: true),
-                _editableSettingRow('Admin Email', 'admin_email'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _panel(
-            title: 'Notification Settings',
-            child: Column(
-              children: [
-                _toggleSetting('Reminder Notifications', 'reminder_notifications'),
-                _toggleSetting('Success Messages', 'success_messages'),
-                _toggleSetting('Error Alerts', 'error_alerts'),
-                _toggleSetting('Email Notifications', 'email_notifications'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _panel(
-            title: 'Support Settings',
-            child: Column(
-              children: [
-                _editableSettingRow('Support Email', 'support_email'),
-                _editableSettingRow('Support Phone', 'support_phone'),
-                _editableSettingRow('Help Center URL', 'help_center_url'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _saveSettings() async {
-    for (final entry in _appSettings.entries) {
-      await _dbService.saveSetting(entry.key, entry.value);
-    }
-    for (final entry in _notificationSettings.entries) {
-      await _dbService.saveSetting(entry.key, entry.value.toString());
-    }
-    if (!mounted) return;
-    setState(() => _settingsDirty = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settings saved')));
-  }
-
-  Widget _editableSettingRow(String label, String key, {bool readOnly = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          SizedBox(width: 140, child: Text(label)),
-          Expanded(
-            child: TextFormField(
-              initialValue: _appSettings[key] ?? '',
-              readOnly: readOnly,
-              onChanged: readOnly
-                  ? null
-                  : (val) {
-                      _appSettings[key] = val;
-                      if (!_settingsDirty) {
-                        setState(() => _settingsDirty = true);
-                      }
-                    },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _toggleSetting(String label, String key) {
-    final value = _notificationSettings[key] ?? false;
-    return SwitchListTile(
-      value: value,
-      title: Text(label),
-      onChanged: (v) {
-        setState(() {
-          _notificationSettings[key] = v;
-          _settingsDirty = true;
-        });
-      },
-    );
-  }
-
-  void _showAddArticle() {
-    _titleController.clear();
-    _bodyController.clear();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Create New Article'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Title')),
-            TextField(controller: _bodyController, decoration: const InputDecoration(labelText: 'Content')),
+      child: _panel(
+        title: 'Database Configuration',
+        child: Column(
+          children: const [
+            _SettingsRow(label: 'Database Type', value: 'MySQL'),
+            _SettingsRow(
+                label: 'Storage Mode', value: 'Server-backed live data'),
+            _SettingsRow(
+                label: 'Admin Data Source', value: 'MySQL API endpoints'),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              final title = _titleController.text.trim();
-              final body = _bodyController.text.trim();
-              if (title.isEmpty || body.isEmpty) return;
-              setState(() {
-                _articles.insert(0, _HelpArticle(title, 'Custom', body));
-              });
-              Navigator.pop(ctx);
-            },
-            child: const Text('Create'),
-          ),
-        ],
       ),
     );
   }
 
-  void _editArticle(_HelpArticle article) {
-    _titleController.text = article.title;
-    _bodyController.text = article.description;
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Article'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _sectionWrapper({required String title, required Widget child}) {
+    return RefreshIndicator(
+      onRefresh: _loadAllData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(controller: _titleController),
-            TextField(controller: _bodyController),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              final i = _articles.indexOf(article);
-              if (i != -1) {
-                setState(() {
-                  _articles[i] = _HelpArticle(
-                    _titleController.text.trim(),
-                    article.category,
-                    _bodyController.text.trim(),
-                  );
-                });
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Update'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteArticle(_HelpArticle article) {
-    setState(() => _articles.remove(article));
-  }
-
-  void _addNewTicket() {
-    final issueController = TextEditingController();
-    String priority = 'Medium';
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Create New Ticket'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: issueController, decoration: const InputDecoration(labelText: 'Issue')),
-              DropdownButton<String>(
-                value: priority,
-                items: const [
-                  DropdownMenuItem(value: 'Low', child: Text('Low')),
-                  DropdownMenuItem(value: 'Medium', child: Text('Medium')),
-                  DropdownMenuItem(value: 'High', child: Text('High')),
-                ],
-                onChanged: (v) => setDialogState(() => priority = v ?? 'Medium'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () {
-                if (issueController.text.trim().isEmpty) return;
-                setState(() {
-                  _tickets.add(
-                    _SupportTicket(
-                      '#${2400 + _tickets.length + 1}',
-                      issueController.text.trim(),
-                      priority,
-                      'Open',
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0D4F8B),
                     ),
-                  );
-                });
-                Navigator.pop(ctx);
-              },
-              child: const Text('Create'),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 16),
+            child,
           ],
         ),
-      ),
-    );
-  }
-
-  void _changeTicketStatus(_SupportTicket ticket) {
-    final statusOrder = ['Open', 'In Progress', 'Resolved'];
-    final index = statusOrder.indexOf(ticket.status);
-    final next = statusOrder[(index + 1) % statusOrder.length];
-    final i = _tickets.indexOf(ticket);
-    if (i != -1) {
-      setState(() => _tickets[i] = _SupportTicket(ticket.id, ticket.issue, ticket.priority, next));
-    }
-  }
-
-  void _deleteTicket(_SupportTicket ticket) {
-    setState(() => _tickets.remove(ticket));
-  }
-
-  Widget _sectionWrapper({required String title, required Widget child, Widget? action}) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0D4F8B)),
-                ),
-              ),
-              if (action != null) action,
-            ],
-          ),
-          const SizedBox(height: 16),
-          child,
-        ],
       ),
     );
   }
@@ -785,71 +552,12 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       ),
     );
   }
-
-  Widget _articleRow(
-    String title,
-    String category,
-    String description, {
-    VoidCallback? onEdit,
-    VoidCallback? onDelete,
-  }) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.article),
-      title: Text(title),
-      subtitle: Text('$category - $description'),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(icon: const Icon(Icons.edit), onPressed: onEdit),
-          IconButton(icon: const Icon(Icons.delete_outline), onPressed: onDelete),
-        ],
-      ),
-    );
-  }
-
-  Widget _ticketRowWithActions(
-    String id,
-    String issue,
-    String priority,
-    String status, {
-    VoidCallback? onStatusChange,
-    VoidCallback? onDelete,
-  }) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text('$id - $issue'),
-      subtitle: Text('Priority: $priority'),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextButton(onPressed: onStatusChange, child: Text(status)),
-          IconButton(icon: const Icon(Icons.delete_outline), onPressed: onDelete),
-        ],
-      ),
-    );
-  }
 }
 
 class _AdminSection {
   final String title;
   final IconData icon;
   const _AdminSection(this.title, this.icon);
-}
-
-class _HelpArticle {
-  final String title;
-  final String category;
-  final String description;
-  const _HelpArticle(this.title, this.category, this.description);
-}
-
-class _SupportTicket {
-  final String id;
-  final String issue;
-  final String priority;
-  final String status;
-  const _SupportTicket(this.id, this.issue, this.priority, this.status);
 }
 
 class _StatCard extends StatelessWidget {
@@ -879,9 +587,15 @@ class _StatCard extends StatelessWidget {
         children: [
           Icon(icon, color: color),
           const SizedBox(height: 6),
-          Text(title, style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+          Text(
+            title,
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+          ),
           const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );
@@ -906,3 +620,24 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
+class _SettingsRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SettingsRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          SizedBox(width: 180, child: Text(label)),
+          Expanded(
+              child: Text(value,
+                  style: const TextStyle(fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+  }
+}

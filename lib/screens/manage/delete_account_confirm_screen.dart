@@ -55,19 +55,17 @@ class _DeleteAccountConfirmScreenState
                     ),
                   ),
                   SizedBox(height: 12),
-
                   Text(
                     'By checking the box, you confirm the deletion of this account, '
-                        'including medications list, reports, history, etc. '
-                        'Once deleted, this information cannot be recovered. '
-                        'You will need to create a new account in order to continue using Medisafe.',
+                    'including medications list, reports, history, etc. '
+                    'Once deleted, this information cannot be recovered. '
+                    'You will need to create a new account in order to continue using Medisafe.',
                     style: TextStyle(
                       fontSize: 15,
                       height: 1.4,
                     ),
                   ),
                   SizedBox(height: 16),
-
                   Text(
                     'We strongly suggest to export all your information before deleting your account.',
                     style: TextStyle(
@@ -111,12 +109,12 @@ class _DeleteAccountConfirmScreenState
               child: ElevatedButton(
                 onPressed: agreed
                     ? () {
-                  // TODO: Add final delete logic here
-                  Navigator.popUntil(
-                    context,
-                        (route) => route.isFirst,
-                  );
-                }
+                        // Final delete flow should be wired to backend account removal.
+                        Navigator.popUntil(
+                          context,
+                          (route) => route.isFirst,
+                        );
+                      }
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,

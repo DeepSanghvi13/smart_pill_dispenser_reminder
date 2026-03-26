@@ -27,8 +27,10 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
     setState(() => isLoading = true);
     try {
       final loaded = await _service.getAllCaretakers();
+      if (!mounted) return;
       setState(() => caretakers = loaded);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -51,7 +53,8 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
+                      Icon(Icons.people_outline,
+                          size: 64, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       const Text('No Caretakers Added'),
                       const SizedBox(height: 24),
@@ -80,7 +83,8 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: c.isActive ? Colors.green : Colors.grey,
+                          backgroundColor:
+                              c.isActive ? Colors.green : Colors.grey,
                           child: Text(c.firstName[0].toUpperCase(),
                               style: const TextStyle(color: Colors.white)),
                         ),
@@ -93,8 +97,8 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
                                 final result = await Navigator.push<bool>(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (c) =>
-                                        EditCaretakerScreen(caretaker: caretakers[index]),
+                                    builder: (c) => EditCaretakerScreen(
+                                        caretaker: caretakers[index]),
                                   ),
                                 );
                                 if (result == true) _loadCaretakers();
@@ -103,16 +107,21 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
                             ),
                             PopupMenuItem(
                               onTap: () async {
-                                await _service.toggleStatus(caretakers[index].id!, !caretakers[index].isActive);
+                                await _service.toggleStatus(
+                                    caretakers[index].id!,
+                                    !caretakers[index].isActive);
                                 _loadCaretakers();
                               },
                               child: Text(
-                                caretakers[index].isActive ? 'Deactivate' : 'Activate',
+                                caretakers[index].isActive
+                                    ? 'Deactivate'
+                                    : 'Activate',
                               ),
                             ),
                             PopupMenuItem(
                               onTap: () async {
-                                await _service.deleteCaretaker(caretakers[index].id!);
+                                await _service
+                                    .deleteCaretaker(caretakers[index].id!);
                                 _loadCaretakers();
                               },
                               child: const Text('Delete',
@@ -137,4 +146,3 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
     );
   }
 }
-

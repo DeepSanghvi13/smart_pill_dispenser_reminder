@@ -10,12 +10,10 @@ class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({super.key});
 
   @override
-  State<GeneralSettingsScreen> createState() =>
-      _GeneralSettingsScreenState();
+  State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
 }
 
 class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
-
   bool sound = true;
   bool vibrate = true;
   bool ledLight = true;
@@ -28,9 +26,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
       ),
       body: ListView(
         children: [
-
           _sectionTitle('Reminders'),
-
           ListTile(
             title: const Text('Medication Reminders'),
             subtitle: const Text(
@@ -39,7 +35,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {},
           ),
-
           ListTile(
             title: const Text('Morning Reminder'),
             subtitle: const Text(
@@ -55,7 +50,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               );
             },
           ),
-
           ListTile(
             title: const Text('Evening Reminder'),
             subtitle: const Text(
@@ -71,7 +65,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               );
             },
           ),
-
           ListTile(
             title: const Text('Weekly Summary'),
             subtitle: const Text(
@@ -87,7 +80,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               );
             },
           ),
-
           ListTile(
             title: const Text('Weekend Mode'),
             subtitle: const Text(
@@ -103,11 +95,8 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               );
             },
           ),
-
           const Divider(),
-
           _sectionTitle('Dark Mode'),
-
           ListTile(
             title: const Text('Dark Mode State'),
             subtitle: const Text(
@@ -116,11 +105,8 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showDarkModeDialog(context),
           ),
-
           const Divider(),
-
           _sectionTitle('Notifications'),
-
           SwitchListTile(
             title: const Text('Sound'),
             value: sound,
@@ -128,7 +114,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               setState(() => sound = val);
             },
           ),
-
           SwitchListTile(
             title: const Text('Vibrate'),
             value: vibrate,
@@ -136,7 +121,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               setState(() => vibrate = val);
             },
           ),
-
           SwitchListTile(
             title: const Text('LED Light'),
             value: ledLight,
@@ -157,41 +141,31 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Dark Mode State'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-
-              RadioListTile<ThemeMode>(
-                title: const Text('Follow system'),
-                value: ThemeMode.system,
-                groupValue: themeNotifier.value,
-                onChanged: (value) {
-                  themeNotifier.value = value!;
-                  Navigator.pop(context);
-                },
-              ),
-
-              RadioListTile<ThemeMode>(
-                title: const Text('Light'),
-                value: ThemeMode.light,
-                groupValue: themeNotifier.value,
-                onChanged: (value) {
-                  themeNotifier.value = value!;
-                  Navigator.pop(context);
-                },
-              ),
-
-              RadioListTile<ThemeMode>(
-                title: const Text('Dark'),
-                value: ThemeMode.dark,
-                groupValue: themeNotifier.value,
-                onChanged: (value) {
-                  themeNotifier.value = value!;
-                  Navigator.pop(context);
-                },
-              ),
-
-            ],
+          content: RadioGroup<ThemeMode>(
+            groupValue: themeNotifier.value,
+            onChanged: (value) {
+              if (value != null) {
+                themeNotifier.value = value;
+              }
+              Navigator.pop(context);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<ThemeMode>(
+                  title: const Text('Follow system'),
+                  value: ThemeMode.system,
+                ),
+                RadioListTile<ThemeMode>(
+                  title: const Text('Light'),
+                  value: ThemeMode.light,
+                ),
+                RadioListTile<ThemeMode>(
+                  title: const Text('Dark'),
+                  value: ThemeMode.dark,
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(

@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:url_launcher/url_launcher.dart';
 import 'database_service.dart';
 import 'notification_service.dart';
@@ -20,7 +22,7 @@ class CaretakerService {
     try {
       final caretakers = await _db.getActiveCaretakers();
       if (caretakers.isEmpty) return;
-      
+
       final alert = MissedMedicineAlert(
         medicineId: medicineId,
         medicineName: medicineName,
@@ -45,7 +47,8 @@ class CaretakerService {
   }
 
   /// Send notification to individual caretaker
-  Future<void> _notifyCaretaker(Caretaker caretaker, String medicineName) async {
+  Future<void> _notifyCaretaker(
+      Caretaker caretaker, String medicineName) async {
     try {
       if (caretaker.notifyViaNotification) {
         await NotificationService.showCaretakerAlert(
@@ -55,7 +58,8 @@ class CaretakerService {
         );
       }
       if (caretaker.notifyViaSMS) {
-        await _sendSMS(caretaker.phoneNumber, medicineName, caretaker.relationship);
+        await _sendSMS(
+            caretaker.phoneNumber, medicineName, caretaker.relationship);
       }
       if (caretaker.notifyViaEmail) {
         await _sendEmail(caretaker.email, medicineName, caretaker.relationship);
@@ -66,14 +70,15 @@ class CaretakerService {
   }
 
   /// Send SMS alert
-  Future<void> _sendSMS(String phone, String medicine, String relationship) async {
+  Future<void> _sendSMS(
+      String phone, String medicine, String relationship) async {
     try {
       final msg = Uri.encodeComponent(
-        '⚠️ ALERT: Your $relationship missed medicine: $medicine\n\n'
-        'Time: ${DateTime.now()}\n\n'
-        'Please follow up!'
-      );
-      final uri = Uri(scheme: 'sms', path: phone, queryParameters: {'body': msg});
+          '⚠️ ALERT: Your $relationship missed medicine: $medicine\n\n'
+          'Time: ${DateTime.now()}\n\n'
+          'Please follow up!');
+      final uri =
+          Uri(scheme: 'sms', path: phone, queryParameters: {'body': msg});
       if (await canLaunchUrl(uri)) await launchUrl(uri);
     } catch (e) {
       print('SMS error: $e');
@@ -81,17 +86,19 @@ class CaretakerService {
   }
 
   /// Send email alert
-  Future<void> _sendEmail(String email, String medicine, String relationship) async {
+  Future<void> _sendEmail(
+      String email, String medicine, String relationship) async {
     try {
       final subject = Uri.encodeComponent('⚠️ Missed Medicine Alert');
-      final body = Uri.encodeComponent(
-        'Your $relationship missed their medicine!\n\n'
-        'Medicine: $medicine\n'
-        'Time: ${DateTime.now()}\n\n'
-        'Please contact them immediately.'
-      );
-      final uri = Uri(scheme: 'mailto', path: email,
-        queryParameters: {'subject': subject, 'body': body});
+      final body =
+          Uri.encodeComponent('Your $relationship missed their medicine!\n\n'
+              'Medicine: $medicine\n'
+              'Time: ${DateTime.now()}\n\n'
+              'Please contact them immediately.');
+      final uri = Uri(
+          scheme: 'mailto',
+          path: email,
+          queryParameters: {'subject': subject, 'body': body});
       if (await canLaunchUrl(uri)) await launchUrl(uri);
     } catch (e) {
       print('Email error: $e');
@@ -105,7 +112,7 @@ class CaretakerService {
   }
 
   Future<List<Caretaker>> getAllCaretakers() {
-    // Scoped to current user implicitly via DatabaseService._currentUserId  
+    // Scoped to current user implicitly via DatabaseService._currentUserId
     return _db.getAllCaretakers();
   }
 
@@ -131,6 +138,6 @@ class CaretakerService {
 
   // Alert management
   Future<List<MissedMedicineAlert>> getMissedAlerts() => _db.getMissedAlerts();
-  Future<List<MissedMedicineAlert>> getPendingAlerts() => _db.getPendingAlerts();
+  Future<List<MissedMedicineAlert>> getPendingAlerts() =>
+      _db.getPendingAlerts();
 }
-

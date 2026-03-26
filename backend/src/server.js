@@ -3,13 +3,15 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const https = require('https');
-const { pool, query } = require('./db');
+const { pool, query, ping } = require('./db');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '4mb' }));
 
 const port = Number(process.env.PORT || 3000);
+const adminEmail = (process.env.ADMIN_EMAIL || 'admin@medisafe.com').trim().toLowerCase();
+const adminPassword = (process.env.ADMIN_PASSWORD || 'admin123').trim();
 
 function boolToInt(value) {
   return value ? 1 : 0;
@@ -45,6 +47,38 @@ function decodeDaysJson(value) {
 
 function digitsOnly(value) {
   return String(value || '').replace(/[^0-9]/g, '');
+}
+
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || null;
+}
+
+async function logAuthEvent({ email, eventType, status, source = 'mobile', ipAddress = null }) {
+  await query(
+    `INSERT INTO auth_logs (email, event_type, status, source, ip_address, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [normalizeEmail(email), eventType, status, source, ipAddress, toSqlDate(new Date())],
+  );
+}
+
+async function ensureDefaultAdmin() {
+  await query(
+    `INSERT INTO users (email, password_hash, is_admin, created_at, updated_at)
+     VALUES (?, ?, 1, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       password_hash = VALUES(password_hash),
+       is_admin = 1,
+       updated_at = VALUES(updated_at)`,
+    [adminEmail, adminPassword, toSqlDate(new Date()), toSqlDate(new Date())],
+  );
 }
 
 function toNdcCandidates(digits) {
@@ -297,6 +331,183 @@ app.get('/api/health', async (_, res) => {
   }
 });
 
+app.post('/api/auth/register', async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || '').trim();
+  const ipAddress = getClientIp(req);
+
+  if (!email || !password || password.length < 6) {
+    return res.status(400).json({ ok: false, message: 'Valid email and password are required' });
+  }
+
+  if (email === adminEmail) {
+    return res.status(400).json({ ok: false, message: 'Admin account cannot be registered from app' });
+  }
+
+  try {
+    const existing = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+    if (existing.length > 0) {
+      await logAuthEvent({
+        email,
+        eventType: 'register',
+        status: 'duplicate',
+        ipAddress,
+      });
+      return res.status(409).json({ ok: false, message: 'Email already registered' });
+    }
+
+    const now = toSqlDate(new Date());
+    await query(
+      `INSERT INTO users (email, password_hash, is_admin, created_at, updated_at)
+       VALUES (?, ?, 0, ?, ?)`,
+      [email, password, now, now],
+    );
+
+    await logAuthEvent({
+      email,
+      eventType: 'register',
+      status: 'success',
+      ipAddress,
+    });
+
+    return res.status(200).json({ ok: true, message: 'Registration successful' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Registration failed', error: error.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || '').trim();
+  const ipAddress = getClientIp(req);
+
+  if (!email || !password) {
+    return res.status(400).json({ ok: false, message: 'Email and password are required' });
+  }
+
+  try {
+    const rows = await query(
+      'SELECT id, email, password_hash AS passwordHash, is_admin AS isAdmin FROM users WHERE email = ? LIMIT 1',
+      [email],
+    );
+
+    if (!rows.length || String(rows[0].passwordHash) !== password) {
+      await logAuthEvent({
+        email,
+        eventType: 'login',
+        status: 'failed',
+        ipAddress,
+      });
+      return res.status(401).json({ ok: false, message: 'Invalid credentials' });
+    }
+
+    await logAuthEvent({
+      email,
+      eventType: 'login',
+      status: 'success',
+      ipAddress,
+    });
+
+    return res.status(200).json({
+      ok: true,
+      data: {
+        id: rows[0].id,
+        email: rows[0].email,
+        isAdmin: rows[0].isAdmin === 1,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Login failed', error: error.message });
+  }
+});
+
+app.get('/api/auth/exists', async (req, res) => {
+  const email = normalizeEmail(req.query.email);
+  if (!email) {
+    return res.status(400).json({ ok: false, message: 'email query param is required' });
+  }
+
+  try {
+    const rows = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+    return res.status(200).json({ ok: true, exists: rows.length > 0 });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Lookup failed', error: error.message });
+  }
+});
+
+app.get('/api/auth/stats', async (_, res) => {
+  try {
+    const rows = await query('SELECT COUNT(*) AS total FROM users');
+    return res.status(200).json({ ok: true, totalUsers: Number(rows[0]?.total || 0) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Stats lookup failed', error: error.message });
+  }
+});
+
+app.get('/api/admin/sql-entries', async (_, res) => {
+  try {
+    const [
+      users,
+      authLogs,
+      medicines,
+      reminders,
+      alarmLogs,
+      caretakers,
+      dependents,
+      settings,
+      userCount,
+      medicineCount,
+      reminderCount,
+      alarmCount,
+      caretakerCount,
+      dependentCount,
+      settingCount,
+    ] = await Promise.all([
+      query('SELECT id, email, is_admin AS isAdmin, created_at AS createdAt, updated_at AS updatedAt FROM users ORDER BY id DESC LIMIT 250'),
+      query('SELECT id, email, event_type AS eventType, status, source, ip_address AS ipAddress, created_at AS createdAt FROM auth_logs ORDER BY id DESC LIMIT 500'),
+      query('SELECT id, user_id AS userId, local_id AS localId, name, dosage, time, category, created_at AS createdAt FROM medicines ORDER BY id DESC LIMIT 500'),
+      query('SELECT id, user_id AS userId, local_id AS localId, medicine_name AS medicineName, time, is_active AS isActive, created_at AS createdAt FROM reminders ORDER BY id DESC LIMIT 500'),
+      query('SELECT id, user_id AS userId, local_id AS localId, medicine_name AS medicineName, status, scheduled_time AS scheduledTime, triggered_time AS triggeredTime FROM alarm_logs ORDER BY id DESC LIMIT 500'),
+      query('SELECT id, user_id AS userId, local_id AS localId, first_name AS firstName, last_name AS lastName, email, relationship, is_active AS isActive, created_at AS createdAt FROM caretakers ORDER BY id DESC LIMIT 500'),
+      query('SELECT id, user_id AS userId, local_id AS localId, first_name AS firstName, last_name AS lastName, gender, birth_date AS birthDate, color, created_at AS createdAt FROM dependents ORDER BY id DESC LIMIT 500'),
+      query('SELECT id, user_id AS userId, key_name AS keyName, value, updated_at AS updatedAt FROM settings ORDER BY id DESC LIMIT 500'),
+      query('SELECT COUNT(*) AS total FROM users'),
+      query('SELECT COUNT(*) AS total FROM medicines'),
+      query('SELECT COUNT(*) AS total FROM reminders'),
+      query('SELECT COUNT(*) AS total FROM alarm_logs'),
+      query('SELECT COUNT(*) AS total FROM caretakers'),
+      query('SELECT COUNT(*) AS total FROM dependents'),
+      query('SELECT COUNT(*) AS total FROM settings'),
+    ]);
+
+    return res.status(200).json({
+      ok: true,
+      data: {
+        counts: {
+          users: Number(userCount[0]?.total || 0),
+          medicines: Number(medicineCount[0]?.total || 0),
+          reminders: Number(reminderCount[0]?.total || 0),
+          alarmLogs: Number(alarmCount[0]?.total || 0),
+          caretakers: Number(caretakerCount[0]?.total || 0),
+          dependents: Number(dependentCount[0]?.total || 0),
+          settings: Number(settingCount[0]?.total || 0),
+          authLogs: authLogs.length,
+        },
+        users,
+        authLogs,
+        medicines,
+        reminders,
+        alarmLogs,
+        caretakers,
+        dependents,
+        settings,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Failed to fetch SQL entries', error: error.message });
+  }
+});
+
 app.post('/api/sync/all', async (req, res) => {
   const {
     userId = 'demo-user',
@@ -437,6 +648,17 @@ app.get('/api/reminders', async (req, res) => {
   }
 });
 
+app.delete('/api/reminders/:id', async (req, res) => {
+  const userId = (req.query.userId || 'demo-user').toString();
+  const localId = Number(req.params.id);
+  try {
+    await query('DELETE FROM reminders WHERE user_id = ? AND local_id = ?', [userId, localId]);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.post('/api/alarm-logs', async (req, res) => {
   const { userId = 'demo-user' } = req.body || {};
   try {
@@ -495,6 +717,17 @@ app.get('/api/caretakers', async (req, res) => {
   }
 });
 
+app.delete('/api/caretakers/:id', async (req, res) => {
+  const userId = (req.query.userId || 'demo-user').toString();
+  const localId = Number(req.params.id);
+  try {
+    await query('DELETE FROM caretakers WHERE user_id = ? AND local_id = ?', [userId, localId]);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.post('/api/user-profile', async (req, res) => {
   const { userId = 'demo-user' } = req.body || {};
   try {
@@ -502,6 +735,106 @@ app.post('/api/user-profile', async (req, res) => {
     await upsertUserProfile(connection, userId, req.body || {});
     connection.release();
     res.status(200).json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/dependents', async (req, res) => {
+  const { userId = 'demo-user' } = req.body || {};
+  const {
+    id = null,
+    firstName = '',
+    lastName = '',
+    gender = null,
+    birthDate = null,
+    color = null,
+  } = req.body || {};
+
+  try {
+    await query(
+      `INSERT INTO dependents (
+        user_id, local_id, first_name, last_name, gender, birth_date, color, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        first_name = VALUES(first_name),
+        last_name = VALUES(last_name),
+        gender = VALUES(gender),
+        birth_date = VALUES(birth_date),
+        color = VALUES(color)`,
+      [
+        userId,
+        id,
+        firstName,
+        lastName,
+        gender,
+        birthDate,
+        color,
+        toSqlDate(new Date()),
+      ],
+    );
+
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/dependents', async (req, res) => {
+  const userId = (req.query.userId || 'demo-user').toString();
+  try {
+    const rows = await query(
+      `SELECT local_id AS id, first_name AS firstName, last_name AS lastName,
+              gender, birth_date AS birthDate, color, created_at AS createdAt
+       FROM dependents WHERE user_id = ? ORDER BY id DESC`,
+      [userId],
+    );
+    res.json({ ok: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.delete('/api/dependents/:id', async (req, res) => {
+  const userId = (req.query.userId || 'demo-user').toString();
+  const localId = Number(req.params.id);
+  try {
+    await query('DELETE FROM dependents WHERE user_id = ? AND local_id = ?', [userId, localId]);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/settings', async (req, res) => {
+  const { userId = 'demo-user', key, value } = req.body || {};
+  if (!key || value === undefined) {
+    return res.status(400).json({ ok: false, message: 'key and value are required' });
+  }
+
+  try {
+    await query(
+      `INSERT INTO settings (user_id, key_name, value, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         value = VALUES(value),
+         updated_at = VALUES(updated_at)`,
+      [userId, key, String(value), toSqlDate(new Date())],
+    );
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/settings', async (req, res) => {
+  const userId = (req.query.userId || 'demo-user').toString();
+  try {
+    const rows = await query(
+      'SELECT key_name AS keyName, value, updated_at AS updatedAt FROM settings WHERE user_id = ?',
+      [userId],
+    );
+    res.json({ ok: true, data: rows });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -604,7 +937,32 @@ app.get('/api/user-profile/:userId', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`MySQL API running on http://localhost:${port}/api`);
-});
+async function startServer() {
+  try {
+    await ping();
+    await ensureDefaultAdmin();
+    const server = app.listen(port, () => {
+      console.log(`MySQL API running on http://localhost:${port}/api`);
+    });
+
+    const shutdown = async () => {
+      try {
+        await pool.end();
+      } catch (_) {
+        // ignore during shutdown
+      }
+      server.close(() => {
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+  } catch (error) {
+    console.error('Database connection failed at startup:', error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
 

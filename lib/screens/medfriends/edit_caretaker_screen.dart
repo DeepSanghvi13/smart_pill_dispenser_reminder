@@ -25,7 +25,19 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
   late bool isActive;
   bool isLoading = false;
 
-  final relationships = ['Son', 'Daughter', 'Wife', 'Husband', 'Father', 'Mother', 'Sister', 'Brother', 'Nurse', 'Caregiver', 'Friend'];
+  final relationships = [
+    'Son',
+    'Daughter',
+    'Wife',
+    'Husband',
+    'Father',
+    'Mother',
+    'Sister',
+    'Brother',
+    'Nurse',
+    'Caregiver',
+    'Friend'
+  ];
 
   @override
   void initState() {
@@ -53,21 +65,31 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
             children: [
               TextFormField(
                 initialValue: firstName,
-                decoration: InputDecoration(labelText: 'First Name', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                decoration: InputDecoration(
+                    labelText: 'First Name',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8))),
                 onChanged: (v) => firstName = v,
                 validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 initialValue: lastName,
-                decoration: InputDecoration(labelText: 'Last Name', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                decoration: InputDecoration(
+                    labelText: 'Last Name',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8))),
                 onChanged: (v) => lastName = v,
                 validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 initialValue: phone,
-                decoration: InputDecoration(labelText: 'Phone', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), prefixIcon: const Icon(Icons.phone)),
+                decoration: InputDecoration(
+                    labelText: 'Phone',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    prefixIcon: const Icon(Icons.phone)),
                 keyboardType: TextInputType.phone,
                 onChanged: (v) => phone = v,
                 validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
@@ -75,16 +97,25 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 initialValue: email,
-                decoration: InputDecoration(labelText: 'Email', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), prefixIcon: const Icon(Icons.email)),
+                decoration: InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    prefixIcon: const Icon(Icons.email)),
                 keyboardType: TextInputType.emailAddress,
                 onChanged: (v) => email = v,
                 validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: relationship,
-                decoration: InputDecoration(labelText: 'Relationship', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                items: relationships.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+                initialValue: relationship,
+                decoration: InputDecoration(
+                    labelText: 'Relationship',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8))),
+                items: relationships
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .toList(),
                 onChanged: (v) => setState(() => relationship = v ?? 'Son'),
               ),
               const SizedBox(height: 24),
@@ -117,10 +148,13 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text('Status'),
-                          Text(isActive ? '✅ Active' : '⛔ Inactive', style: Theme.of(context).textTheme.bodySmall),
+                          Text(isActive ? '✅ Active' : '⛔ Inactive',
+                              style: Theme.of(context).textTheme.bodySmall),
                         ],
                       ),
-                      Switch(value: isActive, onChanged: (v) => setState(() => isActive = v)),
+                      Switch(
+                          value: isActive,
+                          onChanged: (v) => setState(() => isActive = v)),
                     ],
                   ),
                 ),
@@ -130,7 +164,12 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: isLoading ? null : _submit,
-                  child: isLoading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save Changes'),
+                  child: isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save Changes'),
                 ),
               ),
             ],
@@ -142,8 +181,10 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final messenger = ScaffoldMessenger.of(context);
     if (!notifySMS && !notifyEmail && !notifyApp) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select at least one notification')));
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Select at least one notification')));
       return;
     }
 
@@ -165,14 +206,14 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
         ),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Updated')));
+        messenger.showSnackBar(const SnackBar(content: Text('✅ Updated')));
         Navigator.pop(context, true);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
 }
-

@@ -35,25 +35,34 @@ class AuthService extends ChangeNotifier {
 
   /// Register a new user (email/password).
   Future<bool> register(String email, String password) async {
+    final error = await registerWithMessage(email, password);
+    return error == null;
+  }
+
+  /// Register a new user (email/password) and return an error message on failure.
+  /// Returns null on success.
+  Future<String?> registerWithMessage(String email, String password) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
       if (normalizedEmail.isEmpty || password.length < 6) {
-        return false;
+        return 'Password must be at least 6 characters.';
       }
 
       if (normalizedEmail == 'admin@medisafe.com') {
-        return false;
+        return 'Admin account cannot be registered from app.';
       }
 
       final api = MySQLApiService();
       final exists = await api.isEmailRegistered(normalizedEmail);
       if (exists) {
-        return false;
+        return 'Email already registered. Please login.';
       }
 
-      return await api.registerUser(normalizedEmail, password);
+      final apiError =
+          await api.registerUserWithMessage(normalizedEmail, password);
+      return apiError;
     } catch (_) {
-      return false;
+      return 'Registration failed. Please check your connection and try again.';
     }
   }
 
@@ -76,7 +85,7 @@ class AuthService extends ChangeNotifier {
       await _configureAndSync(email);
       notifyListeners();
     } catch (_) {
-      // Ignore — fresh start is fine
+      // Ignore â€” fresh start is fine
     }
   }
 
@@ -153,11 +162,7 @@ class AuthService extends ChangeNotifier {
     _isLoggedIn = false;
     _clearSession();
     DatabaseService().setCurrentUser(null);
-<<<<<<< HEAD
     MySQLApiService().configure(userId: 'guest', authToken: null);
-=======
-    MySQLApiService().configure(userId: 'demo-user', authToken: null);
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
     notifyListeners();
   }
 
@@ -188,7 +193,7 @@ class AuthService extends ChangeNotifier {
 
     if (_isSyncingBackground) return;
 
-    // Bulk sync in background — errors are swallowed inside syncAll
+    // Bulk sync in background â€” errors are swallowed inside syncAll
     Future.microtask(() async {
       _isSyncingBackground = true;
       final db = DatabaseService();
@@ -218,7 +223,7 @@ class AuthService extends ChangeNotifier {
       } catch (_) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool(_keyPendingSync, true);
-        // ignore — offline is fine
+        // ignore â€” offline is fine
       } finally {
         _isSyncingBackground = false;
       }

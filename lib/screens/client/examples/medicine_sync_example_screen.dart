@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/medicine.dart';
-import '../../services/database_service.dart';
-import '../../services/mysql_api_service.dart';
-import '../../providers/sync_provider.dart';
+import '../../../models/medicine.dart';
+import '../../../services/database_service.dart';
+import '../../../services/mysql_api_service.dart';
+import '../../../providers/sync_provider.dart';
 
 /// Example Medicine Sync Screen
 /// Shows how to save medicines locally and sync to MySQL
@@ -243,14 +243,16 @@ class _MedicineSyncExampleScreenState extends State<MedicineSyncExampleScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: syncProvider.isSyncing ? null : _syncAllToServer,
+                          onPressed:
+                              syncProvider.isSyncing ? null : _syncAllToServer,
                           child: Text('Sync All'),
                         ),
                       ),
                       SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: syncProvider.isSyncing ? null : _pullFromServer,
+                          onPressed:
+                              syncProvider.isSyncing ? null : _pullFromServer,
                           child: Text('Pull from Server'),
                         ),
                       ),
@@ -276,7 +278,8 @@ class _MedicineSyncExampleScreenState extends State<MedicineSyncExampleScreen> {
                     itemBuilder: (context, index) {
                       final medicine = _medicines[index];
                       return Card(
-                        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        margin:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         child: ListTile(
                           leading: Text(
                             medicine.category.emoji,
@@ -314,4 +317,3 @@ class _MedicineSyncExampleScreenState extends State<MedicineSyncExampleScreen> {
     super.dispose();
   }
 }
-

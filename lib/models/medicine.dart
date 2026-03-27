@@ -1,7 +1,7 @@
 enum MedicineCategory {
-  tablets('Tablets', '💊'),
-  syrup('Syrup', '🧴'),
-  injection('Injection', '💉');
+  tablets('Tablets', 'ðŸ’Š'),
+  syrup('Syrup', 'ðŸ§´'),
+  injection('Injection', 'ðŸ’‰');
 
   final String label;
   final String emoji;
@@ -103,7 +103,4 @@ class Medicine {
     );
   }
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

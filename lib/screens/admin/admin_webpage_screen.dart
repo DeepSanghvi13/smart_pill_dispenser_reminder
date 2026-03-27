@@ -5,13 +5,8 @@ import 'package:smart_pill_reminder/models/alarm_log.dart';
 import 'package:smart_pill_reminder/models/caretaker.dart';
 import 'package:smart_pill_reminder/models/medicine.dart';
 import 'package:smart_pill_reminder/models/reminder.dart';
-<<<<<<< HEAD
 import 'package:smart_pill_reminder/screens/client/auth/login_screen.dart';
 import 'package:smart_pill_reminder/screens/database/sql_connection_status_screen.dart';
-=======
-import 'package:smart_pill_reminder/screens/auth/login_screen.dart';
-import 'package:smart_pill_reminder/screens/manage/sql_connection_status_screen.dart';
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
 import 'package:smart_pill_reminder/services/auth_service.dart';
 import 'package:smart_pill_reminder/services/mysql_api_service.dart';
 
@@ -147,11 +142,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
               IconButton(
                 icon: const Icon(Icons.storage),
                 onPressed: _openSqlStatus,
-<<<<<<< HEAD
                 tooltip: 'Database Status',
-=======
-                tooltip: 'SQL Status',
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
               ),
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -196,11 +187,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
         child: IconButton(
           onPressed: _openSqlStatus,
           icon: const Icon(Icons.storage),
-<<<<<<< HEAD
           tooltip: 'Database Status',
-=======
-          tooltip: 'SQL Status',
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
         ),
       ),
     );
@@ -313,22 +300,13 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                       _ActivityRow(
                         'Database Status',
                         _serverConnected
-<<<<<<< HEAD
                             ? 'Connected (MongoDB)'
                             : 'Disconnected (MongoDB)',
-=======
-                            ? 'Connected (MySQL)'
-                            : 'Disconnected (MySQL)',
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
                         _serverConnected ? 'OK' : 'OFFLINE',
                       ),
                       _ActivityRow(
                         'Medicines Synced',
-<<<<<<< HEAD
                         '${_medicines.length} records in MongoDB',
-=======
-                        '${_medicines.length} records in MySQL',
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
                         DateFormat('HH:mm').format(DateTime.now()),
                       ),
                       _ActivityRow(
@@ -339,11 +317,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                       _ActivityRow(
                         'Alarm Logs',
                         '${_alarmLogs.length} records available',
-<<<<<<< HEAD
                         'MONGODB',
-=======
-                        'MYSQL',
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
                       ),
                     ],
                   ),
@@ -359,11 +333,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _medicines.isEmpty
-<<<<<<< HEAD
               ? const Text('No medicines found on MongoDB server.')
-=======
-              ? const Text('No medicines found on MySQL server.')
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
               : _panel(
                   title: 'All Medicines (${_medicines.length})',
                   child: SingleChildScrollView(
@@ -401,11 +371,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _reminders.isEmpty
-<<<<<<< HEAD
               ? const Text('No reminders found on MongoDB server.')
-=======
-              ? const Text('No reminders found on MySQL server.')
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
               : _panel(
                   title: 'All Reminders (${_reminders.length})',
                   child: SingleChildScrollView(
@@ -444,11 +410,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _alarmLogs.isEmpty
-<<<<<<< HEAD
               ? const Text('No alarm logs found on MongoDB server.')
-=======
-              ? const Text('No alarm logs found on MySQL server.')
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
               : _panel(
                   title: 'Alarm Logs (${_alarmLogs.length})',
                   child: SingleChildScrollView(
@@ -491,11 +453,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _caretakers.isEmpty
-<<<<<<< HEAD
               ? const Text('No caretakers found on MongoDB server.')
-=======
-              ? const Text('No caretakers found on MySQL server.')
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
               : _panel(
                   title: 'Caretakers (${_caretakers.length})',
                   child: SingleChildScrollView(
@@ -534,19 +492,11 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
         title: 'Database Configuration',
         child: Column(
           children: const [
-<<<<<<< HEAD
             _SettingsRow(label: 'Database Type', value: 'MongoDB'),
             _SettingsRow(
                 label: 'Storage Mode', value: 'Server-backed live data'),
             _SettingsRow(
                 label: 'Admin Data Source', value: 'MongoDB API endpoints'),
-=======
-            _SettingsRow(label: 'Database Type', value: 'MySQL'),
-            _SettingsRow(
-                label: 'Storage Mode', value: 'Server-backed live data'),
-            _SettingsRow(
-                label: 'Admin Data Source', value: 'MySQL API endpoints'),
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
           ],
         ),
       ),

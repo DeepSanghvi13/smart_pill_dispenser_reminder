@@ -336,7 +336,4 @@ class MedicineProvider extends ChangeNotifier {
     return _todayAlarms.where((a) => a.status == 'snoozed').toList();
   }
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

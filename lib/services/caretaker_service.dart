@@ -40,9 +40,9 @@ class CaretakerService {
       }
 
       await _db.updateAlertStatus(alertId, 'notified', count);
-      print('✅ Notified $count caretakers about $medicineName');
+      print('âœ… Notified $count caretakers about $medicineName');
     } catch (e) {
-      print('❌ Error notifying caretakers: $e');
+      print('âŒ Error notifying caretakers: $e');
     }
   }
 
@@ -74,7 +74,7 @@ class CaretakerService {
       String phone, String medicine, String relationship) async {
     try {
       final msg = Uri.encodeComponent(
-          '⚠️ ALERT: Your $relationship missed medicine: $medicine\n\n'
+          'âš ï¸ ALERT: Your $relationship missed medicine: $medicine\n\n'
           'Time: ${DateTime.now()}\n\n'
           'Please follow up!');
       final uri =
@@ -89,7 +89,7 @@ class CaretakerService {
   Future<void> _sendEmail(
       String email, String medicine, String relationship) async {
     try {
-      final subject = Uri.encodeComponent('⚠️ Missed Medicine Alert');
+      final subject = Uri.encodeComponent('âš ï¸ Missed Medicine Alert');
       final body =
           Uri.encodeComponent('Your $relationship missed their medicine!\n\n'
               'Medicine: $medicine\n'
@@ -141,7 +141,4 @@ class CaretakerService {
   Future<List<MissedMedicineAlert>> getPendingAlerts() =>
       _db.getPendingAlerts();
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

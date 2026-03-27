@@ -104,7 +104,4 @@ class ParsedMedicineText {
 
   const ParsedMedicineText({required this.medicineName, required this.dosage});
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

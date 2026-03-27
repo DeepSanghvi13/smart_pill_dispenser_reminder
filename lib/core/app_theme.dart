@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
-
 class AppTheme {
   static ThemeData lightTheme = ThemeData(
     scaffoldBackgroundColor: AppColors.background,
@@ -13,8 +12,4 @@ class AppTheme {
     ),
     fontFamily: 'Roboto',
   );
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

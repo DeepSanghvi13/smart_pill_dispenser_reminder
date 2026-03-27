@@ -19,7 +19,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _hideConfirmPassword = true;
   bool _isLoading = false;
 
-
   @override
   void dispose() {
     _emailController.dispose();
@@ -49,7 +48,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters.')),
+        const SnackBar(
+            content: Text('Password must be at least 6 characters.')),
       );
       return;
     }
@@ -63,37 +63,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    final alreadyRegistered = await authService.isRegistered(email);
-    if (!mounted) return;
-
-    if (alreadyRegistered) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Email already registered. Please login.'),
-        ),
-      );
-      // Redirect to login with email pre-filled
-      await Future.delayed(const Duration(milliseconds: 1200));
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => LoginScreen(prefilledEmail: email),
-        ),
-      );
-      return;
-    }
-
-    final success = await authService.register(email, password);
+    final error = await authService.registerWithMessage(email, password);
     if (!mounted) return;
 
     setState(() => _isLoading = false);
 
-    if (!success) {
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration failed. Try again.')),
+        SnackBar(content: Text(error)),
       );
+
+      if (error.toLowerCase().contains('already registered')) {
+        await Future.delayed(const Duration(milliseconds: 1200));
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LoginScreen(prefilledEmail: email),
+          ),
+        );
+      }
       return;
     }
 
@@ -125,7 +114,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -207,7 +197,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-
-
-
-

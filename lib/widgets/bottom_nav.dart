@@ -16,7 +16,7 @@ class BottomNav extends StatelessWidget {
       currentIndex: index,
       onTap: onTap,
 
-      // 🔹 IMPORTANT COLOR FIX
+      // ðŸ”¹ IMPORTANT COLOR FIX
       selectedItemColor: Theme.of(context).primaryColor,
       unselectedItemColor: Colors.grey.shade600,
       backgroundColor: Colors.white,
@@ -43,7 +43,4 @@ class BottomNav extends StatelessWidget {
     );
   }
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

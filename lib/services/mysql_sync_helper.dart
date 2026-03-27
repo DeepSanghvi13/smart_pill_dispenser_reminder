@@ -7,7 +7,7 @@ import '../models/reminder.dart';
 import '../models/user_profile.dart';
 import 'mysql_api_service.dart';
 
-/// Fire-and-forget helpers — call these after every local DB write.
+/// Fire-and-forget helpers â€” call these after every local DB write.
 /// Errors are silently swallowed so they never block the UI.
 class MySQLSyncHelper {
   static final MySQLApiService _api = MySQLApiService();
@@ -59,7 +59,7 @@ class MySQLSyncHelper {
     });
   }
 
-  /// Bulk sync — call this once after login or on app resume.
+  /// Bulk sync â€” call this once after login or on app resume.
   static Future<bool> syncAll({
     required String userId,
     required List<Medicine> medicines,
@@ -84,7 +84,4 @@ class MySQLSyncHelper {
     }
   }
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

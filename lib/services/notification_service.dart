@@ -172,7 +172,7 @@ class NotificationService {
     }
   }
 
-  /// 👨‍⚕️ Caretaker alert for missed medicine
+  /// ðŸ‘¨â€âš•ï¸ Caretaker alert for missed medicine
   static Future<void> showCaretakerAlert({
     required String name,
     required String medicine,
@@ -200,7 +200,7 @@ class NotificationService {
 
     await _notifications.show(
       DateTime.now().millisecondsSinceEpoch,
-      '⚠️ Medicine Missed',
+      'âš ï¸ Medicine Missed',
       'Your ${relationship.toLowerCase()} missed: $medicine',
       const NotificationDetails(android: androidDetails),
     );
@@ -252,7 +252,4 @@ class NotificationService {
     await _notifications.cancel(id);
   }
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

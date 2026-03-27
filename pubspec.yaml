@@ -23,34 +23,13 @@ dependencies:
   flutter_tts: ^4.2.2
   mobile_scanner: ^5.2.3
 
-<<<<<<< HEAD
   # ⭐ HTTP Client for API
   http: ^1.1.0
-=======
-  # ⭐ SQLite
-  sqflite: ^2.3.0
-  path: ^1.9.0
-  sqflite_common_ffi: ^2.3.3
-
-  # ⭐ Web Database Support
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
-
-  # ⭐ HTTP Client for API
-  http: ^1.1.0
-  dio: ^5.3.1
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
 
-<<<<<<< HEAD
-=======
-  hive_generator: ^2.0.1
-  build_runner: ^2.4.1
-
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
 flutter:
   uses-material-design: true

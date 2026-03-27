@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-<<<<<<< HEAD
 import 'package:smart_pill_reminder/screens/client/auth/login_screen.dart';
 import 'package:smart_pill_reminder/screens/database/sql_connection_status_screen.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
@@ -8,15 +7,6 @@ import '../screens/client/dependents/add_dependent_screen.dart';
 import '../screens/client/medfriends/invite_medfriend_screen.dart';
 import '../screens/client/medfriends/caretaker_management_screen.dart';
 import '../screens/client/profile/create_profile_screen.dart';
-=======
-import 'package:smart_pill_reminder/screens/auth/login_screen.dart';
-import 'package:smart_pill_reminder/screens/manage/sql_connection_status_screen.dart';
-import 'package:smart_pill_reminder/services/auth_service.dart';
-import '../screens/dependents/add_dependent_screen.dart';
-import '../screens/medfriends/invite_medfriend_screen.dart';
-import '../screens/medfriends/caretaker_management_screen.dart';
-import '../screens/profile/create_profile_screen.dart';
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
 
 class DrawerMenuItem {
   final IconData icon;
@@ -84,11 +74,7 @@ class AppDrawer extends StatelessWidget {
       if (isAdmin)
         DrawerMenuItem(
           icon: Icons.storage,
-<<<<<<< HEAD
           title: 'Database',
-=======
-          title: 'SQL',
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
           onTap: () => _openScreen(context, const SqlConnectionStatusScreen()),
         ),
     ];

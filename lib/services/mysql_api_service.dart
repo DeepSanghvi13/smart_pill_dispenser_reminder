@@ -16,24 +16,14 @@ class MySQLApiService {
   static final MySQLApiService _instance = MySQLApiService._internal();
   static const Duration _requestTimeout = Duration(seconds: 10);
 
-<<<<<<< HEAD
   // Set at runtime with --dart-define=MONGO_API_BASE_URL=http://<your-ip>:3000/api
   static const String _configuredBaseUrl = String.fromEnvironment(
     'MONGO_API_BASE_URL',
-=======
-  // Set at runtime with --dart-define=MYSQL_API_BASE_URL=http://<your-ip>:3000/api
-  static const String _configuredBaseUrl = String.fromEnvironment(
-    'MYSQL_API_BASE_URL',
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
     defaultValue: 'http://localhost:3000/api',
   );
 
   late http.Client _client;
-<<<<<<< HEAD
   String _userId = 'guest';
-=======
-  String _userId = 'demo-user';
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
   String? _authToken;
   String _activeBaseUrl = _configuredBaseUrl;
 
@@ -120,21 +110,15 @@ class MySQLApiService {
     }
   }
 
-<<<<<<< HEAD
   Future<void> _resolveBaseUrl() async {
     await checkServerConnection();
   }
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
   // ============= AUTH =============
 
   Future<bool> registerUser(String email, String password) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .post(
             _uri('/auth/register'),
@@ -154,10 +138,10 @@ class MySQLApiService {
 
   Future<String?> registerUserWithMessage(String email, String password) async {
     try {
-<<<<<<< HEAD
-      await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
+      final isConnected = await checkServerConnection();
+      if (!isConnected) {
+        return 'Server is offline. Start backend and try again.';
+      }
       final response = await _client
           .post(
             _uri('/auth/register'),
@@ -173,16 +157,13 @@ class MySQLApiService {
       return _extractErrorMessage(response) ?? 'Registration failed';
     } catch (e) {
       print('Error registering user with message: $e');
-      return 'Registration request failed';
+      return 'Registration request failed. Please check server connection.';
     }
   }
 
   Future<Map<String, dynamic>?> loginUser(String email, String password) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .post(
             _uri('/auth/login'),
@@ -207,10 +188,7 @@ class MySQLApiService {
 
   Future<bool> isEmailRegistered(String email) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .get(
             _uri('/auth/exists', {'email': email.trim().toLowerCase()}),
@@ -230,10 +208,7 @@ class MySQLApiService {
 
   Future<int> getTotalRegisteredUsers() async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .get(_uri('/auth/stats'), headers: _headers(json: false))
           .timeout(_requestTimeout);
@@ -249,10 +224,7 @@ class MySQLApiService {
 
   Future<Map<String, dynamic>?> getAdminSqlEntries() async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .get(_uri('/admin/sql-entries'), headers: _headers(json: false))
           .timeout(const Duration(seconds: 15));
@@ -272,10 +244,7 @@ class MySQLApiService {
 
   Future<bool> syncMedicine(Medicine medicine) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .post(
             _uri('/medicines'),
@@ -305,10 +274,7 @@ class MySQLApiService {
 
   Future<List<Medicine>> getMedicinesFromServer() async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .get(
             _uri('/medicines', {'userId': _userId}),
@@ -351,10 +317,7 @@ class MySQLApiService {
 
   Future<bool> updateMedicineOnServer(int id, Medicine medicine) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.put(
         _uri('/medicines/$id'),
         headers: _headers(),
@@ -380,10 +343,7 @@ class MySQLApiService {
 
   Future<bool> deleteMedicineFromServer(int id) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.delete(
         _uri('/medicines/$id', {'userId': _userId}),
         headers: _headers(json: false),
@@ -399,10 +359,7 @@ class MySQLApiService {
 
   Future<bool> saveUserProfileToServer(UserProfile profile) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.post(
         _uri('/user-profile'),
         headers: _headers(),
@@ -426,10 +383,7 @@ class MySQLApiService {
 
   Future<UserProfile?> getUserProfileFromServer(String userId) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.get(
         _uri('/user-profile/$userId'),
         headers: _headers(json: false),
@@ -461,10 +415,7 @@ class MySQLApiService {
 
   Future<bool> saveCaretakerToServer(Caretaker caretaker) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.post(
         _uri('/caretakers'),
         headers: _headers(),
@@ -492,10 +443,7 @@ class MySQLApiService {
 
   Future<List<Caretaker>> getCaretakersFromServer() async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.get(
         _uri('/caretakers', {'userId': _userId}),
         headers: _headers(json: false),
@@ -536,10 +484,7 @@ class MySQLApiService {
 
   Future<bool> deleteCaretakerFromServer(int id) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .delete(
             _uri('/caretakers/$id', {'userId': _userId}),
@@ -557,10 +502,7 @@ class MySQLApiService {
 
   Future<bool> logAlarmToServer(AlarmLog log) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.post(
         _uri('/alarm-logs'),
         headers: _headers(),
@@ -586,10 +528,7 @@ class MySQLApiService {
 
   Future<List<AlarmLog>> getAlarmLogsFromServer() async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.get(
         _uri('/alarm-logs', {'userId': _userId}),
         headers: _headers(json: false),
@@ -631,10 +570,7 @@ class MySQLApiService {
 
   Future<bool> saveReminderToServer(Reminder reminder) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.post(
         _uri('/reminders'),
         headers: _headers(),
@@ -659,10 +595,7 @@ class MySQLApiService {
 
   Future<List<Reminder>> getRemindersFromServer() async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.get(
         _uri('/reminders', {'userId': _userId}),
         headers: _headers(json: false),
@@ -703,10 +636,7 @@ class MySQLApiService {
 
   Future<bool> deleteReminderFromServer(int id) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .delete(
             _uri('/reminders/$id', {'userId': _userId}),
@@ -726,10 +656,7 @@ class MySQLApiService {
     ProfessionalReviewRequest request,
   ) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.post(
         _uri('/professional-reviews'),
         headers: _headers(),
@@ -754,10 +681,7 @@ class MySQLApiService {
     }
 
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client.get(
         _uri('/barcode-lookup/$sanitized', {'userId': _userId}),
         headers: _headers(json: false),
@@ -784,10 +708,7 @@ class MySQLApiService {
 
   Future<bool> saveDependentToServer(Map<String, dynamic> dependent) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .post(
             _uri('/dependents'),
@@ -807,10 +728,7 @@ class MySQLApiService {
 
   Future<List<Map<String, dynamic>>> getDependentsFromServer() async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .get(
             _uri('/dependents', {'userId': _userId}),
@@ -832,10 +750,7 @@ class MySQLApiService {
 
   Future<bool> deleteDependentFromServer(int id) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .delete(
             _uri('/dependents/$id', {'userId': _userId}),
@@ -853,10 +768,7 @@ class MySQLApiService {
 
   Future<bool> saveSettingToServer(String key, String value) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .post(
             _uri('/settings'),
@@ -877,10 +789,7 @@ class MySQLApiService {
 
   Future<Map<String, String>> getSettingsFromServer() async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       final response = await _client
           .get(
             _uri('/settings', {'userId': _userId}),
@@ -934,10 +843,7 @@ class MySQLApiService {
     String? userId,
   }) async {
     try {
-<<<<<<< HEAD
       await _resolveBaseUrl();
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
       if (userId != null && userId.trim().isNotEmpty) {
         _userId = userId.trim();
       }

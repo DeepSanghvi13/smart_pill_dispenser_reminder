@@ -1,66 +1,22 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
 import 'package:provider/provider.dart';
-=======
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:provider/provider.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'dart:io' show Platform;
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
 import 'services/notification_service.dart';
 import 'services/database_service.dart';
 import 'services/alarm_service.dart';
 import 'services/auth_service.dart';
 import 'providers/sync_provider.dart';
 import 'theme/theme_controller.dart';
-<<<<<<< HEAD
 import 'screens/client/home/home_screen.dart';
 import 'screens/client/alarm/alarm_display_screen.dart';
 import 'screens/admin/admin_webpage_screen.dart';
 import 'screens/client/auth/login_screen.dart';
-=======
-import 'screens/home/home_screen.dart';
-import 'screens/alarm/alarm_display_screen.dart';
-import 'screens/admin/admin_webpage_screen.dart';
-import 'screens/auth/login_screen.dart';
-
-// For desktop (Windows, Linux, macOS) support with sqflite
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-<<<<<<< HEAD
-  // Initialize API-backed data service.
-  try {
-    await DatabaseService().database;
-=======
-  // Initialize sqflite for desktop platforms (Windows, Linux, macOS)
-  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  }
-
-  // Initialize Hive for web and cross-platform storage
-  try {
-    await Hive.initFlutter();
-  } catch (e) {
-    // ignore: avoid_print
-    print('Hive initialization error: $e');
-  }
-
   // Initialize database service (handles both web and native)
   try {
-    // Don't await database getter on web, just create the instance
-    if (!kIsWeb) {
-      await DatabaseService().database;
-    } else {
-      // On web, just initialize Hive boxes without calling database getter
-      final dbService = DatabaseService();
-      await dbService.initializeHiveBoxes();
-    }
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
+    await DatabaseService().database;
   } catch (e) {
     // ignore: avoid_print
     print('Database initialization error: $e');

@@ -47,12 +47,12 @@ class SyncProvider extends ChangeNotifier {
         _syncStatus = _hasPendingSync
             ? 'Connected to server (${_apiService.currentBaseUrl}) - pending sync queued'
             : 'Connected to server (${_apiService.currentBaseUrl})';
-        print('✅ Server connection: OK');
+        print('âœ… Server connection: OK');
       } else {
         _syncStatus = _hasPendingSync
             ? 'Offline mode - local storage (pending sync queued)'
             : 'Offline mode - using local storage';
-        print('⚠️ Server connection: Failed');
+        print('âš ï¸ Server connection: Failed');
       }
       notifyListeners();
     } catch (e) {
@@ -92,11 +92,11 @@ class SyncProvider extends ChangeNotifier {
         await _savePendingSyncFlag(false);
         _lastSyncTime = DateTime.now().toString();
         _syncStatus = 'Synced successfully at ${DateTime.now().toLocal()}';
-        print('✅ Data synced to MySQL');
+        print('âœ… Data synced to MySQL');
       } else {
         await _savePendingSyncFlag(true);
         _syncStatus = 'Sync failed - check connection';
-        print('❌ Sync failed');
+        print('âŒ Sync failed');
       }
       notifyListeners();
       return success;
@@ -105,7 +105,7 @@ class SyncProvider extends ChangeNotifier {
       _isSyncing = false;
       _syncStatus = 'Error: $e';
       notifyListeners();
-      print('❌ Sync error: $e');
+      print('âŒ Sync error: $e');
       return false;
     }
   }
@@ -189,7 +189,4 @@ class SyncProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

@@ -1,3 +1,10 @@
+<<<<<<< HEAD
 # Optional Python dependencies for MongoDB tooling scripts.
 # Main backend runtime for this project remains Node.js (see backend/package.json).
 pymongo==4.9.2
+=======
+# Optional Python dependencies for SQL tooling and migration scripts.
+# Main backend runtime for this project remains Node.js (see backend/package.json).
+mysql-connector-python==9.3.0
+PyMySQL==1.1.1
+>>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

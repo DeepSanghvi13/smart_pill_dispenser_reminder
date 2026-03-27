@@ -141,4 +141,7 @@ class CaretakerService {
   Future<List<MissedMedicineAlert>> getPendingAlerts() =>
       _db.getPendingAlerts();
 }
+<<<<<<< HEAD
 
+=======
+>>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

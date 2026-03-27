@@ -153,7 +153,11 @@ class AuthService extends ChangeNotifier {
     _isLoggedIn = false;
     _clearSession();
     DatabaseService().setCurrentUser(null);
+<<<<<<< HEAD
     MySQLApiService().configure(userId: 'guest', authToken: null);
+=======
+    MySQLApiService().configure(userId: 'demo-user', authToken: null);
+>>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
     notifyListeners();
   }
 

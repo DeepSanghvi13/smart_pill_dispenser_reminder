@@ -5,14 +5,22 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+<<<<<<< HEAD
     "dev": "node --watch src/server.js",
     "seed": "node src/seed.js"
+=======
+    "dev": "node --watch src/server.js"
+>>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
+<<<<<<< HEAD
     "mongoose": "^8.19.4"
+=======
+    "mysql2": "^3.11.5"
+>>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26
   }
 }
 

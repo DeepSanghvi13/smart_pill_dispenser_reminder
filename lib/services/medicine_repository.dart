@@ -112,4 +112,7 @@ class MedicineRepository {
   Future<Map<String, String>> getAllSettings() => _dbService.getAllSettings();
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

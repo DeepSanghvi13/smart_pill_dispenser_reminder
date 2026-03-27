@@ -89,4 +89,7 @@ class UserProfile {
   String toString() => 'UserProfile($fullName)';
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> a81a2003f258a402588cbb6d9cbe91bc18214c26

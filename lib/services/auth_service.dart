@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'database_service.dart';
 import 'mysql_api_service.dart';
 import 'mysql_sync_helper.dart';
@@ -13,6 +14,7 @@ class AuthService extends ChangeNotifier {
   static const String _keyEmail = 'session_email';
   static const String _keyIsAdmin = 'session_is_admin';
   static const String _keyLoggedIn = 'session_logged_in';
+  static const String _keyOfflineUsers = 'offline_registered_users';
 
   factory AuthService() {
     return _instance;
@@ -53,6 +55,16 @@ class AuthService extends ChangeNotifier {
       }
 
       final api = MySQLApiService();
+      final serverAvailable = await api.checkServerConnection();
+
+      // Offline-first fallback: allow registration even when backend is down.
+      if (!serverAvailable) {
+        return _registerOffline(normalizedEmail, password);
+      }
+
+      // Flush any queued local users first so MongoDB stays in sync.
+      await _syncOfflineUsersToServer();
+
       final exists = await api.isEmailRegistered(normalizedEmail);
       if (exists) {
         return 'Email already registered. Please login.';
@@ -60,6 +72,10 @@ class AuthService extends ChangeNotifier {
 
       final apiError =
           await api.registerUserWithMessage(normalizedEmail, password);
+      if (apiError == null) {
+        // Keep local credentials in sync so login remains available even if server is down later.
+        await _saveOfflineUser(normalizedEmail, password);
+      }
       return apiError;
     } catch (_) {
       return 'Registration failed. Please check your connection and try again.';
@@ -92,6 +108,10 @@ class AuthService extends ChangeNotifier {
   /// Checks whether any user (by any email) is registered on this device.
   Future<bool> hasAnyRegisteredUser() async {
     try {
+      final localUsers = await _getOfflineUsers();
+      if (localUsers.isNotEmpty) {
+        return true;
+      }
       final totalUsers = await MySQLApiService().getTotalRegisteredUsers();
       return totalUsers > 0;
     } catch (_) {
@@ -119,14 +139,35 @@ class AuthService extends ChangeNotifier {
         return true;
       }
 
-      final response =
-          await MySQLApiService().loginUser(normalizedEmail, password);
+      // Always allow local credentials first so auth remains reliable across runs.
+      final localUsers = await _getOfflineUsers();
+      final localPassword = localUsers[normalizedEmail];
+      if (localPassword != null && localPassword == password) {
+        _currentUser = normalizedEmail;
+        _isAdmin = false;
+        _isLoggedIn = true;
+        _currentUserId = null;
+        await _saveSession(normalizedEmail, isAdmin: false);
+        await _syncSingleOfflineUserToServer(normalizedEmail, localPassword);
+        await _configureAndSync(normalizedEmail);
+        notifyListeners();
+        return true;
+      }
+
+      final api = MySQLApiService();
+      final serverAvailable = await api.checkServerConnection();
+      if (!serverAvailable) {
+        return false;
+      }
+
+      final response = await api.loginUser(normalizedEmail, password);
       if (response != null) {
         _currentUser = response['email'] as String? ?? normalizedEmail;
         _isAdmin = response['isAdmin'] == true;
         _isLoggedIn = true;
         _currentUserId = response['id'] as int?;
         await _saveSession(_currentUser!, isAdmin: _isAdmin);
+        await _saveOfflineUser(_currentUser!, password);
         await _configureAndSync(_currentUser!);
         notifyListeners();
         return true;
@@ -205,6 +246,8 @@ class AuthService extends ChangeNotifier {
           return;
         }
 
+        await _syncOfflineUsersToServer();
+
         final medicines = await db.getAllMedicines();
         final reminders = await db.getAllReminders();
         final alarmLogs = await db.getAllAlarmLogs();
@@ -237,7 +280,87 @@ class AuthService extends ChangeNotifier {
 
   /// Check whether user is already registered.
   Future<bool> isRegistered(String email) async {
-    return MySQLApiService().isEmailRegistered(email.trim().toLowerCase());
+    final normalizedEmail = email.trim().toLowerCase();
+    final localUsers = await _getOfflineUsers();
+    if (localUsers.containsKey(normalizedEmail)) {
+      return true;
+    }
+    return MySQLApiService().isEmailRegistered(normalizedEmail);
+  }
+
+  Future<Map<String, String>> _getOfflineUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyOfflineUsers);
+    if (raw == null || raw.isEmpty) {
+      return <String, String>{};
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return <String, String>{};
+      }
+      return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
+    } catch (_) {
+      return <String, String>{};
+    }
+  }
+
+  Future<String?> _registerOffline(String email, String password) async {
+    final users = await _getOfflineUsers();
+    if (users.containsKey(email)) {
+      return 'Email already registered. Please login.';
+    }
+    await _saveOfflineUser(email, password);
+    return null;
+  }
+
+  Future<void> _saveOfflineUser(String email, String password) async {
+    final users = await _getOfflineUsers();
+    users[email] = password;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyOfflineUsers, jsonEncode(users));
+  }
+
+  Future<void> _syncSingleOfflineUserToServer(
+      String email, String password) async {
+    try {
+      final api = MySQLApiService();
+      final isServerAvailable = await api.checkServerConnection();
+      if (!isServerAvailable) return;
+
+      final exists = await api.isEmailRegistered(email);
+      if (!exists) {
+        await api.registerUser(email, password);
+      }
+    } catch (_) {
+      // Best-effort sync; keep local credentials if server is unavailable.
+    }
+  }
+
+  Future<void> _syncOfflineUsersToServer() async {
+    try {
+      final api = MySQLApiService();
+      final isServerAvailable = await api.checkServerConnection();
+      if (!isServerAvailable) return;
+
+      final users = await _getOfflineUsers();
+      for (final entry in users.entries) {
+        final email = entry.key.trim().toLowerCase();
+        final password = entry.value;
+        if (email.isEmpty ||
+            password.isEmpty ||
+            email == 'admin@medisafe.com') {
+          continue;
+        }
+
+        final exists = await api.isEmailRegistered(email);
+        if (!exists) {
+          await api.registerUser(email, password);
+        }
+      }
+    } catch (_) {
+      // Best-effort sync only.
+    }
   }
 }
 

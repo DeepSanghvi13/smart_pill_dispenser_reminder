@@ -85,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadMedicines() async {
     try {
       final medicines = await _dbService.getAllMedicines();
+      if (!mounted) return;
       setState(() {
         _medicines.clear();
         _medicines.addAll(medicines);
@@ -92,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } catch (e) {
       debugPrint('Error loading medicines: $e');
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
@@ -113,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final id = await _dbService.addMedicine(result);
         final newMedicine = result.copyWith(id: id);
 
+        if (!mounted) return;
         setState(() => _medicines.add(newMedicine));
 
         // Schedule notification
@@ -173,6 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Update in database
           await _dbService.updateMedicine(medicineId, result);
 
+          if (!mounted) return;
           setState(() => _medicines[index] = result.copyWith(id: medicineId));
 
           // Schedule notification
@@ -395,6 +399,3 @@ class HomeBody extends StatelessWidget {
     );
   }
 }
-
-
-

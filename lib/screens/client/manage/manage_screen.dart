@@ -13,83 +13,74 @@ class ManageScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          _cardTile(
-            icon: Icons.security,
-            title: 'Create Account',
-            subtitle: 'Sign up to backup your data',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CreateProfileScreen(), // ❌ no const
-                ),
-              );
-            },
-          ),
-
-          _cardTile(
-            icon: Icons.notifications_active,
-            title: 'Reminders Troubleshooting',
-            subtitle: 'Fix reminder issues',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ReminderTroubleshootingScreen(), // ❌ no const
-                ),
-              );
-            },
-          ),
-
-          _cardTile(
-            icon: Icons.alarm,
-            title: 'Manage Reminders',
-            subtitle: 'Add, edit, delete and toggle reminders',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const RemindersScreen(),
-                ),
-              );
-            },
-          ),
-
-          _cardTile(
-            icon: Icons.settings,
-            title: 'App Settings',
-            subtitle: 'Customize your app',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AppSettingsScreen(), // ❌ no const
-                ),
-              );
-            },
-          ),
-
-          _cardTile(
-            icon: Icons.local_hospital,
-            title: 'Doctor/Hospital Review',
-            subtitle: 'Send medication concerns for professional review',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ProfessionalReviewRequestScreen(),
-                ),
-              );
-            },
-          ),
-
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        _cardTile(
+          icon: Icons.security,
+          title: 'Create Account',
+          subtitle: 'Sign up to backup your data',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CreateProfileScreen(), // ❌ no const
+              ),
+            );
+          },
+        ),
+        _cardTile(
+          icon: Icons.notifications_active,
+          title: 'Reminders Troubleshooting',
+          subtitle: 'Fix reminder issues',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ReminderTroubleshootingScreen(), // ❌ no const
+              ),
+            );
+          },
+        ),
+        _cardTile(
+          icon: Icons.alarm,
+          title: 'Manage Reminders',
+          subtitle: 'Add, edit, delete and toggle reminders',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const RemindersScreen(),
+              ),
+            );
+          },
+        ),
+        _cardTile(
+          icon: Icons.settings,
+          title: 'App Settings',
+          subtitle: 'Customize your app',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AppSettingsScreen(), // ❌ no const
+              ),
+            );
+          },
+        ),
+        _cardTile(
+          icon: Icons.local_hospital,
+          title: 'Doctor/Hospital Review',
+          subtitle: 'Send medication concerns for professional review',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ProfessionalReviewRequestScreen(),
+              ),
+            );
+          },
+        ),
         _cardTile(
           icon: Icons.help_outline,
           title: 'Help Center',
@@ -103,22 +94,20 @@ class ManageScreen extends StatelessWidget {
             );
           },
         ),
-
-          _cardTile(
-            icon: Icons.share,
-            title: 'Share Medisafe',
-            subtitle: 'Invite friends and family',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ShareMedisafeScreen(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+        _cardTile(
+          icon: Icons.share,
+          title: 'Share Medisafe',
+          subtitle: 'Invite friends and family',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShareMedisafeScreen(),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -145,6 +134,3 @@ class ManageScreen extends StatelessWidget {
     );
   }
 }
-
-
-

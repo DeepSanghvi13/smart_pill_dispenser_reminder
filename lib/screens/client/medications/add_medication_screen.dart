@@ -40,12 +40,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   void initState() {
     super.initState();
 
-    nameController =
-        TextEditingController(text: widget.medicine?.name ?? '');
+    nameController = TextEditingController(text: widget.medicine?.name ?? '');
     dosageController =
         TextEditingController(text: widget.medicine?.dosage ?? '');
-    timeController =
-        TextEditingController(text: widget.medicine?.time ?? '');
+    timeController = TextEditingController(text: widget.medicine?.time ?? '');
     conditionController =
         TextEditingController(text: widget.medicine?.healthCondition ?? '');
     selectedCategory = widget.medicine?.category ?? MedicineCategory.tablets;
@@ -53,11 +51,13 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     _scannedText = widget.medicine?.scannedText;
     _imagePath = widget.medicine?.imagePath;
     _isScanned = widget.medicine?.isScanned ?? false;
-    _suggestions = MedicineSuggestionService.getSuggestions(conditionController.text);
+    _suggestions =
+        MedicineSuggestionService.getSuggestions(conditionController.text);
 
     conditionController.addListener(() {
       setState(() {
-        _suggestions = MedicineSuggestionService.getSuggestions(conditionController.text);
+        _suggestions =
+            MedicineSuggestionService.getSuggestions(conditionController.text);
       });
     });
   }
@@ -107,6 +107,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         return;
       }
 
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         if ((result.medicineName ?? '').trim().isNotEmpty) {
           nameController.text = result.medicineName!.trim();
@@ -144,43 +148,51 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       _scannedBarcode = barcode;
     });
 
-    final result = await MedicineBarcodeLookupService.lookupByBarcode(
-      barcode,
-      cacheReader: _databaseService.getBarcodeLookupCache,
-      cacheWriter: (lookup) => _databaseService.upsertBarcodeLookupCache(
-        barcode: lookup.barcode,
-        name: lookup.name,
-        dosage: lookup.dosage,
-        category: lookup.category.name,
-      ),
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isBarcodeLookupLoading = false;
-      if (result != null) {
-        nameController.text = result.name;
-        dosageController.text = result.dosage;
-        selectedCategory = result.category;
+    BarcodeLookupResult? result;
+    try {
+      result = await MedicineBarcodeLookupService.lookupByBarcode(
+        barcode,
+        cacheReader: _databaseService.getBarcodeLookupCache,
+        cacheWriter: (lookup) => _databaseService.upsertBarcodeLookupCache(
+          barcode: lookup.barcode,
+          name: lookup.name,
+          dosage: lookup.dosage,
+          category: lookup.category.name,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Barcode lookup failed: $e')),
+        );
       }
-    });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBarcodeLookupLoading = false;
+          if (result != null) {
+            final resolved = result;
+            nameController.text = resolved.name;
+            dosageController.text = resolved.dosage;
+            selectedCategory = resolved.category;
+          }
+        });
+      }
+    }
 
-    if (!mounted) {
+    if (!mounted || result == null) {
       return;
     }
 
-    final message = result == null
-        ? 'Barcode scanned. No medicine match found online.'
-        : result.source == BarcodeLookupSource.backendApi
-            ? 'Matched from backend drug API: ${result.name}'
-        : result.source == BarcodeLookupSource.onlineApi
-            ? 'Matched from online drug database: ${result.name}'
-            : result.source == BarcodeLookupSource.localCache
-                ? 'Loaded from local cache: ${result.name}'
-            : 'Matched from local fallback list: ${result.name}';
+    final matched = result;
+
+    final message = matched.source == BarcodeLookupSource.backendApi
+        ? 'Matched from backend drug API: ${matched.name}'
+        : matched.source == BarcodeLookupSource.onlineApi
+            ? 'Matched from online drug database: ${matched.name}'
+            : matched.source == BarcodeLookupSource.localCache
+                ? 'Loaded from local cache: ${matched.name}'
+                : 'Matched from local fallback list: ${matched.name}';
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -211,23 +223,25 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.document_scanner),
-                        label: Text(_isScanning
-                            ? 'Scanning...'
-                            : 'Scan image label'),
+                        label: Text(
+                            _isScanning ? 'Scanning...' : 'Scan image label'),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _isBarcodeLookupLoading ? null : _scanBarcode,
+                        onPressed:
+                            _isBarcodeLookupLoading ? null : _scanBarcode,
                         icon: _isBarcodeLookupLoading
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.qr_code_scanner),
                         label: Text(
@@ -310,7 +324,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                     value: category,
                     child: Row(
                       children: [
-                        Text(category.emoji, style: const TextStyle(fontSize: 20)),
+                        Text(category.emoji,
+                            style: const TextStyle(fontSize: 20)),
                         const SizedBox(width: 8),
                         Text(category.label),
                       ],
@@ -372,9 +387,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                           isScanned: _isScanned,
                           scannedText: _scannedText,
                           imagePath: _imagePath,
-                          healthCondition: conditionController.text.trim().isEmpty
-                              ? null
-                              : conditionController.text.trim(),
+                          healthCondition:
+                              conditionController.text.trim().isEmpty
+                                  ? null
+                                  : conditionController.text.trim(),
                         ),
                       );
                     }
@@ -391,6 +407,3 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     );
   }
 }
-
-
-

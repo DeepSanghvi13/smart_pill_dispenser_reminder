@@ -1,0 +1,58 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace "com.example.smart_pill_dispenser_reminder"
+
+    // 🔴 REQUIRED by shared_preferences_android
+    compileSdkVersion 36
+
+    defaultConfig {
+        applicationId "com.example.smart_pill_dispenser_reminder"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion 36
+        versionCode flutter.versionCode
+        versionName flutter.versionName
+    }
+
+    // 🔴 REQUIRED by flutter_local_notifications
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    // Disable stripping of debug symbols for all build types
+    packaging {
+        resources {
+            pickFirsts += [
+                'lib/x86/libc++_shared.so',
+                'lib/x86_64/libc++_shared.so',
+                'lib/armeabi-v7a/libc++_shared.so',
+                'lib/arm64-v8a/libc++_shared.so'
+            ]
+        }
+    }
+}
+
+dependencies {
+    // 🔴 REQUIRED for desugaring
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.4"
+}
+
+flutter {
+    source "../.."
+}

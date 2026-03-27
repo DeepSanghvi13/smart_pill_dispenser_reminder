@@ -1,0 +1,3 @@
+# Optional Python dependencies for MongoDB tooling scripts.
+# Main backend runtime for this project remains Node.js (see backend/package.json).
+pymongo==4.9.2

@@ -238,7 +238,7 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
         lastName: lastName,
         gender: gender.isEmpty ? null : gender,
         birthDate: birthDate?.toIso8601String(),
-        color: selectedColor.value.toRadixString(16),
+        color: selectedColor.toARGB32().toRadixString(16),
       );
 
       if (!mounted) return;
@@ -246,7 +246,13 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Dependent saved successfully')),
         );
-        Navigator.pop(context, true);
+        firstNameController.clear();
+        lastNameController.clear();
+        setState(() {
+          gender = '';
+          birthDate = null;
+          selectedColor = Colors.blue;
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to save dependent')),

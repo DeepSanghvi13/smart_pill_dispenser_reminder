@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../services/caretaker_service.dart';
+import '../../../services/notification_service.dart';
 import '../../../models/caretaker.dart';
 
 class AddCaretakerScreen extends StatefulWidget {
@@ -159,9 +160,24 @@ class _AddCaretakerScreenState extends State<AddCaretakerScreen> {
         notifyViaNotification: notifyApp,
       ));
       if (mounted) {
+        if (notifyApp) {
+          await NotificationService.showCaretakerSavedNotification(
+            fullName: '$firstName $lastName',
+          );
+        }
         messenger
             .showSnackBar(const SnackBar(content: Text('✅ Caretaker added')));
-        Navigator.pop(context, true);
+        _formKey.currentState?.reset();
+        setState(() {
+          firstName = '';
+          lastName = '';
+          phone = '';
+          email = '';
+          relationship = 'Son';
+          notifySMS = true;
+          notifyEmail = true;
+          notifyApp = true;
+        });
       }
     } catch (e) {
       if (!mounted) return;

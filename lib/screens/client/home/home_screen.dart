@@ -223,14 +223,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openExpiryCalendar() {
-    Navigator.pushNamed(
-      context,
-      AppRoutes.expiryCalendar,
-      arguments: _medicines,
-    );
-  }
-
   // DELETE
   void _deleteMedicine(int index) {
     showDialog(

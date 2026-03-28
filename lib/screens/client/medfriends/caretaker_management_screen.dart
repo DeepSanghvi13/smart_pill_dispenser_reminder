@@ -129,15 +129,13 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
   }
 
   Future<void> _openAddCaretaker() async {
-    final result = await Navigator.push<bool>(
+    await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => const AddCaretakerScreen(),
       ),
     );
-    if (result == true) {
-      await _loadCaretakers();
-    }
+    await _loadCaretakers();
   }
 
   Future<void> _handleMenuAction(String value, Caretaker caretaker) async {

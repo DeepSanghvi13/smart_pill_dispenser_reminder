@@ -19,6 +19,12 @@ class DatabaseService {
   final Map<String, Map<String, dynamic>> _barcodeCache =
       <String, Map<String, dynamic>>{};
   final Map<String, String> _settingsCache = <String, String>{};
+    final Map<String, UserProfile> _userProfileCacheByUser =
+      <String, UserProfile>{};
+    final Map<String, List<Map<String, dynamic>>> _dependentsCacheByUser =
+      <String, List<Map<String, dynamic>>>{};
+    final Map<String, List<Caretaker>> _caretakersCacheByUser =
+      <String, List<Caretaker>>{};
 
   factory DatabaseService() {
     return _instance;
@@ -54,15 +60,6 @@ class DatabaseService {
     await _ensureConnected();
   }
 
-  Future<int> _nextMedicineId() async {
-    final medicines = await getAllMedicines();
-    var maxId = 0;
-    for (final item in medicines) {
-      if ((item.id ?? 0) > maxId) maxId = item.id!;
-    }
-    return maxId + 1;
-  }
-
   Future<int> _nextReminderId() async {
     final reminders = await getAllReminders();
     var maxId = 0;
@@ -79,6 +76,20 @@ class DatabaseService {
       if ((item.id ?? 0) > maxId) maxId = item.id!;
     }
     return maxId + 1;
+  }
+
+  List<Map<String, dynamic>> _dependentsForCurrentUser() {
+    return _dependentsCacheByUser.putIfAbsent(
+      _currentUserId,
+      () => <Map<String, dynamic>>[],
+    );
+  }
+
+  List<Caretaker> _caretakersForCurrentUser() {
+    return _caretakersCacheByUser.putIfAbsent(
+      _currentUserId,
+      () => <Caretaker>[],
+    );
   }
 
   Future<int> _nextAlarmLogId() async {
@@ -182,8 +193,13 @@ class DatabaseService {
     String? birthDate,
     String? color,
   }) async {
-    await _ensureConnected();
-    final all = await _apiService.getDependentsFromServer();
+    List<Map<String, dynamic>> all = <Map<String, dynamic>>[];
+    try {
+      await _ensureConnected();
+      all = await _apiService.getDependentsFromServer();
+    } catch (_) {
+      all = List<Map<String, dynamic>>.from(_dependentsForCurrentUser());
+    }
     var maxId = 0;
     for (final dependent in all) {
       final id = dependent['id'] as int? ?? 0;
@@ -191,7 +207,7 @@ class DatabaseService {
     }
     final nextId = maxId + 1;
 
-    final ok = await _apiService.saveDependentToServer({
+    final dependentMap = <String, dynamic>{
       'id': nextId,
       'firstName': firstName,
       'lastName': lastName,
@@ -199,32 +215,69 @@ class DatabaseService {
       'birthDate': birthDate,
       'color': color,
       'createdAt': DateTime.now().toIso8601String(),
-    });
-    return ok ? nextId : 0;
+    };
+
+    final local = _dependentsForCurrentUser();
+    local.removeWhere((item) => item['id'] == nextId);
+    local.add(dependentMap);
+
+    try {
+      final ok = await _apiService.saveDependentToServer(dependentMap);
+      return ok ? nextId : nextId;
+    } catch (_) {
+      return nextId;
+    }
   }
 
   Future<List<Map<String, dynamic>>> getAllDependents() async {
-    await _ensureConnected();
-    return _apiService.getDependentsFromServer();
+    try {
+      await _ensureConnected();
+      final server = await _apiService.getDependentsFromServer();
+      _dependentsCacheByUser[_currentUserId] =
+          List<Map<String, dynamic>>.from(server);
+      return server;
+    } catch (_) {
+      return List<Map<String, dynamic>>.from(_dependentsForCurrentUser());
+    }
   }
 
   Future<int> deleteDependent(int id) async {
-    await _ensureConnected();
-    final ok = await _apiService.deleteDependentFromServer(id);
-    return ok ? 1 : 0;
+    _dependentsForCurrentUser().removeWhere((item) => item['id'] == id);
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.deleteDependentFromServer(id);
+      return ok ? 1 : 0;
+    } catch (_) {
+      return 1;
+    }
   }
 
   Future<int> addCaretaker(Caretaker caretaker) async {
-    await _ensureConnected();
     final id = caretaker.id ?? await _nextCaretakerId();
-    final ok =
-        await _apiService.saveCaretakerToServer(caretaker.copyWith(id: id));
-    return ok ? id : 0;
+    final payload = caretaker.copyWith(id: id);
+
+    final local = _caretakersForCurrentUser();
+    local.removeWhere((item) => item.id == id);
+    local.add(payload);
+
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.saveCaretakerToServer(payload);
+      return ok ? id : id;
+    } catch (_) {
+      return id;
+    }
   }
 
   Future<List<Caretaker>> getAllCaretakers() async {
-    await _ensureConnected();
-    return _apiService.getCaretakersFromServer();
+    try {
+      await _ensureConnected();
+      final server = await _apiService.getCaretakersFromServer();
+      _caretakersCacheByUser[_currentUserId] = List<Caretaker>.from(server);
+      return server;
+    } catch (_) {
+      return List<Caretaker>.from(_caretakersForCurrentUser());
+    }
   }
 
   Future<List<Caretaker>> getActiveCaretakers() async {
@@ -233,16 +286,29 @@ class DatabaseService {
   }
 
   Future<int> updateCaretaker(int id, Caretaker caretaker) async {
-    await _ensureConnected();
-    final ok =
-        await _apiService.saveCaretakerToServer(caretaker.copyWith(id: id));
-    return ok ? 1 : 0;
+    final payload = caretaker.copyWith(id: id);
+    final local = _caretakersForCurrentUser();
+    local.removeWhere((item) => item.id == id);
+    local.add(payload);
+
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.saveCaretakerToServer(payload);
+      return ok ? 1 : 0;
+    } catch (_) {
+      return 1;
+    }
   }
 
   Future<int> deleteCaretaker(int id) async {
-    await _ensureConnected();
-    final ok = await _apiService.deleteCaretakerFromServer(id);
-    return ok ? 1 : 0;
+    _caretakersForCurrentUser().removeWhere((item) => item.id == id);
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.deleteCaretakerFromServer(id);
+      return ok ? 1 : 0;
+    } catch (_) {
+      return 1;
+    }
   }
 
   Future<int> toggleCaretakerStatus(int id, bool isActive) async {
@@ -425,14 +491,27 @@ class DatabaseService {
   }
 
   Future<int> saveUserProfile(UserProfile profile) async {
-    await _ensureConnected();
-    final ok = await _apiService.saveUserProfileToServer(profile);
-    return ok ? 1 : 0;
+    _userProfileCacheByUser[_currentUserId] = profile;
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.saveUserProfileToServer(profile);
+      return ok ? 1 : 0;
+    } catch (_) {
+      return 1;
+    }
   }
 
   Future<UserProfile?> getUserProfileData() async {
-    await _ensureConnected();
-    return _apiService.getUserProfileFromServer(_currentUserId);
+    try {
+      await _ensureConnected();
+      final server = await _apiService.getUserProfileFromServer(_currentUserId);
+      if (server != null) {
+        _userProfileCacheByUser[_currentUserId] = server;
+      }
+      return server ?? _userProfileCacheByUser[_currentUserId];
+    } catch (_) {
+      return _userProfileCacheByUser[_currentUserId];
+    }
   }
 
   Future<int> registerUser(String email, String password) async {

@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
+  static const int _maxInt32 = 2147483647;
 
   // Vibration pattern for alarms
   static final Int64List _vibrationPattern = Int64List.fromList([0, 500, 250, 500]);
@@ -34,6 +35,16 @@ class NotificationService {
     enableVibration: true,
   );
 
+  static const AndroidNotificationChannel _caretakerChannel =
+      AndroidNotificationChannel(
+    'caretaker_alerts',
+    'Caretaker Alerts',
+    description: 'Notifications related to caretaker actions and alerts.',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  );
+
   static Future<void> init() async {
     tz.initializeTimeZones();
 
@@ -54,6 +65,7 @@ class NotificationService {
     // Create both notification channels
     await androidImplementation?.createNotificationChannel(_defaultChannel);
     await androidImplementation?.createNotificationChannel(_alarmChannel);
+    await androidImplementation?.createNotificationChannel(_caretakerChannel);
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -172,7 +184,7 @@ class NotificationService {
     }
   }
 
-  /// ðŸ‘¨â€âš•ï¸ Caretaker alert for missed medicine
+  /// Caretaker alert for missed medicine.
   static Future<void> showCaretakerAlert({
     required String name,
     required String medicine,
@@ -199,9 +211,34 @@ class NotificationService {
     );
 
     await _notifications.show(
-      DateTime.now().millisecondsSinceEpoch,
-      'âš ï¸ Medicine Missed',
+      _safeNowNotificationId(),
+      'Medicine Missed',
       'Your ${relationship.toLowerCase()} missed: $medicine',
+      const NotificationDetails(android: androidDetails),
+    );
+  }
+
+  /// Confirmation shown when caretaker is added/saved.
+  static Future<void> showCaretakerSavedNotification({
+    required String fullName,
+  }) async {
+    if (kIsWeb || !Platform.isAndroid) {
+      return;
+    }
+
+    const androidDetails = AndroidNotificationDetails(
+      'caretaker_alerts',
+      'Caretaker Alerts',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      playSound: true,
+      enableVibration: true,
+    );
+
+    await _notifications.show(
+      _safeNowNotificationId(),
+      'Caretaker saved',
+      '$fullName has been added successfully.',
       const NotificationDetails(android: androidDetails),
     );
   }
@@ -234,12 +271,16 @@ class NotificationService {
     );
 
     await _notifications.show(
-      DateTime.now().millisecondsSinceEpoch,
+      _safeNowNotificationId(),
       'Medication Time: $medicineName',
       'Take $medicineDosage now',
       NotificationDetails(android: androidDetails),
       payload: 'alarm:$medicineName:$medicineDosage',
     );
+  }
+
+  static int _safeNowNotificationId() {
+    return DateTime.now().millisecondsSinceEpoch % _maxInt32;
   }
 
   /// Cancel all notifications

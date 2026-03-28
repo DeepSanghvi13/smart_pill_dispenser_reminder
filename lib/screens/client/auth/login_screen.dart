@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smart_pill_reminder/screens/client/alarm/alarm_display_screen.dart';
-import 'package:smart_pill_reminder/screens/admin/admin_webpage_screen.dart';
-import 'package:smart_pill_reminder/screens/client/auth/register_screen.dart';
-import 'package:smart_pill_reminder/screens/client/home/home_screen.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -159,26 +156,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                   );
 
                                   if (auth.isAdmin) {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const AdminWebpageScreen(),
-                                      ),
+                                    Navigator.of(context).pushNamedAndRemoveUntil(
+                                      AppRoutes.adminHome,
                                       (route) => false,
                                     );
                                   } else {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute(
-                                        builder: (_) => Stack(
-                                          children: [
-                                            HomeScreen(
-                                              key: ValueKey(
-                                                  auth.currentUser ?? 'guest'),
-                                            ),
-                                            AlarmDisplayScreen(),
-                                          ],
-                                        ),
-                                      ),
+                                    Navigator.of(context).pushNamedAndRemoveUntil(
+                                      AppRoutes.userHome,
                                       (route) => false,
                                     );
                                   }
@@ -208,22 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Navigate to Register page
                           TextButton(
                             onPressed: () async {
-                              final registeredEmail =
-                                  await Navigator.push<String>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const RegisterScreen(),
-                                ),
-                              );
-
-                              if (!context.mounted) return;
-                              if (registeredEmail != null &&
-                                  registeredEmail.isNotEmpty) {
-                                setState(() {
-                                  emailController.text = registeredEmail;
-                                  passwordController.clear();
-                                });
-                              }
+                              Navigator.pushNamed(context, AppRoutes.register);
                             },
                             child: const Text('New user? Create an account'),
                           ),
@@ -253,22 +222,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                           duration: Duration(milliseconds: 900),
                                         ),
                                       );
-                                      Navigator.of(context).pushAndRemoveUntil(
-                                        MaterialPageRoute(
-                                          builder: (_) => Stack(
-                                            children: [
-                                              HomeScreen(
-                                                key: ValueKey(
-                                                  context
-                                                          .read<AuthService>()
-                                                          .currentUser ??
-                                                      'guest',
-                                                ),
-                                              ),
-                                              AlarmDisplayScreen(),
-                                            ],
-                                          ),
-                                        ),
+                                      Navigator.of(context).pushNamedAndRemoveUntil(
+                                        AppRoutes.userHome,
                                         (route) => false,
                                       );
                                     } else {

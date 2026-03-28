@@ -1,12 +1,5 @@
 import 'package:flutter/material.dart';
-
-import 'app_settings_screen.dart';
-import 'reminder_troubleshooting_screen.dart';
-import 'create_profile_screen.dart';
-import 'share_medisafe_screen.dart';
-import 'help_center_screen.dart';
-import 'professional_review_request_screen.dart';
-import '../reminders/reminders_screen.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 class ManageScreen extends StatelessWidget {
   const ManageScreen({super.key});
@@ -21,12 +14,7 @@ class ManageScreen extends StatelessWidget {
           title: 'Create Account',
           subtitle: 'Sign up to backup your data',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CreateProfileScreen(), // ❌ no const
-              ),
-            );
+              Navigator.pushNamed(context, AppRoutes.createProfile);
           },
         ),
         _cardTile(
@@ -34,12 +22,7 @@ class ManageScreen extends StatelessWidget {
           title: 'Reminders Troubleshooting',
           subtitle: 'Fix reminder issues',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ReminderTroubleshootingScreen(), // ❌ no const
-              ),
-            );
+              Navigator.pushNamed(context, AppRoutes.reminderTroubleshooting);
           },
         ),
         _cardTile(
@@ -47,12 +30,7 @@ class ManageScreen extends StatelessWidget {
           title: 'Manage Reminders',
           subtitle: 'Add, edit, delete and toggle reminders',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const RemindersScreen(),
-              ),
-            );
+              Navigator.pushNamed(context, AppRoutes.reminders);
           },
         ),
         _cardTile(
@@ -60,12 +38,7 @@ class ManageScreen extends StatelessWidget {
           title: 'App Settings',
           subtitle: 'Customize your app',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AppSettingsScreen(), // ❌ no const
-              ),
-            );
+              Navigator.pushNamed(context, AppRoutes.appSettings);
           },
         ),
         _cardTile(
@@ -73,12 +46,7 @@ class ManageScreen extends StatelessWidget {
           title: 'Doctor/Hospital Review',
           subtitle: 'Send medication concerns for professional review',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const ProfessionalReviewRequestScreen(),
-              ),
-            );
+              Navigator.pushNamed(context, AppRoutes.professionalReview);
           },
         ),
         _cardTile(
@@ -86,12 +54,7 @@ class ManageScreen extends StatelessWidget {
           title: 'Help Center',
           subtitle: 'Get help and support',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => HelpCenterScreen(),
-              ),
-            );
+              Navigator.pushNamed(context, AppRoutes.helpCenter);
           },
         ),
         _cardTile(
@@ -99,12 +62,7 @@ class ManageScreen extends StatelessWidget {
           title: 'Share Medisafe',
           subtitle: 'Invite friends and family',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShareMedisafeScreen(),
-              ),
-            );
+              Navigator.pushNamed(context, AppRoutes.shareMedisafe);
           },
         ),
       ],

@@ -1,12 +1,5 @@
 import 'package:flutter/material.dart';
-import '../auth/login_screen.dart';
-import 'create_profile_screen.dart';
-import 'delete_account_reason_screen.dart';
-import 'general_settings_screen.dart';
-import 'share_app_screen.dart';
-import 'rate_medisafe_screen.dart';
-import 'send_feedback_screen.dart';
-import 'about_screen.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 class AppSettingsScreen extends StatelessWidget {
   const AppSettingsScreen({super.key});
@@ -25,12 +18,7 @@ class AppSettingsScreen extends StatelessWidget {
             icon: Icons.settings,
             title: 'General Settings',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const GeneralSettingsScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.generalSettings);
             },
           ),
 
@@ -41,12 +29,7 @@ class AppSettingsScreen extends StatelessWidget {
             title: 'Open Account',
             subtitle: 'Create a free Medisafe account',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const CreateProfileScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.createProfile);
             },
           ),
           _item(
@@ -55,12 +38,7 @@ class AppSettingsScreen extends StatelessWidget {
             title: 'Login',
             subtitle: 'Login with an existing account',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const LoginScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.login);
             },
           ),
           _item(
@@ -80,12 +58,7 @@ class AppSettingsScreen extends StatelessWidget {
             icon: Icons.share,
             title: 'Help Us and Share Medisafe',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ShareAppScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.shareApp);
             },
           ),
           _item(
@@ -93,12 +66,7 @@ class AppSettingsScreen extends StatelessWidget {
             icon: Icons.star,
             title: 'Rate Medisafe',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const RateMedisafeScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.rateMedisafe);
             },
           ),
           _item(
@@ -106,12 +74,7 @@ class AppSettingsScreen extends StatelessWidget {
             icon: Icons.mail,
             title: 'Send Feedback',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const SendFeedbackScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.sendFeedback);
             },
           ),
           _item(
@@ -119,12 +82,7 @@ class AppSettingsScreen extends StatelessWidget {
             icon: Icons.info,
             title: 'About',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const AboutScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.about);
             },
           ),
         ],
@@ -215,12 +173,7 @@ class AppSettingsScreen extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: () {
                     Navigator.pop(context); // close bottom sheet
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const DeleteAccountReasonScreen(),
-                      ),
-                    );
+                    Navigator.pushNamed(context, AppRoutes.deleteAccountReason);
                   },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),

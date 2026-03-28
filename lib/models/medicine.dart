@@ -1,7 +1,7 @@
 enum MedicineCategory {
-  tablets('Tablets', 'ðŸ’Š'),
-  syrup('Syrup', 'ðŸ§´'),
-  injection('Injection', 'ðŸ’‰');
+  tablets('Tablets', 'tablet'),
+  syrup('Syrup', 'syrup'),
+  injection('Injection', 'injection');
 
   final String label;
   final String emoji;

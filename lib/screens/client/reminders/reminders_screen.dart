@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../models/medicine.dart';
 import '../../../models/reminder.dart';
 import '../../../services/database_service.dart';
-import 'add_reminder_screen.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 class RemindersScreen extends StatefulWidget {
   const RemindersScreen({super.key});
@@ -54,13 +54,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
       return;
     }
 
-    final changed = await Navigator.push<bool>(
+    final changed = await Navigator.pushNamed<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => AddReminderScreen(
-          medicines: _medicines,
-          reminder: reminder,
-        ),
+      AppRoutes.addOrEditReminder,
+      arguments: ReminderRouteArgs(
+        medicines: _medicines,
+        reminder: reminder,
       ),
     );
 

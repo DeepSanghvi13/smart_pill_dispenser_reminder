@@ -5,6 +5,7 @@ import 'services/database_service.dart';
 import 'services/alarm_service.dart';
 import 'services/auth_service.dart';
 import 'providers/sync_provider.dart';
+import 'routes/app_routes.dart';
 import 'theme/theme_controller.dart';
 import 'screens/client/home/home_screen.dart';
 import 'screens/client/alarm/alarm_display_screen.dart';
@@ -70,6 +71,7 @@ class MyApp extends StatelessWidget {
             darkTheme: ThemeData.dark(),
             themeMode: themeMode,
             debugShowCheckedModeBanner: false,
+            onGenerateRoute: AppRoutes.onGenerateRoute,
             home: Consumer<AuthService>(
               builder: (context, authService, _) {
                 // If user is logged in as admin, show admin dashboard.

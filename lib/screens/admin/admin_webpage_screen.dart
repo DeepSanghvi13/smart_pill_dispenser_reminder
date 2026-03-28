@@ -5,8 +5,7 @@ import 'package:smart_pill_reminder/models/alarm_log.dart';
 import 'package:smart_pill_reminder/models/caretaker.dart';
 import 'package:smart_pill_reminder/models/medicine.dart';
 import 'package:smart_pill_reminder/models/reminder.dart';
-import 'package:smart_pill_reminder/screens/client/auth/login_screen.dart';
-import 'package:smart_pill_reminder/screens/database/sql_connection_status_screen.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
 import 'package:smart_pill_reminder/services/mysql_api_service.dart';
 
@@ -112,10 +111,7 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
   }
 
   void _openSqlStatus() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const SqlConnectionStatusScreen()),
-    );
+    Navigator.pushNamed(context, AppRoutes.databaseStatus);
   }
 
   @override
@@ -153,8 +149,8 @@ class _AdminWebpageScreenState extends State<AdminWebpageScreen> {
                 icon: const Icon(Icons.logout),
                 onPressed: () {
                   context.read<AuthService>().logout();
-                  Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                    AppRoutes.login,
                     (route) => false,
                   );
                 },

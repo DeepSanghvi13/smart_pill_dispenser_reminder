@@ -10,11 +10,10 @@ import '../../../services/alarm_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../widgets/app_drawer.dart';
 import '../../../widgets/bottom_nav.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
-import '../medications/add_medication_screen.dart';
 import '../updates/updates_screen.dart';
 import '../medications/medications_screen.dart';
-import '../medications/expiry_calendar_screen.dart';
 import '../manage/manage_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -29,6 +28,20 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Medicine> _medicines = [];
   final DatabaseService _dbService = DatabaseService();
   bool _isLoading = true;
+
+  static const int _maxInt32 = 2147483647;
+  static const int _expiryBaseOffset = 100000;
+  static const int _expiryMultiplier = 10;
+
+  int _safeAlarmNotificationId(int medicineId) {
+    const int base = 1000;
+    return base + (medicineId.abs() % (_maxInt32 - base));
+  }
+
+  int _safeExpirySeed(int medicineId) {
+    final maxSeed = (_maxInt32 - _expiryBaseOffset - 1) ~/ _expiryMultiplier;
+    return medicineId.abs() % maxSeed;
+  }
 
   Widget _buildCurrentPage() {
     switch (_currentIndex) {
@@ -46,7 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
           onAddMed: _addMedicine,
           onEdit: _editMedicine,
           onDelete: _deleteMedicine,
-          onOpenExpiryCalendar: _openExpiryCalendar,
         );
       case 3:
         return const ManageScreen();
@@ -100,23 +112,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ADD
   Future<void> _addMedicine() async {
-    final result = await Navigator.push(
+    final result = await Navigator.pushNamed(
       context,
-      MaterialPageRoute(
-        builder: (_) => const AddMedicationScreen(),
-      ),
+      AppRoutes.addMedication,
     );
     if (!mounted) return;
 
     if (result != null && result is Medicine) {
       final messenger = ScaffoldMessenger.of(context);
       try {
-        // Save to database
+        // Persist to MongoDB API first.
         final id = await _dbService.addMedicine(result);
-        final newMedicine = result.copyWith(id: id);
-
+        await _loadMedicines();
         if (!mounted) return;
-        setState(() => _medicines.add(newMedicine));
 
         // Schedule notification
         final time = DateFormat('h:mm a').parse(result.time);
@@ -129,14 +137,14 @@ class _HomeScreenState extends State<HomeScreen> {
           time.minute,
         );
         await NotificationService.scheduleAlarmNotification(
-          id: 1000 + id,
+          id: _safeAlarmNotificationId(id),
           title: 'Medication Reminder',
           body: 'Time to take ${result.name} (${result.dosage})',
           dateTime: dateTime,
         );
         if (result.expiryDate != null) {
           await NotificationService.scheduleExpiryNotifications(
-            medicineId: id,
+            medicineId: _safeExpirySeed(id),
             medicineName: result.name,
             expiryDate: result.expiryDate!,
           );
@@ -158,13 +166,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // EDIT
   Future<void> _editMedicine(int index) async {
-    final result = await Navigator.push(
+    final result = await Navigator.pushNamed(
       context,
-      MaterialPageRoute(
-        builder: (_) => AddMedicationScreen(
-          medicine: _medicines[index],
-        ),
-      ),
+      AppRoutes.addMedication,
+      arguments: _medicines[index],
     );
     if (!mounted) return;
 
@@ -191,14 +196,14 @@ class _HomeScreenState extends State<HomeScreen> {
           );
 
           await NotificationService.scheduleAlarmNotification(
-            id: 1000 + medicineId,
+            id: _safeAlarmNotificationId(medicineId),
             title: 'Medication Reminder',
             body: 'Time to take ${result.name} (${result.dosage})',
             dateTime: dateTime,
           );
           if (result.expiryDate != null) {
             await NotificationService.scheduleExpiryNotifications(
-              medicineId: medicineId,
+              medicineId: _safeExpirySeed(medicineId),
               medicineName: result.name,
               expiryDate: result.expiryDate!,
             );
@@ -219,11 +224,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openExpiryCalendar() {
-    Navigator.push(
+    Navigator.pushNamed(
       context,
-      MaterialPageRoute(
-        builder: (_) => ExpiryCalendarScreen(medicines: _medicines),
-      ),
+      AppRoutes.expiryCalendar,
+      arguments: _medicines,
     );
   }
 

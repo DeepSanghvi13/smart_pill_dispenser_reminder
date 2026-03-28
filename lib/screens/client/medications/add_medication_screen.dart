@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 import '../../../models/medicine.dart';
-import 'barcode_scanner_screen.dart';
 import '../../../services/medicine_barcode_lookup_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/medicine_scan_service.dart';
@@ -134,9 +134,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       return;
     }
 
-    final barcode = await Navigator.push<String>(
+    final barcode = await Navigator.pushNamed<String>(
       context,
-      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+      AppRoutes.barcodeScanner,
     );
 
     if (barcode == null || barcode.trim().isEmpty) {
@@ -314,22 +314,19 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
               // Category Selector
               DropdownButtonFormField<MedicineCategory>(
+                isExpanded: true,
                 initialValue: selectedCategory,
                 decoration: const InputDecoration(
                   labelText: 'Medicine Category',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
                   border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                 ),
                 items: MedicineCategory.values.map((category) {
                   return DropdownMenuItem(
                     value: category,
-                    child: Row(
-                      children: [
-                        Text(category.emoji,
-                            style: const TextStyle(fontSize: 20)),
-                        const SizedBox(width: 8),
-                        Text(category.label),
-                      ],
-                    ),
+                    child: Text(category.label),
                   );
                 }).toList(),
                 onChanged: (value) {

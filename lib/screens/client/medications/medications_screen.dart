@@ -8,7 +8,6 @@ class MedicationsScreen extends StatelessWidget {
   final VoidCallback onAddMed;
   final Function(int) onEdit;
   final Function(int) onDelete;
-  final VoidCallback onOpenExpiryCalendar;
 
   const MedicationsScreen({
     super.key,
@@ -16,22 +15,12 @@ class MedicationsScreen extends StatelessWidget {
     required this.onAddMed,
     required this.onEdit,
     required this.onDelete,
-    required this.onOpenExpiryCalendar,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        ListTile(
-          leading: const Icon(Icons.calendar_month),
-          title: const Text('Expiry notifications calendar'),
-          trailing: TextButton(
-            onPressed: onOpenExpiryCalendar,
-            child: const Text('Open'),
-          ),
-        ),
-        const Divider(height: 1),
         Expanded(
           child: medicines.isEmpty
               ? Center(

@@ -91,10 +91,11 @@ class DatabaseService {
   }
 
   Future<int> addMedicine(Medicine medicine) async {
-    await _ensureConnected();
-    final id = medicine.id ?? await _nextMedicineId();
-    final ok = await _apiService.syncMedicine(medicine.copyWith(id: id));
-    return ok ? id : 0;
+    final id = await _apiService.createMedicineOnServer(medicine);
+    if (id == null || id <= 0) {
+      throw StateError('Failed to save medicine to MongoDB API');
+    }
+    return id;
   }
 
   Future<List<Medicine>> getAllMedicines() async {

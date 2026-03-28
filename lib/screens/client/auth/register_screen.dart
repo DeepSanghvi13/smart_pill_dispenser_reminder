@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
-import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -76,11 +76,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (error.toLowerCase().contains('already registered')) {
         await Future.delayed(const Duration(milliseconds: 1200));
         if (!mounted) return;
-        Navigator.pushReplacement(
+        Navigator.pushReplacementNamed(
           context,
-          MaterialPageRoute(
-            builder: (_) => LoginScreen(prefilledEmail: email),
-          ),
+          AppRoutes.login,
+          arguments: email,
         );
       }
       return;
@@ -96,11 +95,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Wait for snackbar, then go to Login with email pre-filled
     await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;
-    Navigator.pushReplacement(
+    Navigator.pushReplacementNamed(
       context,
-      MaterialPageRoute(
-        builder: (_) => LoginScreen(prefilledEmail: email),
-      ),
+      AppRoutes.login,
+      arguments: email,
     );
   }
 

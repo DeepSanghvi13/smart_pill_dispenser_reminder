@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smart_pill_reminder/services/database_service.dart';
 
 class AddDependentScreen extends StatefulWidget {
   const AddDependentScreen({super.key});
@@ -14,6 +15,14 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
   String gender = '';
   DateTime? birthDate;
   Color selectedColor = Colors.blue;
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    firstNameController.dispose();
+    lastNameController.dispose();
+    super.dispose();
+  }
 
   // Date picker
   Future<void> _pickBirthDate() async {
@@ -43,14 +52,13 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              // later we will save dependent data
-              Navigator.pop(context);
-            },
-            child: const Text(
-              'DONE',
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            onPressed: _isSaving ? null : _saveDependent,
+            child: Text(
+              'SAVE',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           )
         ],
@@ -170,6 +178,22 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
                 style: TextStyle(color: Colors.grey.shade600),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _saveDependent,
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Save Dependent'),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -195,6 +219,49 @@ class _AddDependentScreenState extends State<AddDependentScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _saveDependent() async {
+    final firstName = firstNameController.text.trim();
+    final lastName = lastNameController.text.trim();
+    if (firstName.isEmpty || lastName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('First name and last name are required')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final id = await DatabaseService().addDependent(
+        firstName: firstName,
+        lastName: lastName,
+        gender: gender.isEmpty ? null : gender,
+        birthDate: birthDate?.toIso8601String(),
+        color: selectedColor.value.toRadixString(16),
+      );
+
+      if (!mounted) return;
+      if (id > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dependent saved successfully')),
+        );
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save dependent')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving dependent: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 }
 

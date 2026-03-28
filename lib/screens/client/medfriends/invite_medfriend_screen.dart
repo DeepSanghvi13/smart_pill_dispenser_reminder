@@ -118,10 +118,10 @@ class _InviteMedfriendScreenState extends State<InviteMedfriendScreen> {
         actions: [
           TextButton(
               onPressed: _isSending ? null : _sendInvite,
-            child: const Text(
+            child: Text(
               'SEND',
               style: TextStyle(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -212,6 +212,23 @@ class _InviteMedfriendScreenState extends State<InviteMedfriendScreen> {
                 setState(() => shareMeds = value);
               },
               activeThumbColor: Theme.of(context).primaryColor,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isSending ? null : _sendInvite,
+                  icon: _isSending
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                  label: Text(_isSending ? 'Sending...' : 'Invite Friend'),
+                ),
+              ),
             ),
           ],
         ),

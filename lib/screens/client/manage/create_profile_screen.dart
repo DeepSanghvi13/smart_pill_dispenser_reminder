@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:smart_pill_reminder/models/user_profile.dart';
+import 'package:smart_pill_reminder/services/auth_service.dart';
+import 'package:smart_pill_reminder/services/database_service.dart';
 
 class CreateProfileScreen extends StatefulWidget {
   const CreateProfileScreen({super.key});
@@ -14,6 +18,15 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
   String gender = 'Gender';
   DateTime? birthDate;
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    firstNameController.dispose();
+    lastNameController.dispose();
+    zipController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,12 +39,13 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Save logic can be added later
-            },
-            child: const Text(
+            onPressed: _isSaving ? null : _saveProfile,
+            child: Text(
               'SAVE',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -97,6 +111,20 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                   'your personal information with your health information.',
               style: TextStyle(color: Colors.grey),
             ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _saveProfile,
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save Profile'),
+              ),
+            ),
           ],
         ),
       ),
@@ -128,6 +156,55 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       setState(() {
         birthDate = picked;
       });
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    final firstName = firstNameController.text.trim();
+    final lastName = lastNameController.text.trim();
+    if (firstName.isEmpty || lastName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('First name and last name are required')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final email = context.read<AuthService>().currentUser;
+      final result = await DatabaseService().saveUserProfile(
+        UserProfile(
+          firstName: firstName,
+          lastName: lastName,
+          gender: gender == 'Gender' ? null : gender,
+          birthDate: birthDate?.toIso8601String(),
+          zipCode: zipController.text.trim().isEmpty
+              ? null
+              : zipController.text.trim(),
+          email: email,
+        ),
+      );
+
+      if (!mounted) return;
+      if (result > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile saved successfully')),
+        );
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save profile')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving profile: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 }

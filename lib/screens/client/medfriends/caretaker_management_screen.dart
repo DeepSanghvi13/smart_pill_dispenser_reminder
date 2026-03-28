@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../services/caretaker_service.dart';
 import '../../../models/caretaker.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'add_caretaker_screen.dart';
-import 'edit_caretaker_screen.dart';
 
 class CaretakerManagementScreen extends StatefulWidget {
   const CaretakerManagementScreen({super.key});
@@ -16,6 +16,10 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
   final CaretakerService _service = CaretakerService();
   List<Caretaker> caretakers = [];
   bool isLoading = true;
+
+  static const String _menuEdit = 'edit';
+  static const String _menuToggle = 'toggle';
+  static const String _menuDelete = 'delete';
 
   @override
   void initState() {
@@ -45,6 +49,18 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
       appBar: AppBar(
         title: const Text('Caretaker Mode'),
         elevation: 0,
+        actions: [
+          TextButton(
+            onPressed: _openAddCaretaker,
+            child: Text(
+              'ADD',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -59,15 +75,7 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
                       const Text('No Caretakers Added'),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
-                        onPressed: () async {
-                          final result = await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (c) => const AddCaretakerScreen(),
-                            ),
-                          );
-                          if (result == true) _loadCaretakers();
-                        },
+                        onPressed: _openAddCaretaker,
                         icon: const Icon(Icons.add),
                         label: const Text('Add Caretaker'),
                       ),
@@ -90,42 +98,25 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
                         ),
                         title: Text(c.fullName),
                         subtitle: Text('${c.relationship} • ${c.phoneNumber}'),
-                        trailing: PopupMenuButton(
-                          itemBuilder: (c) => [
-                            PopupMenuItem(
-                              onTap: () async {
-                                final result = await Navigator.push<bool>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (c) => EditCaretakerScreen(
-                                        caretaker: caretakers[index]),
-                                  ),
-                                );
-                                if (result == true) _loadCaretakers();
-                              },
-                              child: const Text('Edit'),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            await _handleMenuAction(value, c);
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem<String>(
+                              value: _menuEdit,
+                              child: Text('Edit'),
                             ),
-                            PopupMenuItem(
-                              onTap: () async {
-                                await _service.toggleStatus(
-                                    caretakers[index].id!,
-                                    !caretakers[index].isActive);
-                                _loadCaretakers();
-                              },
+                            PopupMenuItem<String>(
+                              value: _menuToggle,
+                              child: Text(c.isActive ? 'Deactivate' : 'Activate'),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: _menuDelete,
                               child: Text(
-                                caretakers[index].isActive
-                                    ? 'Deactivate'
-                                    : 'Activate',
+                                'Delete',
+                                style: TextStyle(color: Colors.red),
                               ),
-                            ),
-                            PopupMenuItem(
-                              onTap: () async {
-                                await _service
-                                    .deleteCaretaker(caretakers[index].id!);
-                                _loadCaretakers();
-                              },
-                              child: const Text('Delete',
-                                  style: TextStyle(color: Colors.red)),
                             ),
                           ],
                         ),
@@ -133,17 +124,45 @@ class _CaretakerManagementScreenState extends State<CaretakerManagementScreen> {
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (c) => const AddCaretakerScreen()),
-          );
-          if (result == true) _loadCaretakers();
-        },
-        child: const Icon(Icons.add),
+      floatingActionButton: null,
+    );
+  }
+
+  Future<void> _openAddCaretaker() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddCaretakerScreen(),
       ),
     );
+    if (result == true) {
+      await _loadCaretakers();
+    }
+  }
+
+  Future<void> _handleMenuAction(String value, Caretaker caretaker) async {
+    if (value == _menuEdit) {
+      final result = await Navigator.pushNamed<bool>(
+        context,
+        AppRoutes.editCaretaker,
+        arguments: caretaker,
+      );
+      if (result == true) {
+        await _loadCaretakers();
+      }
+      return;
+    }
+
+    if (value == _menuToggle) {
+      await _service.toggleStatus(caretaker.id!, !caretaker.isActive);
+      await _loadCaretakers();
+      return;
+    }
+
+    if (value == _menuDelete) {
+      await _service.deleteCaretaker(caretaker.id!);
+      await _loadCaretakers();
+    }
   }
 }
 

@@ -1,22 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smart_pill_reminder/screens/client/auth/login_screen.dart';
-import 'package:smart_pill_reminder/screens/database/sql_connection_status_screen.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
-import '../screens/client/dependents/add_dependent_screen.dart';
-import '../screens/client/medfriends/invite_medfriend_screen.dart';
-import '../screens/client/medfriends/caretaker_management_screen.dart';
-import '../screens/client/profile/create_profile_screen.dart';
 
 class DrawerMenuItem {
   final IconData icon;
   final String title;
-  final VoidCallback onTap;
+  final String routeName;
 
   const DrawerMenuItem({
     required this.icon,
     required this.title,
-    required this.onTap,
+    required this.routeName,
   });
 }
 
@@ -30,21 +25,16 @@ class DrawerMenuTile extends StatelessWidget {
     return ListTile(
       leading: Icon(item.icon),
       title: Text(item.title),
-      onTap: item.onTap,
+      onTap: () {
+        Navigator.pop(context);
+        Navigator.pushNamed(context, item.routeName);
+      },
     );
   }
 }
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
-
-  void _openScreen(BuildContext context, Widget screen) {
-    Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,28 +44,28 @@ class AppDrawer extends StatelessWidget {
       DrawerMenuItem(
         icon: Icons.person_outline,
         title: 'Create Profile',
-        onTap: () => _openScreen(context, const CreateProfileScreen()),
+        routeName: AppRoutes.createProfile,
       ),
       DrawerMenuItem(
         icon: Icons.add_circle_outline,
         title: 'Add Dependent',
-        onTap: () => _openScreen(context, const AddDependentScreen()),
+        routeName: AppRoutes.addDependent,
       ),
       DrawerMenuItem(
         icon: Icons.group_add,
         title: 'Invite Medfriend',
-        onTap: () => _openScreen(context, const InviteMedfriendScreen()),
+        routeName: AppRoutes.inviteMedfriend,
       ),
       DrawerMenuItem(
         icon: Icons.supervised_user_circle,
         title: 'Caretaker Mode',
-        onTap: () => _openScreen(context, const CaretakerManagementScreen()),
+        routeName: AppRoutes.caretakerManagement,
       ),
       if (isAdmin)
         DrawerMenuItem(
           icon: Icons.storage,
           title: 'Database',
-          onTap: () => _openScreen(context, const SqlConnectionStatusScreen()),
+          routeName: AppRoutes.databaseStatus,
         ),
     ];
 
@@ -93,8 +83,8 @@ class AppDrawer extends StatelessWidget {
               title: const Text('Logout'),
               onTap: () {
                 context.read<AuthService>().logout();
-                Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                  AppRoutes.login,
                   (route) => false,
                 );
               },

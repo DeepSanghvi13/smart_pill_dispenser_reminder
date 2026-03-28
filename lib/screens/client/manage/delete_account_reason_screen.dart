@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'delete_account_confirm_screen.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 class DeleteAccountReasonScreen extends StatefulWidget {
   const DeleteAccountReasonScreen({super.key});
@@ -80,13 +80,7 @@ class _DeleteAccountReasonScreenState
                 onPressed: selectedIndex == null
                     ? null
                     : () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                      const DeleteAccountConfirmScreen(),
-                    ),
-                  );
+                  Navigator.pushNamed(context, AppRoutes.deleteAccountConfirm);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0D4F8B),

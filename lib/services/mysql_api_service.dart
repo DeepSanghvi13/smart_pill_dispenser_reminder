@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/alarm_log.dart';
@@ -49,24 +50,39 @@ class MySQLApiService {
   }
 
   List<String> _candidateBaseUrls() {
-    final candidates = <String>{_configuredBaseUrl};
+    final candidates = <String>[];
+    final isAndroidEmulator =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+    // Android emulator reaches host machine localhost via 10.0.2.2.
+    if (isAndroidEmulator) {
+      candidates.add('http://10.0.2.2:3000/api');
+    }
+
+    candidates.add(_configuredBaseUrl);
+
     final uri = Uri.tryParse(_configuredBaseUrl);
     if (uri != null && uri.host == 'localhost') {
-      candidates.add(
-        uri.replace(host: '10.0.2.2').toString(),
-      );
-      candidates.add(
-        uri.replace(host: '127.0.0.1').toString(),
-      );
+      if (isAndroidEmulator) {
+        candidates.add(uri.replace(host: '10.0.2.2').toString());
+      }
+      candidates.add(uri.replace(host: '127.0.0.1').toString());
     } else if (uri != null && uri.host == '127.0.0.1') {
-      candidates.add(
-        uri.replace(host: 'localhost').toString(),
-      );
-      candidates.add(
-        uri.replace(host: '10.0.2.2').toString(),
-      );
+      candidates.add(uri.replace(host: 'localhost').toString());
+      if (isAndroidEmulator) {
+        candidates.add(uri.replace(host: '10.0.2.2').toString());
+      }
     }
-    return candidates.toList();
+
+    // Preserve order while removing duplicates and empty entries.
+    final ordered = <String>[];
+    for (final candidate in candidates) {
+      if (candidate.trim().isEmpty) continue;
+      if (!ordered.contains(candidate)) {
+        ordered.add(candidate);
+      }
+    }
+    return ordered;
   }
 
   Future<bool> _checkHealthAt(String baseUrl) async {
@@ -269,6 +285,42 @@ class MySQLApiService {
     } catch (e) {
       print('Error syncing medicine: $e');
       return false;
+    }
+  }
+
+  Future<int?> createMedicineOnServer(Medicine medicine) async {
+    try {
+      await _resolveBaseUrl();
+      final response = await _client
+          .post(
+            _uri('/medicines'),
+            headers: _headers(),
+            body: jsonEncode({
+              'userId': _userId,
+              'name': medicine.name,
+              'dosage': medicine.dosage,
+              'time': medicine.time,
+              'category': medicine.category.name,
+              'expiryDate': medicine.expiryDate?.toIso8601String(),
+              'isScanned': medicine.isScanned,
+              'scannedText': medicine.scannedText,
+              'imagePath': medicine.imagePath,
+              'healthCondition': medicine.healthCondition,
+              'createdAt': DateTime.now().toIso8601String(),
+            }),
+          )
+          .timeout(_requestTimeout);
+
+      if (!_isSuccess(response)) return null;
+      final body = _safeBody(response);
+      if (body is! Map<String, dynamic>) return null;
+      final id = body['id'];
+      if (id is int) return id;
+      if (id is num) return id.toInt();
+      return null;
+    } catch (e) {
+      print('Error creating medicine: $e');
+      return null;
     }
   }
 

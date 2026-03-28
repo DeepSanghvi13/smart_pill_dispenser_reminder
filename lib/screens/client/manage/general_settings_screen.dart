@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../theme/theme_controller.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
-import 'morning_reminder_screen.dart';
-import 'evening_reminder_screen.dart';
-import 'weekly_summary_screen.dart';
-import 'weekend_mode_screen.dart';
 
 class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({super.key});
@@ -42,12 +39,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const MorningReminderScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.morningReminder);
             },
           ),
           ListTile(
@@ -57,12 +49,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const EveningReminderScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.eveningReminder);
             },
           ),
           ListTile(
@@ -72,12 +59,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const WeeklySummaryScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.weeklySummary);
             },
           ),
           ListTile(
@@ -87,12 +69,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const WeekendModeScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.weekendMode);
             },
           ),
           const Divider(),

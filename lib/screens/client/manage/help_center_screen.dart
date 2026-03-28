@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-
-import 'help_articles_screen.dart';
-import 'contact_support_screen.dart';
-import 'share_help_center_screen.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 class HelpCenterScreen extends StatelessWidget {
   const HelpCenterScreen({super.key});
@@ -21,12 +18,7 @@ class HelpCenterScreen extends StatelessWidget {
             title: 'Help Articles',
             subtitle: 'FAQs and guides',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const HelpArticlesScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.helpArticles);
             },
           ),
 
@@ -35,12 +27,7 @@ class HelpCenterScreen extends StatelessWidget {
             title: 'Contact Support',
             subtitle: 'Get help from our team',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ContactSupportScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.contactSupport);
             },
           ),
 
@@ -49,12 +36,7 @@ class HelpCenterScreen extends StatelessWidget {
             title: 'Share Help Center',
             subtitle: 'Share help resources',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ShareHelpCenterScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, AppRoutes.shareHelpCenter);
             },
           ),
         ],

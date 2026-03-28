@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 import '../../providers/sync_provider.dart';
-import 'sql_category_entries_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../services/mysql_api_service.dart';
@@ -167,14 +167,13 @@ class _SqlConnectionStatusScreenState extends State<SqlConnectionStatusScreen> {
     required List<Map<String, dynamic>> rows,
     required List<String> columns,
   }) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SqlCategoryEntriesScreen(
-          title: title,
-          icon: icon,
-          rows: rows,
-          columns: columns,
-        ),
+    Navigator.of(context).pushNamed(
+      AppRoutes.sqlCategoryEntries,
+      arguments: SqlCategoryEntriesArgs(
+        title: title,
+        icon: icon,
+        rows: rows,
+        columns: columns,
       ),
     );
   }

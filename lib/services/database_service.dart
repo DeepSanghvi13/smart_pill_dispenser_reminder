@@ -19,11 +19,15 @@ class DatabaseService {
   final Map<String, Map<String, dynamic>> _barcodeCache =
       <String, Map<String, dynamic>>{};
   final Map<String, String> _settingsCache = <String, String>{};
-    final Map<String, UserProfile> _userProfileCacheByUser =
+  final Map<String, List<Medicine>> _medicinesCacheByUser =
+      <String, List<Medicine>>{};
+  final Map<String, List<Reminder>> _remindersCacheByUser =
+      <String, List<Reminder>>{};
+  final Map<String, UserProfile> _userProfileCacheByUser =
       <String, UserProfile>{};
-    final Map<String, List<Map<String, dynamic>>> _dependentsCacheByUser =
+  final Map<String, List<Map<String, dynamic>>> _dependentsCacheByUser =
       <String, List<Map<String, dynamic>>>{};
-    final Map<String, List<Caretaker>> _caretakersCacheByUser =
+  final Map<String, List<Caretaker>> _caretakersCacheByUser =
       <String, List<Caretaker>>{};
 
   factory DatabaseService() {
@@ -92,6 +96,29 @@ class DatabaseService {
     );
   }
 
+  List<Medicine> _medicinesForCurrentUser() {
+    return _medicinesCacheByUser.putIfAbsent(
+      _currentUserId,
+      () => <Medicine>[],
+    );
+  }
+
+  List<Reminder> _remindersForCurrentUser() {
+    return _remindersCacheByUser.putIfAbsent(
+      _currentUserId,
+      () => <Reminder>[],
+    );
+  }
+
+  Future<int> _nextMedicineId() async {
+    final medicines = _medicinesForCurrentUser();
+    var maxId = 0;
+    for (final item in medicines) {
+      if ((item.id ?? 0) > maxId) maxId = item.id!;
+    }
+    return maxId + 1;
+  }
+
   Future<int> _nextAlarmLogId() async {
     final logs = await getAllAlarmLogs();
     var maxId = 0;
@@ -102,16 +129,34 @@ class DatabaseService {
   }
 
   Future<int> addMedicine(Medicine medicine) async {
-    final id = await _apiService.createMedicineOnServer(medicine);
-    if (id == null || id <= 0) {
-      throw StateError('Failed to save medicine to MongoDB API');
+    try {
+      final id = await _apiService.createMedicineOnServer(medicine);
+      if (id == null || id <= 0) {
+        throw StateError('Invalid medicine id from server');
+      }
+
+      final local = _medicinesForCurrentUser();
+      local.removeWhere((m) => m.id == id);
+      local.add(medicine.copyWith(id: id));
+      return id;
+    } catch (_) {
+      final local = _medicinesForCurrentUser();
+      final fallbackId = medicine.id ?? await _nextMedicineId();
+      local.removeWhere((m) => m.id == fallbackId);
+      local.add(medicine.copyWith(id: fallbackId));
+      return fallbackId;
     }
-    return id;
   }
 
   Future<List<Medicine>> getAllMedicines() async {
-    await _ensureConnected();
-    return _apiService.getMedicinesFromServer();
+    try {
+      await _ensureConnected();
+      final server = await _apiService.getMedicinesFromServer();
+      _medicinesCacheByUser[_currentUserId] = List<Medicine>.from(server);
+      return server;
+    } catch (_) {
+      return List<Medicine>.from(_medicinesForCurrentUser());
+    }
   }
 
   Future<Medicine?> getMedicineById(int id) async {
@@ -123,15 +168,29 @@ class DatabaseService {
   }
 
   Future<int> updateMedicine(int id, Medicine medicine) async {
-    await _ensureConnected();
-    final ok = await _apiService.updateMedicineOnServer(id, medicine);
-    return ok ? 1 : 0;
+    final payload = medicine.copyWith(id: id);
+    final local = _medicinesForCurrentUser();
+    local.removeWhere((m) => m.id == id);
+    local.add(payload);
+
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.updateMedicineOnServer(id, medicine);
+      return ok ? 1 : 0;
+    } catch (_) {
+      return 1;
+    }
   }
 
   Future<int> deleteMedicine(int id) async {
-    await _ensureConnected();
-    final ok = await _apiService.deleteMedicineFromServer(id);
-    return ok ? 1 : 0;
+    _medicinesForCurrentUser().removeWhere((m) => m.id == id);
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.deleteMedicineFromServer(id);
+      return ok ? 1 : 0;
+    } catch (_) {
+      return 1;
+    }
   }
 
   Future<void> saveSetting(String key, String value) async {
@@ -349,16 +408,30 @@ class DatabaseService {
   }
 
   Future<int> addReminder(Reminder reminder) async {
-    await _ensureConnected();
     final id = reminder.id ?? await _nextReminderId();
-    final ok =
-        await _apiService.saveReminderToServer(reminder.copyWith(id: id));
-    return ok ? id : 0;
+    final payload = reminder.copyWith(id: id);
+    final local = _remindersForCurrentUser();
+    local.removeWhere((r) => r.id == id);
+    local.add(payload);
+
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.saveReminderToServer(payload);
+      return ok ? id : id;
+    } catch (_) {
+      return id;
+    }
   }
 
   Future<List<Reminder>> getAllReminders() async {
-    await _ensureConnected();
-    return _apiService.getRemindersFromServer();
+    try {
+      await _ensureConnected();
+      final server = await _apiService.getRemindersFromServer();
+      _remindersCacheByUser[_currentUserId] = List<Reminder>.from(server);
+      return server;
+    } catch (_) {
+      return List<Reminder>.from(_remindersForCurrentUser());
+    }
   }
 
   Future<List<Reminder>> getActiveReminders() async {
@@ -372,16 +445,29 @@ class DatabaseService {
   }
 
   Future<int> updateReminder(int id, Reminder reminder) async {
-    await _ensureConnected();
-    final ok =
-        await _apiService.saveReminderToServer(reminder.copyWith(id: id));
-    return ok ? 1 : 0;
+    final payload = reminder.copyWith(id: id);
+    final local = _remindersForCurrentUser();
+    local.removeWhere((r) => r.id == id);
+    local.add(payload);
+
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.saveReminderToServer(payload);
+      return ok ? 1 : 0;
+    } catch (_) {
+      return 1;
+    }
   }
 
   Future<int> deleteReminder(int id) async {
-    await _ensureConnected();
-    final ok = await _apiService.deleteReminderFromServer(id);
-    return ok ? 1 : 0;
+    _remindersForCurrentUser().removeWhere((r) => r.id == id);
+    try {
+      await _ensureConnected();
+      final ok = await _apiService.deleteReminderFromServer(id);
+      return ok ? 1 : 0;
+    } catch (_) {
+      return 1;
+    }
   }
 
   Future<int> toggleReminderStatus(int id, bool isActive) async {

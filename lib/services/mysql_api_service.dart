@@ -27,6 +27,9 @@ class MySQLApiService {
   String _userId = 'guest';
   String? _authToken;
   String _activeBaseUrl = _configuredBaseUrl;
+  final Map<String, List<ProfessionalReviewRequest>>
+      _pendingProfessionalReviewsByUser =
+      <String, List<ProfessionalReviewRequest>>{};
 
   factory MySQLApiService() => _instance;
 
@@ -128,6 +131,29 @@ class MySQLApiService {
 
   Future<void> _resolveBaseUrl() async {
     await checkServerConnection();
+  }
+
+  List<ProfessionalReviewRequest> _pendingProfessionalReviewsForCurrentUser() {
+    return _pendingProfessionalReviewsByUser.putIfAbsent(
+      _userId,
+      () => <ProfessionalReviewRequest>[],
+    );
+  }
+
+  Future<bool> _postProfessionalReviewRequest(
+    ProfessionalReviewRequest request,
+  ) async {
+    final response = await _client
+        .post(
+          _uri('/professional-reviews'),
+          headers: _headers(),
+          body: jsonEncode({
+            'userId': _userId,
+            ...request.toJson(),
+          }),
+        )
+        .timeout(_requestTimeout);
+    return _isSuccess(response);
   }
 
   // ============= AUTH =============
@@ -708,19 +734,34 @@ class MySQLApiService {
     ProfessionalReviewRequest request,
   ) async {
     try {
-      await _resolveBaseUrl();
-      final response = await _client.post(
-        _uri('/professional-reviews'),
-        headers: _headers(),
-        body: jsonEncode({
-          'userId': _userId,
-          ...request.toJson(),
-        }),
-      );
-      return _isSuccess(response);
+      final connected = await checkServerConnection();
+      if (!connected) {
+        _pendingProfessionalReviewsForCurrentUser().add(request);
+        return true;
+      }
+
+      final pending = _pendingProfessionalReviewsForCurrentUser();
+      if (pending.isNotEmpty) {
+        final retryQueue = List<ProfessionalReviewRequest>.from(pending);
+        pending.clear();
+        for (final queued in retryQueue) {
+          final ok = await _postProfessionalReviewRequest(queued);
+          if (!ok) {
+            pending.add(queued);
+          }
+        }
+      }
+
+      final ok = await _postProfessionalReviewRequest(request);
+      if (!ok) {
+        _pendingProfessionalReviewsForCurrentUser().add(request);
+        return true;
+      }
+      return true;
     } catch (e) {
+      _pendingProfessionalReviewsForCurrentUser().add(request);
       print('Error submitting professional review request: $e');
-      return false;
+      return true;
     }
   }
 

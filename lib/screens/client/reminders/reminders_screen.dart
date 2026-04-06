@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../../models/medicine.dart';
 import '../../../models/reminder.dart';
 import '../../../services/database_service.dart';
+import '../../../services/auth_service.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 class RemindersScreen extends StatefulWidget {
@@ -14,7 +15,6 @@ class RemindersScreen extends StatefulWidget {
 
 class _RemindersScreenState extends State<RemindersScreen> {
   final DatabaseService _dbService = DatabaseService();
-  List<Medicine> _medicines = const [];
   List<Reminder> _reminders = const [];
   bool _isLoading = true;
 
@@ -27,11 +27,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final medicines = await _dbService.getAllMedicines();
+      final userId = context.read<AuthService>().currentUser;
+      await _dbService.setCurrentUser(userId);
+
       final reminders = await _dbService.getAllReminders();
       if (!mounted) return;
       setState(() {
-        _medicines = medicines;
         _reminders = reminders;
         _isLoading = false;
       });
@@ -45,7 +46,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Future<void> _openReminderForm({Reminder? reminder}) async {
-    if (_medicines.isEmpty) {
+    final userId = context.read<AuthService>().currentUser;
+    await _dbService.setCurrentUser(userId);
+    final latestMedicines = await _dbService.getAllMedicines();
+
+    if (!mounted) return;
+
+    if (latestMedicines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content:
@@ -58,7 +65,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
       context,
       AppRoutes.addOrEditReminder,
       arguments: ReminderRouteArgs(
-        medicines: _medicines,
+        medicines: latestMedicines,
         reminder: reminder,
       ),
     );
@@ -158,6 +165,3 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 }
-
-
-

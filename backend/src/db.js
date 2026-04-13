@@ -35,7 +35,7 @@ const authLogSchema = new mongoose.Schema(
 const upsertSchema = new mongoose.Schema(
   {
     userId: { type: String, required: true, index: true },
-    localId: { type: Number, default: null },
+    id: { type: Number, default: null },
     createdAt: { type: Date, default: Date.now },
   },
   baseSchemaOptions,
@@ -157,38 +157,38 @@ const professionalReviewRequestSchema = new mongoose.Schema(
 );
 
 medicineSchema.index(
-  { userId: 1, localId: 1 },
+  { userId: 1, id: 1 },
   {
     unique: true,
-    partialFilterExpression: { localId: { $type: 'number' } },
+    partialFilterExpression: { id: { $type: 'number' } },
   },
 );
 reminderSchema.index(
-  { userId: 1, localId: 1 },
+  { userId: 1, id: 1 },
   {
     unique: true,
-    partialFilterExpression: { localId: { $type: 'number' } },
+    partialFilterExpression: { id: { $type: 'number' } },
   },
 );
 alarmLogSchema.index(
-  { userId: 1, localId: 1 },
+  { userId: 1, id: 1 },
   {
     unique: true,
-    partialFilterExpression: { localId: { $type: 'number' } },
+    partialFilterExpression: { id: { $type: 'number' } },
   },
 );
 caretakerSchema.index(
-  { userId: 1, localId: 1 },
+  { userId: 1, id: 1 },
   {
     unique: true,
-    partialFilterExpression: { localId: { $type: 'number' } },
+    partialFilterExpression: { id: { $type: 'number' } },
   },
 );
 dependentSchema.index(
-  { userId: 1, localId: 1 },
+  { userId: 1, id: 1 },
   {
     unique: true,
-    partialFilterExpression: { localId: { $type: 'number' } },
+    partialFilterExpression: { id: { $type: 'number' } },
   },
 );
 settingSchema.index({ userId: 1, keyName: 1 }, { unique: true });
@@ -224,12 +224,15 @@ async function disconnectMongo() {
   await mongoose.disconnect();
 }
 
-async function generateNextLocalId(Model, userId) {
-  const last = await Model.findOne({ userId, localId: { $type: 'number' } })
-    .sort({ localId: -1 })
-    .select({ localId: 1 })
+async function generateNextId(Model, userId) {
+  const last = await Model.findOne({
+    userId,
+    $or: [{ id: { $type: 'number' } }, { localId: { $type: 'number' } }],
+  })
+    .sort({ id: -1, localId: -1 })
+    .select({ id: 1, localId: 1 })
     .lean();
-  return Number(last?.localId || 0) + 1;
+  return Number(last?.id ?? last?.localId ?? 0) + 1;
 }
 
 module.exports = {
@@ -237,7 +240,7 @@ module.exports = {
   connectMongo,
   ping,
   disconnectMongo,
-  generateNextLocalId,
+  generateNextId,
   models: {
     User,
     AuthLog,

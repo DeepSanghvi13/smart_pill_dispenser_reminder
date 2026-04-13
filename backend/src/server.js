@@ -7,7 +7,7 @@ const {
   connectMongo,
   ping,
   disconnectMongo,
-  generateNextLocalId,
+  generateNextId,
   models,
 } = require('./db');
 
@@ -189,16 +189,26 @@ async function lookupDrugByBarcode(barcodeDigits) {
   return null;
 }
 
-async function resolveLocalId(Model, userId, idCandidate) {
+function asEntityId(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function byEntityId(userId, id) {
+  return { userId, $or: [{ id }, { localId: id }] };
+}
+
+async function resolveId(Model, userId, idCandidate) {
   if (Number.isInteger(Number(idCandidate))) {
     return Number(idCandidate);
   }
-  return generateNextLocalId(Model, userId);
+  return generateNextId(Model, userId);
 }
 
 function medicineToDto(doc) {
+  const id = doc.id ?? doc.localId;
   return {
-    id: doc.localId,
+    id,
     name: doc.name,
     dosage: doc.dosage,
     time: doc.time,
@@ -213,8 +223,9 @@ function medicineToDto(doc) {
 }
 
 function reminderToDto(doc) {
+  const id = doc.id ?? doc.localId;
   return {
-    id: doc.localId,
+    id,
     medicineId: doc.medicineId,
     medicineName: doc.medicineName,
     time: doc.time,
@@ -226,8 +237,9 @@ function reminderToDto(doc) {
 }
 
 function alarmLogToDto(doc) {
+  const id = doc.id ?? doc.localId;
   return {
-    id: doc.localId,
+    id,
     medicineId: doc.medicineId,
     medicineName: doc.medicineName,
     scheduledTime: doc.scheduledTime,
@@ -240,8 +252,9 @@ function alarmLogToDto(doc) {
 }
 
 function caretakerToDto(doc) {
+  const id = doc.id ?? doc.localId;
   return {
-    id: doc.localId,
+    id,
     firstName: doc.firstName,
     lastName: doc.lastName,
     phoneNumber: doc.phoneNumber,
@@ -256,8 +269,9 @@ function caretakerToDto(doc) {
 }
 
 function dependentToDto(doc) {
+  const id = doc.id ?? doc.localId;
   return {
-    id: doc.localId,
+    id,
     firstName: doc.firstName,
     lastName: doc.lastName,
     gender: doc.gender,
@@ -267,13 +281,35 @@ function dependentToDto(doc) {
   };
 }
 
+async function requireMedicine(userId, medicineIdCandidate) {
+  const medicineId = asEntityId(medicineIdCandidate);
+  if (medicineId === null) {
+    throw new Error('medicineId must be a valid positive integer');
+  }
+
+  const medicine = await Medicine.findOne(byEntityId(userId, medicineId))
+    .select({ id: 1, localId: 1, name: 1 })
+    .lean();
+
+  if (!medicine) {
+    throw new Error(
+      `Foreign key violation: medicine ${medicineId} not found for user ${userId}`,
+    );
+  }
+
+  return {
+    ...medicine,
+    id: Number(medicine.id ?? medicine.localId),
+  };
+}
+
 async function upsertMedicine(userId, medicine) {
-  const localId = await resolveLocalId(Medicine, userId, medicine.id);
+  const id = await resolveId(Medicine, userId, medicine.id);
   await Medicine.findOneAndUpdate(
-    { userId, localId },
+    byEntityId(userId, id),
     {
       userId,
-      localId,
+      id,
       name: medicine.name || '',
       dosage: medicine.dosage || '',
       time: medicine.time || '',
@@ -284,41 +320,55 @@ async function upsertMedicine(userId, medicine) {
       imagePath: medicine.imagePath || null,
       healthCondition: medicine.healthCondition || null,
       createdAt: parseDate(medicine.createdAt) || new Date(),
+      $unset: { localId: '' },
     },
     { upsert: true },
   );
-  return localId;
+
+  await Reminder.updateMany(
+    { userId, medicineId: id },
+    { $set: { medicineName: medicine.name || '' } },
+  );
+  await AlarmLog.updateMany(
+    { userId, medicineId: id },
+    { $set: { medicineName: medicine.name || '' } },
+  );
+
+  return id;
 }
 
 async function upsertReminder(userId, reminder) {
-  const localId = await resolveLocalId(Reminder, userId, reminder.id);
+  const medicine = await requireMedicine(userId, reminder.medicineId);
+  const id = await resolveId(Reminder, userId, reminder.id);
   await Reminder.findOneAndUpdate(
-    { userId, localId },
+    byEntityId(userId, id),
     {
       userId,
-      localId,
-      medicineId: Number(reminder.medicineId || 0),
-      medicineName: reminder.medicineName || '',
+      id,
+      medicineId: medicine.id,
+      medicineName: reminder.medicineName || medicine.name || '',
       time: reminder.time || '',
       daysOfWeek: parseDays(reminder.daysOfWeek),
       isActive: reminder.isActive !== false,
       lastNotifiedAt: parseDate(reminder.lastNotifiedAt),
       createdAt: parseDate(reminder.createdAt) || new Date(),
+      $unset: { localId: '' },
     },
     { upsert: true },
   );
-  return localId;
+  return id;
 }
 
 async function upsertAlarmLog(userId, alarmLog) {
-  const localId = await resolveLocalId(AlarmLog, userId, alarmLog.id);
+  const medicine = await requireMedicine(userId, alarmLog.medicineId);
+  const id = await resolveId(AlarmLog, userId, alarmLog.id);
   await AlarmLog.findOneAndUpdate(
-    { userId, localId },
+    byEntityId(userId, id),
     {
       userId,
-      localId,
-      medicineId: Number(alarmLog.medicineId || 0),
-      medicineName: alarmLog.medicineName || '',
+      id,
+      medicineId: medicine.id,
+      medicineName: alarmLog.medicineName || medicine.name || '',
       scheduledTime: parseDate(alarmLog.scheduledTime) || new Date(),
       triggeredTime: parseDate(alarmLog.triggeredTime),
       status: alarmLog.status || 'pending',
@@ -326,19 +376,20 @@ async function upsertAlarmLog(userId, alarmLog) {
       takenAt: parseDate(alarmLog.takenAt),
       notes: alarmLog.notes || null,
       createdAt: parseDate(alarmLog.createdAt) || new Date(),
+      $unset: { localId: '' },
     },
     { upsert: true },
   );
-  return localId;
+  return id;
 }
 
 async function upsertCaretaker(userId, caretaker) {
-  const localId = await resolveLocalId(Caretaker, userId, caretaker.id);
+  const id = await resolveId(Caretaker, userId, caretaker.id);
   await Caretaker.findOneAndUpdate(
-    { userId, localId },
+    byEntityId(userId, id),
     {
       userId,
-      localId,
+      id,
       firstName: caretaker.firstName || '',
       lastName: caretaker.lastName || '',
       phoneNumber: caretaker.phoneNumber || '',
@@ -349,29 +400,31 @@ async function upsertCaretaker(userId, caretaker) {
       notifyViaNotification: caretaker.notifyViaNotification !== false,
       isActive: caretaker.isActive !== false,
       createdAt: parseDate(caretaker.createdAt) || new Date(),
+      $unset: { localId: '' },
     },
     { upsert: true },
   );
-  return localId;
+  return id;
 }
 
 async function upsertDependent(userId, dependent) {
-  const localId = await resolveLocalId(Dependent, userId, dependent.id);
+  const id = await resolveId(Dependent, userId, dependent.id);
   await Dependent.findOneAndUpdate(
-    { userId, localId },
+    byEntityId(userId, id),
     {
       userId,
-      localId,
+      id,
       firstName: dependent.firstName || '',
       lastName: dependent.lastName || '',
       gender: dependent.gender || null,
       birthDate: dependent.birthDate || null,
       color: dependent.color || null,
       createdAt: parseDate(dependent.createdAt) || new Date(),
+      $unset: { localId: '' },
     },
     { upsert: true },
   );
-  return localId;
+  return id;
 }
 
 async function upsertUserProfile(userId, profile) {
@@ -587,9 +640,8 @@ app.get('/api/admin/sql-entries', async (_, res) => {
           createdAt: a.createdAt,
         })),
         medicines: medicines.map((m) => ({
-          id: m.localId,
+          id: m.id ?? m.localId,
           userId: m.userId,
-          localId: m.localId,
           name: m.name,
           dosage: m.dosage,
           time: m.time,
@@ -597,27 +649,24 @@ app.get('/api/admin/sql-entries', async (_, res) => {
           createdAt: m.createdAt,
         })),
         reminders: reminders.map((r) => ({
-          id: r.localId,
+          id: r.id ?? r.localId,
           userId: r.userId,
-          localId: r.localId,
           medicineName: r.medicineName,
           time: r.time,
           isActive: !!r.isActive,
           createdAt: r.createdAt,
         })),
         alarmLogs: alarmLogs.map((a) => ({
-          id: a.localId,
+          id: a.id ?? a.localId,
           userId: a.userId,
-          localId: a.localId,
           medicineName: a.medicineName,
           status: a.status,
           scheduledTime: a.scheduledTime,
           triggeredTime: a.triggeredTime,
         })),
         caretakers: caretakers.map((c) => ({
-          id: c.localId,
+          id: c.id ?? c.localId,
           userId: c.userId,
-          localId: c.localId,
           firstName: c.firstName,
           lastName: c.lastName,
           email: c.email,
@@ -700,7 +749,7 @@ app.get('/api/medicines', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
     const docs = await Medicine.find({ userId: scopedUserId })
-      .sort({ localId: -1 })
+      .sort({ id: -1, localId: -1 })
       .lean();
     res.json({ ok: true, data: docs.map(medicineToDto) });
   } catch (error) {
@@ -710,9 +759,9 @@ app.get('/api/medicines', async (req, res) => {
 
 app.put('/api/medicines/:id', async (req, res) => {
   const scopedUserId = asUserId(req.body?.userId);
-  const localId = Number(req.params.id);
+  const id = Number(req.params.id);
   try {
-    await upsertMedicine(scopedUserId, { ...(req.body || {}), id: localId });
+    await upsertMedicine(scopedUserId, { ...(req.body || {}), id });
     res.status(200).json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -721,10 +770,32 @@ app.put('/api/medicines/:id', async (req, res) => {
 
 app.delete('/api/medicines/:id', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
-  const localId = Number(req.params.id);
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: 'Invalid medicine id' });
+  }
+
   try {
-    await Medicine.deleteOne({ userId: scopedUserId, localId });
-    res.json({ ok: true });
+    const [medicineDeleteResult, remindersDeleteResult, alarmLogsDeleteResult] =
+      await Promise.all([
+        Medicine.deleteOne(byEntityId(scopedUserId, id)),
+        Reminder.deleteMany({ userId: scopedUserId, medicineId: id }),
+        AlarmLog.deleteMany({ userId: scopedUserId, medicineId: id }),
+      ]);
+
+    if (!medicineDeleteResult.deletedCount) {
+      return res.status(404).json({ ok: false, error: 'Medicine not found' });
+    }
+
+    return res.json({
+      ok: true,
+      deleted: {
+        medicine: Number(medicineDeleteResult.deletedCount || 0),
+        reminders: Number(remindersDeleteResult.deletedCount || 0),
+        alarmLogs: Number(alarmLogsDeleteResult.deletedCount || 0),
+      },
+    });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -744,7 +815,7 @@ app.get('/api/reminders', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
     const docs = await Reminder.find({ userId: scopedUserId })
-      .sort({ localId: -1 })
+      .sort({ id: -1, localId: -1 })
       .lean();
     res.json({ ok: true, data: docs.map(reminderToDto) });
   } catch (error) {
@@ -754,9 +825,9 @@ app.get('/api/reminders', async (req, res) => {
 
 app.delete('/api/reminders/:id', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
-  const localId = Number(req.params.id);
+  const id = Number(req.params.id);
   try {
-    await Reminder.deleteOne({ userId: scopedUserId, localId });
+    await Reminder.deleteOne(byEntityId(scopedUserId, id));
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -777,7 +848,7 @@ app.get('/api/alarm-logs', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
     const docs = await AlarmLog.find({ userId: scopedUserId })
-      .sort({ localId: -1 })
+      .sort({ id: -1, localId: -1 })
       .lean();
     res.json({ ok: true, data: docs.map(alarmLogToDto) });
   } catch (error) {
@@ -799,7 +870,7 @@ app.get('/api/caretakers', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
     const docs = await Caretaker.find({ userId: scopedUserId })
-      .sort({ localId: -1 })
+      .sort({ id: -1, localId: -1 })
       .lean();
     res.json({ ok: true, data: docs.map(caretakerToDto) });
   } catch (error) {
@@ -809,9 +880,9 @@ app.get('/api/caretakers', async (req, res) => {
 
 app.delete('/api/caretakers/:id', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
-  const localId = Number(req.params.id);
+  const id = Number(req.params.id);
   try {
-    await Caretaker.deleteOne({ userId: scopedUserId, localId });
+    await Caretaker.deleteOne(byEntityId(scopedUserId, id));
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -869,7 +940,7 @@ app.get('/api/dependents', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
     const docs = await Dependent.find({ userId: scopedUserId })
-      .sort({ localId: -1 })
+      .sort({ id: -1, localId: -1 })
       .lean();
     res.json({ ok: true, data: docs.map(dependentToDto) });
   } catch (error) {
@@ -879,9 +950,9 @@ app.get('/api/dependents', async (req, res) => {
 
 app.delete('/api/dependents/:id', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
-  const localId = Number(req.params.id);
+  const id = Number(req.params.id);
   try {
-    await Dependent.deleteOne({ userId: scopedUserId, localId });
+    await Dependent.deleteOne(byEntityId(scopedUserId, id));
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });

@@ -1,79 +1,129 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
-
-class DrawerMenuItem {
-  final IconData icon;
-  final String title;
-  final String routeName;
-
-  const DrawerMenuItem({
-    required this.icon,
-    required this.title,
-    required this.routeName,
-  });
-}
-
-class DrawerMenuTile extends StatelessWidget {
-  final DrawerMenuItem item;
-
-  const DrawerMenuTile({super.key, required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(item.icon),
-      title: Text(item.title),
-      onTap: () {
-        Navigator.pop(context);
-        Navigator.pushNamed(context, item.routeName);
-      },
-    );
-  }
-}
+import 'package:smart_pill_reminder/services/database_service.dart';
+import 'package:smart_pill_reminder/models/user_profile.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final menuItems = <DrawerMenuItem>[
-      DrawerMenuItem(
-        icon: Icons.person_outline,
-        title: 'Create Profile',
-        routeName: AppRoutes.createProfile,
-      ),
-      DrawerMenuItem(
-        icon: Icons.add_circle_outline,
-        title: 'Add Dependent',
-        routeName: AppRoutes.addDependent,
-      ),
-    ];
+    final theme = Theme.of(context);
+    final email = context.watch<AuthService>().currentUser ?? 'guest';
 
     return Drawer(
-      child: SafeArea(
-        child: Column(
-          children: [
-            for (final item in menuItems) DrawerMenuTile(item: item),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Drawer Header with Profile Info
+          FutureBuilder<UserProfile?>(
+            future: DatabaseService().getUserProfileData(),
+            builder: (context, snapshot) {
+              final profile = snapshot.data;
+              final name = profile?.fullName ?? email.split('@').first;
+              final picPath = profile?.profilePicture;
 
-            const Divider(),
+              return DrawerHeader(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.white,
+                      backgroundImage: picPath != null && picPath.isNotEmpty
+                          ? FileImage(File(picPath))
+                          : null,
+                      child: picPath == null
+                          ? Icon(Icons.person, size: 30, color: theme.colorScheme.primary)
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      email,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
 
-            // Logout
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
-              onTap: () {
-                context.read<AuthService>().logout();
-                Navigator.of(context, rootNavigator: true)
-                    .pushNamedAndRemoveUntil(
-                  AppRoutes.login,
-                  (route) => false,
-                );
-              },
-            ),
-          ],
-        ),
+          // Drawer Menu Tiles
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text('My Profile'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              Navigator.pushNamed(context, AppRoutes.createProfile);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings_outlined),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.pop(context);
+              // Pushes Settings Screen (index 3 of HomeScreen bottom nav or navigates to manage route)
+              Navigator.pushNamed(context, AppRoutes.manage);
+            },
+          ),
+          const Divider(),
+          const Spacer(),
+          const Divider(),
+          // Logout
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.orange),
+            title: const Text('Logout', style: TextStyle(color: Colors.orange)),
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text('Are you sure you want to log out?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context); // Close dialog
+                        Navigator.pop(context); // Close drawer
+                        await context.read<AuthService>().logout();
+                        if (!context.mounted) return;
+                        Navigator.of(context, rootNavigator: true)
+                            .pushNamedAndRemoveUntil(
+                          AppRoutes.login,
+                          (route) => false,
+                        );
+                      },
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      child: const Text('Logout'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
       ),
     );
   }

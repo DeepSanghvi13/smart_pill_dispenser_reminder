@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../models/medicine.dart';
 import '../../../screens/client/medications/barcode_scanner_screen.dart';
 import '../../../services/medicine_barcode_lookup_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/medicine_scan_service.dart';
 import '../../../services/medicine_suggestion_service.dart';
+import '../../../services/auth_service.dart';
 
 class AddMedicationScreen extends StatefulWidget {
   final Medicine? medicine; // null = add, not null = edit
@@ -22,10 +24,16 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
   late TextEditingController nameController;
   late TextEditingController dosageController;
+  late TextEditingController quantityController;
   late TextEditingController timeController;
   late TextEditingController conditionController;
+  late TextEditingController notesController;
+
   late MedicineCategory selectedCategory;
-  DateTime? _expiryDate;
+  String selectedFrequency = 'Daily';
+  DateTime? _startDate;
+  DateTime? _endDate;
+
   String? _scannedText;
   String? _imagePath;
   bool _isScanned = false;
@@ -35,28 +43,35 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   List<String> _suggestions = const [];
   final DatabaseService _databaseService = DatabaseService();
 
+  final List<String> _frequencies = ['Daily', 'Twice a day', 'Three times a day', 'Weekly', 'As needed'];
+
   @override
   void initState() {
     super.initState();
 
     nameController = TextEditingController(text: widget.medicine?.name ?? '');
-    dosageController =
-        TextEditingController(text: widget.medicine?.dosage ?? '');
+    dosageController = TextEditingController(text: widget.medicine?.dosage ?? '');
+    quantityController = TextEditingController(text: widget.medicine?.quantity ?? '1');
     timeController = TextEditingController(text: widget.medicine?.time ?? '');
-    conditionController =
-        TextEditingController(text: widget.medicine?.healthCondition ?? '');
+    conditionController = TextEditingController(text: widget.medicine?.healthCondition ?? '');
+    notesController = TextEditingController(text: widget.medicine?.notes ?? '');
+
     selectedCategory = widget.medicine?.category ?? MedicineCategory.tablets;
-    _expiryDate = widget.medicine?.expiryDate;
+    selectedFrequency = _frequencies.contains(widget.medicine?.frequency) 
+        ? widget.medicine!.frequency 
+        : 'Daily';
+        
+    _startDate = widget.medicine?.startDate ?? DateTime.now();
+    _endDate = widget.medicine?.endDate ?? DateTime.now().add(const Duration(days: 30));
+
     _scannedText = widget.medicine?.scannedText;
     _imagePath = widget.medicine?.imagePath;
     _isScanned = widget.medicine?.isScanned ?? false;
-    _suggestions =
-        MedicineSuggestionService.getSuggestions(conditionController.text);
-
+    
+    _suggestions = MedicineSuggestionService.getSuggestions(conditionController.text);
     conditionController.addListener(() {
       setState(() {
-        _suggestions =
-            MedicineSuggestionService.getSuggestions(conditionController.text);
+        _suggestions = MedicineSuggestionService.getSuggestions(conditionController.text);
       });
     });
   }
@@ -65,8 +80,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   void dispose() {
     nameController.dispose();
     dosageController.dispose();
+    quantityController.dispose();
     timeController.dispose();
     conditionController.dispose();
+    notesController.dispose();
     super.dispose();
   }
 
@@ -83,17 +100,32 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     }
   }
 
-  Future<void> _pickExpiryDate() async {
+  Future<void> _pickStartDate() async {
     final selected = await showDatePicker(
       context: context,
-      initialDate: _expiryDate ?? DateTime.now(),
+      initialDate: _startDate ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
 
     if (selected != null) {
       setState(() {
-        _expiryDate = selected;
+        _startDate = selected;
+      });
+    }
+  }
+
+  Future<void> _pickEndDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+
+    if (selected != null) {
+      setState(() {
+        _endDate = selected;
       });
     }
   }
@@ -102,13 +134,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     setState(() => _isScanning = true);
     try {
       final result = await MedicineScanService.scanMedicineFromImage();
-      if (result == null) {
-        return;
-      }
-
-      if (!mounted) {
-        return;
-      }
+      if (result == null) return;
 
       setState(() {
         if ((result.medicineName ?? '').trim().isNotEmpty) {
@@ -118,7 +144,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           dosageController.text = result.dosage!.trim();
         }
         if (result.expiryDate != null) {
-          _expiryDate = result.expiryDate;
+          _endDate = result.expiryDate;
         }
         if ((result.healthCondition ?? '').trim().isNotEmpty) {
           conditionController.text = result.healthCondition!.trim();
@@ -135,17 +161,13 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   }
 
   Future<void> _scanBarcode() async {
-    if (_isBarcodeLookupLoading) {
-      return;
-    }
+    if (_isBarcodeLookupLoading) return;
 
     String? barcode;
     try {
       barcode = await Navigator.push<String>(
         context,
-        MaterialPageRoute(
-          builder: (_) => const BarcodeScannerScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
       );
     } catch (e) {
       if (mounted) {
@@ -156,9 +178,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       return;
     }
 
-    if (barcode == null || barcode.trim().isEmpty) {
-      return;
-    }
+    if (barcode == null || barcode.trim().isEmpty) return;
 
     setState(() {
       _isBarcodeLookupLoading = true;
@@ -196,7 +216,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             dosageController.text = resolved.dosage;
             selectedCategory = resolved.category;
             if (resolved.expiryDate != null) {
-              _expiryDate = resolved.expiryDate;
+              _endDate = resolved.expiryDate;
             }
             if ((resolved.healthCondition ?? '').trim().isNotEmpty) {
               conditionController.text = resolved.healthCondition!.trim();
@@ -205,39 +225,61 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         });
       }
     }
+  }
 
-    if (!mounted || result == null) {
-      return;
+  void _onSave() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final auth = context.read<AuthService>();
+    final userId = auth.currentUser ?? 'guest';
+
+    final medicine = Medicine(
+      id: widget.medicine?.id,
+      userId: userId,
+      name: nameController.text.trim(),
+      type: selectedCategory.name,
+      dosage: dosageController.text.trim(),
+      quantity: quantityController.text.trim(),
+      frequency: selectedFrequency,
+      time: timeController.text.trim(),
+      startDate: _startDate ?? DateTime.now(),
+      endDate: _endDate ?? DateTime.now().add(const Duration(days: 30)),
+      notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+      isScanned: _isScanned,
+      scannedText: _scannedText,
+      imagePath: _imagePath,
+      healthCondition: conditionController.text.trim().isEmpty ? null : conditionController.text.trim(),
+      status: widget.medicine?.status ?? 'pending',
+      lastActionDate: widget.medicine?.lastActionDate,
+    );
+
+    if (_scannedBarcode != null && _scannedBarcode!.isNotEmpty) {
+      _databaseService.upsertBarcodeLookupCache(
+        barcode: _scannedBarcode!,
+        name: nameController.text.trim(),
+        dosage: dosageController.text.trim(),
+        category: selectedCategory.name,
+        expiryDate: _endDate,
+        healthCondition: conditionController.text.trim().isEmpty ? null : conditionController.text.trim(),
+      );
     }
 
-    final matched = result;
-
-    final message = matched.source == BarcodeLookupSource.backendApi
-        ? 'Matched from backend drug API: ${matched.name}'
-        : matched.source == BarcodeLookupSource.onlineApi
-            ? 'Matched from online drug database: ${matched.name}'
-            : matched.source == BarcodeLookupSource.localCache
-                ? 'Loaded from local cache: ${matched.name}'
-                : 'Matched from local fallback list: ${matched.name}';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    Navigator.pop(context, medicine);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.medicine == null ? 'Add a med' : 'Edit med'),
+        title: Text(widget.medicine == null ? 'Add Medication' : 'Edit Medication'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
+            padding: const EdgeInsets.all(16),
             children: [
               if (!kIsWeb)
                 Row(
@@ -249,191 +291,221 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.document_scanner),
-                        label: Text(
-                            _isScanning ? 'Scanning...' : 'Scan image label'),
+                        label: Text(_isScanning ? 'Scanning...' : 'Scan Label'),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed:
-                            _isBarcodeLookupLoading ? null : _scanBarcode,
+                        onPressed: _isBarcodeLookupLoading ? null : _scanBarcode,
                         icon: _isBarcodeLookupLoading
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.qr_code_scanner),
-                        label: Text(
-                          _isBarcodeLookupLoading
-                              ? 'Looking up...'
-                              : 'Scan barcode',
-                        ),
+                        label: Text(_isBarcodeLookupLoading ? 'Looking up...' : 'Scan Barcode'),
                       ),
                     ),
                   ],
                 ),
-              if (!kIsWeb) const SizedBox(height: 12),
-
-              TextFormField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Medicine Name',
-                ),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
               const SizedBox(height: 16),
 
-              TextFormField(
-                controller: dosageController,
-                decoration: const InputDecoration(
-                  labelText: 'Dosage',
-                ),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: timeController,
-                readOnly: true,
-                onTap: _pickTime,
-                decoration: const InputDecoration(
-                  labelText: 'Time',
-                  suffixIcon: Icon(Icons.access_time),
-                ),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: conditionController,
-                decoration: const InputDecoration(
-                  labelText: 'Health condition (for suggestions)',
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              if (_suggestions.isNotEmpty)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _suggestions
-                      .map(
-                        (item) => ActionChip(
-                          label: Text(item),
-                          onPressed: () {
-                            if (nameController.text.trim().isEmpty) {
-                              nameController.text = item;
-                            }
-                          },
+              // Card containing Fields
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Name
+                      TextFormField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Medicine Name',
+                          prefixIcon: Icon(Icons.medication),
                         ),
-                      )
-                      .toList(),
-                ),
-              if (_suggestions.isNotEmpty) const SizedBox(height: 16),
+                        validator: (v) => v!.isEmpty ? 'Please enter a name' : null,
+                      ),
+                      const SizedBox(height: 16),
 
-              // Category Selector
-              DropdownButtonFormField<MedicineCategory>(
-                isExpanded: true,
-                initialValue: selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Medicine Category',
-                  floatingLabelBehavior: FloatingLabelBehavior.always,
-                  border: OutlineInputBorder(),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                ),
-                items: MedicineCategory.values.map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category.label),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      selectedCategory = value;
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
+                      // Dosage & Quantity
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: dosageController,
+                              decoration: const InputDecoration(
+                                labelText: 'Dosage (e.g. 500mg)',
+                                prefixIcon: Icon(Icons.scale),
+                              ),
+                              validator: (v) => v!.isEmpty ? 'Required' : null,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: quantityController,
+                              decoration: const InputDecoration(
+                                labelText: 'Quantity (e.g. 1 pill)',
+                                prefixIcon: Icon(Icons.numbers),
+                              ),
+                              validator: (v) => v!.isEmpty ? 'Required' : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
 
-              TextFormField(
-                readOnly: true,
-                onTap: _pickExpiryDate,
-                decoration: InputDecoration(
-                  labelText: 'Expiry Date',
-                  suffixIcon: const Icon(Icons.calendar_month),
-                  hintText: _expiryDate == null
-                      ? 'Select expiry date'
-                      : DateFormat.yMMMd().format(_expiryDate!),
-                ),
-              ),
-              const SizedBox(height: 8),
+                      // Category (Type)
+                      DropdownButtonFormField<MedicineCategory>(
+                        value: selectedCategory,
+                        decoration: const InputDecoration(
+                          labelText: 'Medicine Type',
+                          prefixIcon: Icon(Icons.category),
+                        ),
+                        items: MedicineCategory.values.map((cat) {
+                          return DropdownMenuItem(
+                            value: cat,
+                            child: Text(cat.label),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              selectedCategory = val;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
 
-              if (_isScanned && (_scannedText ?? '').trim().isNotEmpty)
-                Text(
-                  'Scanned details captured successfully.',
-                  style: TextStyle(color: Colors.green.shade700),
-                ),
-              if ((_scannedBarcode ?? '').isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    'Barcode: $_scannedBarcode',
-                    style: TextStyle(color: Colors.blue.shade700),
+                      // Frequency
+                      DropdownButtonFormField<String>(
+                        value: selectedFrequency,
+                        decoration: const InputDecoration(
+                          labelText: 'Frequency',
+                          prefixIcon: Icon(Icons.repeat),
+                        ),
+                        items: _frequencies.map((freq) {
+                          return DropdownMenuItem(
+                            value: freq,
+                            child: Text(freq),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              selectedFrequency = val;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Scheduled Time
+                      TextFormField(
+                        controller: timeController,
+                        readOnly: true,
+                        onTap: _pickTime,
+                        decoration: const InputDecoration(
+                          labelText: 'Reminder Time',
+                          prefixIcon: Icon(Icons.access_time),
+                        ),
+                        validator: (v) => v!.isEmpty ? 'Please pick a time' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Start & End Dates
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              readOnly: true,
+                              onTap: _pickStartDate,
+                              decoration: InputDecoration(
+                                labelText: 'Start Date',
+                                prefixIcon: const Icon(Icons.calendar_today),
+                                hintText: DateFormat.yMMMd().format(_startDate!),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              readOnly: true,
+                              onTap: _pickEndDate,
+                              decoration: InputDecoration(
+                                labelText: 'End Date',
+                                prefixIcon: const Icon(Icons.calendar_month),
+                                hintText: DateFormat.yMMMd().format(_endDate!),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Health Condition (OCR Suggestions helper)
+                      TextFormField(
+                        controller: conditionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Health Condition (for suggestions)',
+                          prefixIcon: Icon(Icons.healing),
+                        ),
+                      ),
+                      if (_suggestions.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _suggestions.map((item) {
+                            return ActionChip(
+                              label: Text(item),
+                              onPressed: () {
+                                if (nameController.text.trim().isEmpty) {
+                                  nameController.text = item;
+                                }
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+
+                      // Notes
+                      TextFormField(
+                        controller: notesController,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Notes / Instructions',
+                          prefixIcon: Icon(Icons.note),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              const SizedBox(height: 30),
+              ),
+              const SizedBox(height: 24),
 
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      if ((_scannedBarcode ?? '').isNotEmpty) {
-                        _databaseService.upsertBarcodeLookupCache(
-                          barcode: _scannedBarcode!,
-                          name: nameController.text.trim(),
-                          dosage: dosageController.text.trim(),
-                          category: selectedCategory.name,
-                          expiryDate: _expiryDate,
-                          healthCondition:
-                              conditionController.text.trim().isEmpty
-                                  ? null
-                                  : conditionController.text.trim(),
-                        );
-                      }
-                      Navigator.pop(
-                        context,
-                        Medicine(
-                          name: nameController.text.trim(),
-                          dosage: dosageController.text.trim(),
-                          time: timeController.text.trim(),
-                          category: selectedCategory,
-                          expiryDate: _expiryDate,
-                          isScanned: _isScanned,
-                          scannedText: _scannedText,
-                          imagePath: _imagePath,
-                          healthCondition:
-                              conditionController.text.trim().isEmpty
-                                  ? null
-                                  : conditionController.text.trim(),
-                        ),
-                      );
-                    }
-                  },
-                  child: Text(
-                    widget.medicine == null ? 'Save' : 'Update',
-                  ),
+              // Action Button
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                onPressed: _onSave,
+                child: Text(
+                  widget.medicine == null ? 'Save Medicine' : 'Update Medicine',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ],

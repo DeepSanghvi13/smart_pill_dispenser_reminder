@@ -313,11 +313,13 @@ class NotificationService {
 
   /// Cancel all notifications
   static Future<void> cancelAllNotifications() async {
+    if (kIsWeb || !Platform.isAndroid) return;
     await _notifications.cancelAll();
   }
 
   /// Cancel specific notification by ID
   static Future<void> cancelNotification(int id) async {
+    if (kIsWeb || !Platform.isAndroid) return;
     await _notifications.cancel(id);
   }
 }

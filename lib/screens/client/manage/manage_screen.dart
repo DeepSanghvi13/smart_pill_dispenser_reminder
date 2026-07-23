@@ -1,92 +1,389 @@
 import 'package:flutter/material.dart';
-import 'package:smart_pill_reminder/routes/app_routes.dart';
+import 'package:provider/provider.dart';
+import '../../../routes/app_routes.dart';
+import '../../../services/auth_service.dart';
+import '../../../theme/theme_controller.dart';
+import '../../../services/hive_service.dart';
+import 'create_profile_screen.dart';
 
-class ManageScreen extends StatelessWidget {
+class ManageScreen extends StatefulWidget {
   const ManageScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        _cardTile(
-          icon: Icons.security,
-          title: 'Create Account',
-          subtitle: 'Sign up to backup your data',
-          onTap: () {
-              Navigator.pushNamed(context, AppRoutes.createProfile);
-          },
-        ),
-        _cardTile(
-          icon: Icons.notifications_active,
-          title: 'Reminders Troubleshooting',
-          subtitle: 'Fix reminder issues',
-          onTap: () {
-              Navigator.pushNamed(context, AppRoutes.reminderTroubleshooting);
-          },
-        ),
-        _cardTile(
-          icon: Icons.alarm,
-          title: 'Manage Reminders',
-          subtitle: 'Add, edit, delete and toggle reminders',
-          onTap: () {
-              Navigator.pushNamed(context, AppRoutes.reminders);
-          },
-        ),
-        _cardTile(
-          icon: Icons.settings,
-          title: 'App Settings',
-          subtitle: 'Customize your app',
-          onTap: () {
-              Navigator.pushNamed(context, AppRoutes.appSettings);
-          },
-        ),
-        _cardTile(
-          icon: Icons.local_hospital,
-          title: 'Doctor/Hospital Review',
-          subtitle: 'Send medication concerns for professional review',
-          onTap: () {
-              Navigator.pushNamed(context, AppRoutes.professionalReview);
-          },
-        ),
-        _cardTile(
-          icon: Icons.help_outline,
-          title: 'Help Center',
-          subtitle: 'Get help and support',
-          onTap: () {
-              Navigator.pushNamed(context, AppRoutes.helpCenter);
-          },
-        ),
-        _cardTile(
-          icon: Icons.share,
-          title: 'Share Medisafe',
-          subtitle: 'Invite friends and family',
-          onTap: () {
-              Navigator.pushNamed(context, AppRoutes.shareMedisafe);
-          },
-        ),
-      ],
+  State<ManageScreen> createState() => _ManageScreenState();
+}
+
+class _ManageScreenState extends State<ManageScreen> {
+  bool _notificationsEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationSetting();
+  }
+
+  void _loadNotificationSetting() {
+    final email = context.read<AuthService>().currentUser ?? 'guest';
+    final settings = HiveService().settingsBox;
+    setState(() {
+      _notificationsEnabled = settings.get('${email}_notifications_enabled', defaultValue: true) as bool;
+    });
+  }
+
+  Future<void> _toggleNotifications(bool value) async {
+    final email = context.read<AuthService>().currentUser ?? 'guest';
+    final settings = HiveService().settingsBox;
+    await settings.put('${email}_notifications_enabled', value);
+    setState(() {
+      _notificationsEnabled = value;
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(value ? 'Notifications enabled' : 'Notifications disabled'),
+        duration: const Duration(seconds: 1),
+      ),
     );
   }
 
-  // ---------- CARD TILE ----------
-  Widget _cardTile({
+  void _showPrivacyPolicy() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Privacy Policy'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Your privacy is extremely important to us. PillDispenser stores all of your personal details, profile picture, medication logs, and notification reminders directly on your local device. We do not transmit or upload your health records or personal identifiers to any remote servers.\n\nYour data remains securely on your device unless you choose to wipe the application data or delete your account, which completely clears all stored variables from local sandbox storage.',
+            style: TextStyle(fontSize: 14, height: 1.4),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHelp() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Help & Support'),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Frequently Asked Questions:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Q: How do I mark a medicine as taken?\nA: Simply press the checkmark button next to any medication card on the Home Screen.',
+                style: TextStyle(fontSize: 14, height: 1.4),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Q: Are my medications private?\nA: Yes, all records are stored in your local Hive database and never shared.',
+                style: TextStyle(fontSize: 14, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAbout() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('About PillDispenser'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.medication_liquid, size: 64, color: Colors.blue),
+            SizedBox(height: 16),
+            Text(
+              'PillDispenser App',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            SizedBox(height: 4),
+            Text('Version 2.0.0 (Local Hive Build)', style: TextStyle(color: Colors.grey)),
+            SizedBox(height: 16),
+            Text(
+              'Designed to manage your medicine reminder requirements locally and privately.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleLogout() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to log out of your session?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await context.read<AuthService>().logout();
+              if (!mounted) return;
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                AppRoutes.login,
+                (route) => false,
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleDeleteAccount() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete Account'),
+          ],
+        ),
+        content: const Text(
+          'WARNING: This action is permanent! It will delete your profile, user settings, all medications list, and cancel all notifications. Are you sure you want to proceed?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await context.read<AuthService>().deleteAccount();
+              if (!mounted) return;
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                AppRoutes.login,
+                (route) => false,
+              );
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Account and data deleted successfully.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final canPop = Navigator.canPop(context);
+
+    final content = ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, currentThemeMode, _) {
+        final isDarkMode = currentThemeMode == ThemeMode.dark;
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Settings Header Section
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Personalization',
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+
+            // Profile view and edit item
+            _settingsCardTile(
+              icon: Icons.person_outline,
+              title: 'My Profile',
+              subtitle: 'View and edit your personal medical card',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CreateProfileScreen(isEditing: true),
+                  ),
+                );
+              },
+            ),
+
+            // Theme Switcher Tile
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: SwitchListTile(
+                secondary: Icon(
+                  isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                  color: theme.colorScheme.primary,
+                ),
+                title: const Text('Dark Mode', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(isDarkMode ? 'Enable light UI' : 'Enable dark UI'),
+                value: isDarkMode,
+                onChanged: (bool value) async {
+                  final newMode = value ? ThemeMode.dark : ThemeMode.light;
+                  themeNotifier.value = newMode;
+                  await HiveService().settingsBox.put('theme_mode', newMode.name);
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Notification toggle
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: SwitchListTile(
+                secondary: Icon(
+                  Icons.notifications_active_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                title: const Text('Reminders & Alerts', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Toggle push notifications on/off'),
+                value: _notificationsEnabled,
+                onChanged: _toggleNotifications,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Support & Legal',
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+
+            _settingsCardTile(
+              icon: Icons.privacy_tip_outlined,
+              title: 'Privacy Policy',
+              subtitle: 'How we manage your local data privacy',
+              onTap: _showPrivacyPolicy,
+            ),
+            _settingsCardTile(
+              icon: Icons.help_outline,
+              title: 'Help Center',
+              subtitle: 'FAQs and support manuals',
+              onTap: _showHelp,
+            ),
+            _settingsCardTile(
+              icon: Icons.info_outline,
+              title: 'About PillDispenser',
+              subtitle: 'Application version details',
+              onTap: _showAbout,
+            ),
+
+            const SizedBox(height: 16),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Danger Zone',
+                style: TextStyle(
+                  color: Colors.red.shade700,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+
+            _settingsCardTile(
+              icon: Icons.logout,
+              title: 'Logout',
+              subtitle: 'End current session',
+              iconColor: Colors.orange,
+              onTap: _handleLogout,
+            ),
+            _settingsCardTile(
+              icon: Icons.delete_forever,
+              title: 'Delete My Account',
+              subtitle: 'Permanently wipe all logs & settings',
+              iconColor: Colors.red,
+              onTap: _handleDeleteAccount,
+            ),
+          ],
+        );
+      },
+    );
+
+    if (canPop) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Settings'),
+        ),
+        body: content,
+      );
+    }
+    return content;
+  }
+
+  Widget _settingsCardTile({
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    Color? iconColor,
   }) {
+    final theme = Theme.of(context);
     return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF0D4F8B)),
+        leading: Icon(icon, color: iconColor ?? theme.colorScheme.primary),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right, size: 20),
         onTap: onTap,
       ),
     );

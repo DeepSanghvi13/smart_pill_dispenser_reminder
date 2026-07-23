@@ -1,20 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'hive_service.dart';
 import 'database_service.dart';
-import 'mysql_api_service.dart';
-import 'mysql_sync_helper.dart';
+import '../models/user.dart';
+import '../models/user_profile.dart';
+import 'notification_service.dart';
 
-/// Authentication service to handle user login and caretaker access
 class AuthService extends ChangeNotifier {
   static final AuthService _instance = AuthService._internal();
-  static const String _keyPendingSync = 'pending_mysql_sync';
-
-  // SharedPreferences keys
-  static const String _keyEmail = 'session_email';
-  static const String _keyIsCaretaker = 'session_is_caretaker';
-  static const String _keyLoggedIn = 'session_logged_in';
-  static const String _keyOfflineUsers = 'offline_registered_users';
 
   factory AuthService() {
     return _instance;
@@ -22,348 +14,161 @@ class AuthService extends ChangeNotifier {
 
   AuthService._internal();
 
-  // Current user state
+  // Current user session details
   String? _currentUser;
-  bool _isCaretaker = false;
   bool _isLoggedIn = false;
-  int? _currentUserId;
-  bool _isSyncingBackground = false;
 
-  // Getters
   String? get currentUser => _currentUser;
-  bool get isCaretaker => _isCaretaker;
   bool get isLoggedIn => _isLoggedIn;
-  int? get currentUserId => _currentUserId;
 
-  /// Register a new user (email/password).
-  Future<bool> register(String email, String password) async {
-    final error = await registerWithMessage(email, password);
-    return error == null;
-  }
+  // Key for session storage in Hive settings box
+  static const String _sessionKey = 'current_user_session';
 
-  /// Register a new user (email/password) and return an error message on failure.
-  /// Returns null on success.
-  Future<String?> registerWithMessage(String email, String password) async {
+  /// Register a new user locally.
+  Future<String?> registerWithMessage(String name, String email, String password) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
-      if (normalizedEmail.isEmpty || password.length < 6) {
-        return 'Password must be at least 6 characters.';
+      if (normalizedEmail.isEmpty) {
+        return 'Email cannot be empty.';
+      }
+      if (password.length < 8) {
+        return 'Password must be at least 8 characters.';
       }
 
-      if (normalizedEmail == 'caretaker@medisafe.com') {
-        return 'Caretaker account cannot be registered from app.';
-      }
-
-      final api = MySQLApiService();
-      final serverAvailable = await api.checkServerConnection();
-
-      // Offline-first fallback: allow registration even when backend is down.
-      if (!serverAvailable) {
-        return _registerOffline(normalizedEmail, password);
-      }
-
-      // Flush any queued local users first so MongoDB stays in sync.
-      await _syncOfflineUsersToServer();
-
-      final exists = await api.isEmailRegistered(normalizedEmail);
-      if (exists) {
+      final box = HiveService().usersBox;
+      if (box.containsKey(normalizedEmail)) {
         return 'Email already registered. Please login.';
       }
 
-      final apiError =
-          await api.registerUserWithMessage(normalizedEmail, password);
-      if (apiError == null) {
-        // Keep local credentials in sync so login remains available even if server is down later.
-        await _saveOfflineUser(normalizedEmail, password);
-      }
-      return apiError;
-    } catch (_) {
-      return 'Registration failed. Please check your connection and try again.';
+      final newUser = User(
+        fullName: name,
+        email: normalizedEmail,
+        password: password,
+      );
+      await box.put(normalizedEmail, newUser);
+
+      // Create a default profile automatically with the provided name
+      final profileBox = HiveService().profilesBox;
+      final defaultProfile = UserProfile(
+        email: normalizedEmail,
+        fullName: name,
+      );
+      await profileBox.put(normalizedEmail, defaultProfile);
+
+      return null; // Success
+    } catch (e) {
+      return 'Registration failed: $e';
     }
   }
 
-  /// Restore a previously saved session from SharedPreferences.
-  /// Call this once in main() before runApp().
+  /// Restore session from Hive settings box
   Future<void> loadSession() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final loggedIn = prefs.getBool(_keyLoggedIn) ?? false;
-      if (!loggedIn) return;
-
-      final email = prefs.getString(_keyEmail);
-      final isCaretaker = prefs.getBool(_keyIsCaretaker) ?? false;
-
-      if (email == null || email.isEmpty) return;
-
-      _currentUser = email;
-      _isCaretaker = isCaretaker;
-      _isLoggedIn = true;
-      await _configureAndSync(email);
-      notifyListeners();
-    } catch (_) {
-      // Ignore â€” fresh start is fine
-    }
-  }
-
-  /// Checks whether any user (by any email) is registered on this device.
-  Future<bool> hasAnyRegisteredUser() async {
-    try {
-      final localUsers = await _getOfflineUsers();
-      if (localUsers.isNotEmpty) {
-        return true;
-      }
-      final totalUsers = await MySQLApiService().getTotalRegisteredUsers();
-      return totalUsers > 0;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Login user with email and password
-  /// For caretaker access, use email: caretaker@medisafe.com, password: caretaker123
-  Future<bool> login(String email, String password) async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 450));
-
-      final normalizedEmail = email.trim().toLowerCase();
-
-      // Check for caretaker credentials
-      if (normalizedEmail == 'caretaker@medisafe.com' &&
-          password == 'caretaker123') {
-        _currentUser = normalizedEmail;
-        _isCaretaker = true;
+      final settings = HiveService().settingsBox;
+      final email = settings.get(_sessionKey) as String?;
+      if (email != null && email.isNotEmpty) {
+        _currentUser = email;
         _isLoggedIn = true;
-        _currentUserId = null;
-        await _saveSession(normalizedEmail, isCaretaker: true);
-        await _configureAndSync(normalizedEmail);
+        await DatabaseService().setCurrentUser(email);
         notifyListeners();
-        return true;
       }
-
-      // Always allow local credentials first so auth remains reliable across runs.
-      final localUsers = await _getOfflineUsers();
-      final localPassword = localUsers[normalizedEmail];
-      if (localPassword != null && localPassword == password) {
-        _currentUser = normalizedEmail;
-        _isCaretaker = false;
-        _isLoggedIn = true;
-        _currentUserId = null;
-        await _saveSession(normalizedEmail, isCaretaker: false);
-        await _syncSingleOfflineUserToServer(normalizedEmail, localPassword);
-        await _configureAndSync(normalizedEmail);
-        notifyListeners();
-        return true;
-      }
-
-      final api = MySQLApiService();
-      final serverAvailable = await api.checkServerConnection();
-      if (!serverAvailable) {
-        return false;
-      }
-
-      final response = await api.loginUser(normalizedEmail, password);
-      if (response != null) {
-        _currentUser = response['email'] as String? ?? normalizedEmail;
-        _isCaretaker = response['isCaretaker'] == true;
-        _isLoggedIn = true;
-        _currentUserId = response['id'] as int?;
-        await _saveSession(_currentUser!, isCaretaker: _isCaretaker);
-        await _saveOfflineUser(_currentUser!, password);
-        await _configureAndSync(_currentUser!);
-        notifyListeners();
-        return true;
-      }
-
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Login user with Google account (simulated)
-  Future<bool> loginWithGoogle() async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      _currentUser = 'google.user@medisafe.com';
-      _isCaretaker = false;
-      _isLoggedIn = true;
-      await _saveSession(_currentUser!, isCaretaker: false);
-      await _configureAndSync(_currentUser!);
-      notifyListeners();
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Logout user
-  void logout() {
-    _currentUser = null;
-    _isCaretaker = false;
-    _isLoggedIn = false;
-    _clearSession();
-    DatabaseService().setCurrentUser(null);
-    MySQLApiService().configure(userId: 'guest', authToken: null);
-    notifyListeners();
-  }
-
-  // ---- private helpers ----
-
-  Future<void> _saveSession(String email, {required bool isCaretaker}) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyEmail, email);
-      await prefs.setBool(_keyIsCaretaker, isCaretaker);
-      await prefs.setBool(_keyLoggedIn, true);
     } catch (_) {}
   }
 
-  void _clearSession() {
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.remove(_keyEmail);
-      prefs.remove(_keyIsCaretaker);
-      prefs.remove(_keyLoggedIn);
-    }).catchError((_) {});
-  }
-
-  Future<void> _configureAndSync(String userId) async {
-    // Tell the MySQL service which user this is
-    await DatabaseService().setCurrentUser(userId);
-    final api = MySQLApiService();
-    api.configure(userId: userId);
-
-    if (_isSyncingBackground) return;
-
-    // Bulk sync in background â€” errors are swallowed inside syncAll
-    Future.microtask(() async {
-      _isSyncingBackground = true;
-      final db = DatabaseService();
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final isServerAvailable = await api.checkServerConnection();
-        if (!isServerAvailable) {
-          await prefs.setBool(_keyPendingSync, true);
-          return;
-        }
-
-        await _syncOfflineUsersToServer();
-
-        final medicines = await db.getAllMedicines();
-        final reminders = await db.getAllReminders();
-        final alarmLogs = await db.getAllAlarmLogs();
-        final caretakers = await db.getAllCaretakers();
-        final profile = await db.getUserProfileData();
-
-        final synced = await MySQLSyncHelper.syncAll(
-          userId: userId,
-          medicines: medicines,
-          reminders: reminders,
-          alarmLogs: alarmLogs,
-          caretakers: caretakers,
-          userProfile: profile,
-        );
-        await prefs.setBool(_keyPendingSync, !synced);
-      } catch (_) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(_keyPendingSync, true);
-        // ignore â€” offline is fine
-      } finally {
-        _isSyncingBackground = false;
-      }
-    });
-  }
-
-  /// Check if user is caretaker
-  bool checkCaretakerAccess() {
-    return _isCaretaker;
-  }
-
-  /// Check whether user is already registered.
-  Future<bool> isRegistered(String email) async {
-    final normalizedEmail = email.trim().toLowerCase();
-    final localUsers = await _getOfflineUsers();
-    if (localUsers.containsKey(normalizedEmail)) {
-      return true;
-    }
-    return MySQLApiService().isEmailRegistered(normalizedEmail);
-  }
-
-  Future<Map<String, String>> _getOfflineUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_keyOfflineUsers);
-    if (raw == null || raw.isEmpty) {
-      return <String, String>{};
-    }
+  /// Login local user
+  Future<bool> login(String email, String password) async {
     try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) {
-        return <String, String>{};
+      final normalizedEmail = email.trim().toLowerCase();
+      final box = HiveService().usersBox;
+      
+      if (!box.containsKey(normalizedEmail)) {
+        return false;
       }
-      return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
-    } catch (_) {
-      return <String, String>{};
-    }
-  }
 
-  Future<String?> _registerOffline(String email, String password) async {
-    final users = await _getOfflineUsers();
-    if (users.containsKey(email)) {
-      return 'Email already registered. Please login.';
-    }
-    await _saveOfflineUser(email, password);
-    return null;
-  }
+      final user = box.get(normalizedEmail);
+      if (user != null && user.password == password) {
+        _currentUser = normalizedEmail;
+        _isLoggedIn = true;
+        
+        // Save session
+        final settings = HiveService().settingsBox;
+        await settings.put(_sessionKey, normalizedEmail);
 
-  Future<void> _saveOfflineUser(String email, String password) async {
-    final users = await _getOfflineUsers();
-    users[email] = password;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyOfflineUsers, jsonEncode(users));
-  }
-
-  Future<void> _syncSingleOfflineUserToServer(
-      String email, String password) async {
-    try {
-      final api = MySQLApiService();
-      final isServerAvailable = await api.checkServerConnection();
-      if (!isServerAvailable) return;
-
-      final exists = await api.isEmailRegistered(email);
-      if (!exists) {
-        await api.registerUser(email, password);
+        await DatabaseService().setCurrentUser(normalizedEmail);
+        notifyListeners();
+        return true;
       }
+      return false;
     } catch (_) {
-      // Best-effort sync; keep local credentials if server is unavailable.
+      return false;
     }
   }
 
-  Future<void> _syncOfflineUsersToServer() async {
-    try {
-      final api = MySQLApiService();
-      final isServerAvailable = await api.checkServerConnection();
-      if (!isServerAvailable) return;
-
-      final users = await _getOfflineUsers();
-      for (final entry in users.entries) {
-        final email = entry.key.trim().toLowerCase();
-        final password = entry.value;
-        if (email.isEmpty ||
-            password.isEmpty ||
-            email == 'admin@medisafe.com') {
-          continue;
-        }
-
-        final exists = await api.isEmailRegistered(email);
-        if (!exists) {
-          await api.registerUser(email, password);
-        }
-      }
-    } catch (_) {
-      // Best-effort sync only.
-    }
+  /// Checks if the logged-in user has created/completed their profile
+  bool hasCompletedProfile() {
+    if (_currentUser == null) return false;
+    final profile = HiveService().profilesBox.get(_currentUser);
+    if (profile == null) return false;
+    
+    // We track completion using a flag in the settings box
+    final settings = HiveService().settingsBox;
+    return settings.get('${_currentUser}_profile_created') == true;
   }
+
+  /// Marks profile as completed
+  Future<void> markProfileAsCompleted() async {
+    if (_currentUser == null) return;
+    final settings = HiveService().settingsBox;
+    await settings.put('${_currentUser}_profile_created', true);
+  }
+
+  /// Logout
+  Future<void> logout() async {
+    _currentUser = null;
+    _isLoggedIn = false;
+    
+    final settings = HiveService().settingsBox;
+    await settings.delete(_sessionKey);
+
+    await DatabaseService().setCurrentUser(null);
+    notifyListeners();
+  }
+
+  /// Delete Account
+  Future<void> deleteAccount() async {
+    if (_currentUser == null) return;
+    final email = _currentUser!;
+
+    final usersBox = HiveService().usersBox;
+    final profilesBox = HiveService().profilesBox;
+    final medicinesBox = HiveService().medicinesBox;
+    final settings = HiveService().settingsBox;
+
+    // 1. Cancel all notifications
+    await NotificationService.cancelAllNotifications();
+
+    // 2. Delete user medicines
+    final userMedicineKeys = medicinesBox.keys.where((k) {
+      final m = medicinesBox.get(k);
+      return m?.userId == email;
+    }).toList();
+    for (final key in userMedicineKeys) {
+      await medicinesBox.delete(key);
+    }
+
+    // 3. Delete profile
+    await profilesBox.delete(email);
+    await settings.delete('${email}_profile_created');
+
+    // 4. Delete user account
+    await usersBox.delete(email);
+
+    // 5. Clear session
+    await logout();
+  }
+  
+  // Compatibility getter
+  bool get isCaretaker => false;
 }
 
-// Global instance
 final authService = AuthService();

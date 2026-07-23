@@ -5,26 +5,35 @@ import 'services/notification_service.dart';
 import 'services/database_service.dart';
 import 'services/alarm_service.dart';
 import 'services/auth_service.dart';
+import 'services/hive_service.dart';
 import 'providers/sync_provider.dart';
 import 'providers/medicine_provider.dart';
 import 'routes/app_routes.dart';
+import 'package:timezone/data/latest.dart' as tz;
 import 'theme/theme_controller.dart';
-import 'screens/client/home/home_screen.dart';
-import 'screens/client/alarm/alarm_display_screen.dart';
-import 'screens/admin/admin_webpage_screen.dart';
-import 'screens/client/auth/login_screen.dart';
+import 'screens/client/auth/splash_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones();
 
-  // Initialize database service (handles both web and native)
+  // Initialize database service (Hive local boxes)
   try {
-    await DatabaseService().database;
+    await DatabaseService().initializeHiveBoxes();
+    
+    // Load theme settings from Hive
+    final settingsBox = HiveService().settingsBox;
+    final savedTheme = settingsBox.get('theme_mode') as String?;
+    if (savedTheme != null) {
+      themeNotifier.value = ThemeMode.values.firstWhere(
+        (e) => e.name == savedTheme,
+        orElse: () => ThemeMode.light,
+      );
+    }
   } catch (e) {
-    // ignore: avoid_print
-    print('Database initialization error: $e');
+    debugPrint('Database initialization error: $e');
   }
 
   runApp(const MyApp());
@@ -49,11 +58,6 @@ Future<void> main() async {
             return;
           }
 
-          final authService = context.read<AuthService>();
-          if (!authService.isCaretaker) {
-            return;
-          }
-
           final alarmService = context.read<AlarmService>();
           alarmService.triggerAlarm(
             medicineId: '${decoded['id'] ?? ''}',
@@ -65,16 +69,14 @@ Future<void> main() async {
         }
       });
     } catch (e) {
-      // ignore: avoid_print
-      print('Notification service error (may be expected on web): $e');
+      debugPrint('Notification service initialization error: $e');
     }
 
     // Restore login session in background; provider notifies UI when ready.
     try {
       await AuthService().loadSession();
     } catch (e) {
-      // ignore: avoid_print
-      print('Session restore error: $e');
+      debugPrint('Session restore error: $e');
     }
   });
 }
@@ -102,33 +104,32 @@ class MyApp extends StatelessWidget {
             ),
           ],
           child: MaterialApp(
-            theme: ThemeData.light(),
-            darkTheme: ThemeData.dark(),
+            title: 'Smart Pill Reminder',
+            theme: ThemeData(
+              useMaterial3: true,
+              colorSchemeSeed: const Color(0xFF0D4F8B),
+              brightness: Brightness.light,
+              inputDecorationTheme: InputDecorationTheme(
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Colors.grey.shade50.withOpacity(0.3),
+              ),
+            ),
+            darkTheme: ThemeData(
+              useMaterial3: true,
+              colorSchemeSeed: const Color(0xFF0D4F8B),
+              brightness: Brightness.dark,
+              inputDecorationTheme: InputDecorationTheme(
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Colors.grey.shade900.withOpacity(0.3),
+              ),
+            ),
             themeMode: themeMode,
             debugShowCheckedModeBanner: false,
             navigatorKey: navigatorKey,
             onGenerateRoute: AppRoutes.onGenerateRoute,
-            home: Consumer<AuthService>(
-              builder: (context, authService, _) {
-                // If user is logged in as caretaker, show caretaker dashboard.
-                if (authService.isLoggedIn && authService.isCaretaker) {
-                  return const Stack(
-                    children: [
-                      CaretakerWebpageScreen(),
-                      AlarmDisplayScreen(),
-                    ],
-                  );
-                }
-
-                // If regular user is logged in, show home screen only.
-                if (authService.isLoggedIn) {
-                  return HomeScreen(
-                      key: ValueKey(authService.currentUser ?? 'guest'));
-                }
-                // Otherwise show login screen
-                return const LoginScreen();
-              },
-            ),
+            home: const SplashScreen(),
           ),
         );
       },

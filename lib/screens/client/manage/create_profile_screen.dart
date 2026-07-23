@@ -1,212 +1,430 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:smart_pill_reminder/models/user_profile.dart';
-import 'package:smart_pill_reminder/services/auth_service.dart';
-import 'package:smart_pill_reminder/services/database_service.dart';
+import '../../../models/user_profile.dart';
+import '../../../routes/app_routes.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/database_service.dart';
 
 class CreateProfileScreen extends StatefulWidget {
-  const CreateProfileScreen({super.key});
+  final bool isEditing; // If true, acts as Edit Profile screen from settings
+  const CreateProfileScreen({super.key, this.isEditing = false});
 
   @override
   State<CreateProfileScreen> createState() => _CreateProfileScreenState();
 }
 
 class _CreateProfileScreenState extends State<CreateProfileScreen> {
-  final TextEditingController firstNameController = TextEditingController();
-  final TextEditingController lastNameController = TextEditingController();
-  final TextEditingController zipController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _picker = ImagePicker();
 
-  String gender = 'Gender';
-  DateTime? birthDate;
-  bool _isSaving = false;
+  late TextEditingController nameController;
+  late TextEditingController ageController;
+  late TextEditingController mobileController;
+  late TextEditingController emergencyController;
+  late TextEditingController weightController;
+  late TextEditingController heightController;
+  late TextEditingController conditionsController;
+
+  String? _selectedGender;
+  String? _selectedBloodGroup;
+  String? _imagePath;
+  bool _isLoading = false;
+
+  final List<String> _genders = ['Male', 'Female', 'Other'];
+  final List<String> _bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
   @override
-  void dispose() {
-    firstNameController.dispose();
-    lastNameController.dispose();
-    zipController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    nameController = TextEditingController();
+    ageController = TextEditingController();
+    mobileController = TextEditingController();
+    emergencyController = TextEditingController();
+    weightController = TextEditingController();
+    heightController = TextEditingController();
+    conditionsController = TextEditingController();
+
+    _loadExistingProfile();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Profile'),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _saveProfile,
-            child: Text(
-              'SAVE',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const Text(
-              'Adding your details allows us to make the app more personal.',
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 20),
+  Future<void> _loadExistingProfile() async {
+    final auth = context.read<AuthService>();
+    final email = auth.currentUser;
+    if (email == null) return;
 
-            // Avatar
-            const CircleAvatar(
-              radius: 40,
-              backgroundColor: Colors.grey,
-              child: Icon(Icons.person, size: 50, color: Colors.white),
-            ),
-            const SizedBox(height: 30),
-
-            _inputField(
-              icon: Icons.person,
-              hint: 'First name',
-              controller: firstNameController,
-            ),
-            _inputField(
-              icon: Icons.person_outline,
-              hint: 'Last name',
-              controller: lastNameController,
-            ),
-
-            ListTile(
-              title: Text(gender),
-              leading: const Icon(Icons.wc),
-              onTap: () {
-                setState(() {
-                  gender = gender == 'Gender' ? 'Male' : 'Gender';
-                });
-              },
-            ),
-
-            ListTile(
-              title: Text(
-                birthDate == null
-                    ? 'Birth date'
-                    : '${birthDate!.day}/${birthDate!.month}/${birthDate!.year}',
-              ),
-              leading: const Icon(Icons.cake),
-              onTap: _pickBirthDate,
-            ),
-
-            _inputField(
-              icon: Icons.location_city,
-              hint: 'Zip code',
-              controller: zipController,
-            ),
-
-            const SizedBox(height: 20),
-            const Text(
-              'By clicking the "Save" button, you consent to the association of '
-                  'your personal information with your health information.',
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _saveProfile,
-                child: _isSaving
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Save Profile'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _inputField({
-    required IconData icon,
-    required String hint,
-    required TextEditingController controller,
-  }) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        prefixIcon: Icon(icon),
-        hintText: hint,
-      ),
-    );
-  }
-
-  Future<void> _pickBirthDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime(2000),
-      firstDate: DateTime(1950),
-      lastDate: DateTime.now(),
-    );
-    if (picked != null) {
+    final profile = await DatabaseService().getUserProfileData();
+    if (profile != null) {
       setState(() {
-        birthDate = picked;
+        nameController.text = profile.fullName;
+        ageController.text = profile.age?.toString() ?? '';
+        mobileController.text = profile.mobileNumber ?? '';
+        emergencyController.text = profile.emergencyContact ?? '';
+        weightController.text = profile.weight ?? '';
+        heightController.text = profile.height ?? '';
+        conditionsController.text = profile.medicalConditions ?? '';
+        _selectedGender = _genders.contains(profile.gender) ? profile.gender : null;
+        _selectedBloodGroup = _bloodGroups.contains(profile.bloodGroup) ? profile.bloodGroup : null;
+        _imagePath = profile.profilePicture;
       });
     }
   }
 
-  Future<void> _saveProfile() async {
-    final firstName = firstNameController.text.trim();
-    final lastName = lastNameController.text.trim();
-    if (firstName.isEmpty || lastName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('First name and last name are required')),
+  @override
+  void dispose() {
+    nameController.dispose();
+    ageController.dispose();
+    mobileController.dispose();
+    emergencyController.dispose();
+    weightController.dispose();
+    heightController.dispose();
+    conditionsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 500,
+        maxHeight: 500,
+        imageQuality: 85,
       );
+      if (pickedFile != null) {
+        setState(() {
+          _imagePath = pickedFile.path;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to pick image: $e')),
+      );
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    setState(() => _isSaving = true);
+    setState(() => _isLoading = true);
+
     try {
-      final email = context.read<AuthService>().currentUser;
-      final result = await DatabaseService().saveUserProfile(
-        UserProfile(
-          firstName: firstName,
-          lastName: lastName,
-          gender: gender == 'Gender' ? null : gender,
-          birthDate: birthDate?.toIso8601String(),
-          zipCode: zipController.text.trim().isEmpty
-              ? null
-              : zipController.text.trim(),
-          email: email,
+      final auth = context.read<AuthService>();
+      final email = auth.currentUser ?? 'guest';
+
+      final profile = UserProfile(
+        email: email,
+        fullName: nameController.text.trim(),
+        profilePicture: _imagePath,
+        age: int.tryParse(ageController.text.trim()),
+        gender: _selectedGender,
+        mobileNumber: mobileController.text.trim(),
+        emergencyContact: emergencyController.text.trim(),
+        bloodGroup: _selectedBloodGroup,
+        weight: weightController.text.trim(),
+        height: heightController.text.trim(),
+        medicalConditions: conditionsController.text.trim().isEmpty ? null : conditionsController.text.trim(),
+      );
+
+      await DatabaseService().saveUserProfile(profile);
+      await auth.markProfileAsCompleted();
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile saved successfully!'),
+          backgroundColor: Colors.green,
         ),
       );
 
-      if (!mounted) return;
-      if (result > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile saved successfully')),
-        );
+      // Routing logic
+      if (widget.isEditing || Navigator.canPop(context)) {
+        Navigator.pop(context, true); // go back if editing from settings or drawer
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save profile')),
-        );
+        Navigator.pushReplacementNamed(context, AppRoutes.userHome); // go to home if first time
       }
     } catch (e) {
       if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving profile: $e')),
+        SnackBar(content: Text('Failed to save profile: $e')),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
     }
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isFirstTime = !widget.isEditing;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isFirstTime ? 'Complete Profile' : 'Edit Profile'),
+        automaticallyImplyLeading: Navigator.canPop(context),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (isFirstTime) ...[
+                      Text(
+                        'Set Up Your Profile',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Fill out your medical details to configure personalization.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+
+                    // Avatar Picker Section
+                    Center(
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 64,
+                            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                            backgroundImage: _imagePath != null && _imagePath!.isNotEmpty
+                                ? FileImage(File(_imagePath!))
+                                : null,
+                            child: _imagePath == null
+                                ? Icon(Icons.person, size: 64, color: theme.colorScheme.primary)
+                                : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: CircleAvatar(
+                              radius: 20,
+                              backgroundColor: theme.colorScheme.primary,
+                              child: IconButton(
+                                icon: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                                onPressed: _pickImage,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Inputs Section
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Full Name
+                            TextFormField(
+                              controller: nameController,
+                              decoration: InputDecoration(
+                                labelText: 'Full Name',
+                                prefixIcon: const Icon(Icons.person_outline),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              validator: (value) => value == null || value.trim().isEmpty
+                                  ? 'Please enter your full name'
+                                  : null,
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Age & Gender Row
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: TextFormField(
+                                    controller: ageController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: 'Age',
+                                      prefixIcon: const Icon(Icons.calendar_today_outlined),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Required';
+                                      }
+                                      if (int.tryParse(value) == null) {
+                                        return 'Invalid';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 3,
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedGender,
+                                    decoration: InputDecoration(
+                                      labelText: 'Gender',
+                                      prefixIcon: const Icon(Icons.wc),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    items: _genders
+                                        .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                                        .toList(),
+                                    onChanged: (val) => setState(() => _selectedGender = val),
+                                    validator: (value) => value == null ? 'Required' : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Mobile & Emergency Contacts
+                            TextFormField(
+                              controller: mobileController,
+                              keyboardType: TextInputType.phone,
+                              decoration: InputDecoration(
+                                labelText: 'Mobile Number',
+                                prefixIcon: const Icon(Icons.phone_outlined),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              validator: (value) => value == null || value.trim().isEmpty
+                                  ? 'Please enter mobile number'
+                                  : null,
+                            ),
+                            const SizedBox(height: 16),
+
+                            TextFormField(
+                              controller: emergencyController,
+                              keyboardType: TextInputType.phone,
+                              decoration: InputDecoration(
+                                labelText: 'Emergency Contact',
+                                prefixIcon: const Icon(Icons.contact_phone_outlined),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              validator: (value) => value == null || value.trim().isEmpty
+                                  ? 'Please enter emergency contact'
+                                  : null,
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Blood Group, Weight, Height
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedBloodGroup,
+                                    decoration: InputDecoration(
+                                      labelText: 'Blood Group',
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    items: _bloodGroups
+                                        .map((bg) => DropdownMenuItem(value: bg, child: Text(bg)))
+                                        .toList(),
+                                    onChanged: (val) => setState(() => _selectedBloodGroup = val),
+                                    validator: (value) => value == null ? 'Required' : null,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: weightController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: 'Weight (kg)',
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    validator: (value) => value == null || value.trim().isEmpty
+                                        ? 'Required'
+                                        : null,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: heightController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: 'Height (cm)',
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    validator: (value) => value == null || value.trim().isEmpty
+                                        ? 'Required'
+                                        : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Medical Conditions
+                            TextFormField(
+                              controller: conditionsController,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                labelText: 'Medical Conditions (optional)',
+                                alignLabelWithHint: true,
+                                prefixIcon: const Icon(Icons.healing_outlined),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Save Button
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: _isLoading ? null : _saveProfile,
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              isFirstTime ? 'Save & Continue' : 'Update Profile',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
-
-
-

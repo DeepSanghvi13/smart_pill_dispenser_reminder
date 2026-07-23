@@ -1,92 +1,87 @@
 class UserProfile {
-  final int? id;
-  final String firstName;
-  final String lastName;
+  final String email; // acts as ID/relationship to User
+  final String fullName;
+  final String? profilePicture; // file path or base64
+  final int? age;
   final String? gender;
-  final String? birthDate;
-  final String? zipCode;
-  final String? phoneNumber;
-  final String? email;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
+  final String? mobileNumber;
+  final String? emergencyContact;
+  final String? bloodGroup;
+  final String? weight;
+  final String? height;
+  final String? medicalConditions;
 
   UserProfile({
-    this.id,
-    required this.firstName,
-    required this.lastName,
+    required this.email,
+    required this.fullName,
+    this.profilePicture,
+    this.age,
     this.gender,
-    this.birthDate,
-    this.zipCode,
-    this.phoneNumber,
-    this.email,
-    this.createdAt,
-    this.updatedAt,
+    this.mobileNumber,
+    this.emergencyContact,
+    this.bloodGroup,
+    this.weight,
+    this.height,
+    this.medicalConditions,
   });
 
   UserProfile copyWith({
-    int? id,
-    String? firstName,
-    String? lastName,
-    String? gender,
-    String? birthDate,
-    String? zipCode,
-    String? phoneNumber,
     String? email,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    String? fullName,
+    String? profilePicture,
+    int? age,
+    String? gender,
+    String? mobileNumber,
+    String? emergencyContact,
+    String? bloodGroup,
+    String? weight,
+    String? height,
+    String? medicalConditions,
   }) {
     return UserProfile(
-      id: id ?? this.id,
-      firstName: firstName ?? this.firstName,
-      lastName: lastName ?? this.lastName,
-      gender: gender ?? this.gender,
-      birthDate: birthDate ?? this.birthDate,
-      zipCode: zipCode ?? this.zipCode,
-      phoneNumber: phoneNumber ?? this.phoneNumber,
       email: email ?? this.email,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
+      fullName: fullName ?? this.fullName,
+      profilePicture: profilePicture ?? this.profilePicture,
+      age: age ?? this.age,
+      gender: gender ?? this.gender,
+      mobileNumber: mobileNumber ?? this.mobileNumber,
+      emergencyContact: emergencyContact ?? this.emergencyContact,
+      bloodGroup: bloodGroup ?? this.bloodGroup,
+      weight: weight ?? this.weight,
+      height: height ?? this.height,
+      medicalConditions: medicalConditions ?? this.medicalConditions,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
-      'firstName': firstName,
-      'lastName': lastName,
-      'gender': gender,
-      'birthDate': birthDate,
-      'zipCode': zipCode,
-      'phoneNumber': phoneNumber,
       'email': email,
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
+      'fullName': fullName,
+      'profilePicture': profilePicture,
+      'age': age,
+      'gender': gender,
+      'mobileNumber': mobileNumber,
+      'emergencyContact': emergencyContact,
+      'bloodGroup': bloodGroup,
+      'weight': weight,
+      'height': height,
+      'medicalConditions': medicalConditions,
     };
   }
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     return UserProfile(
-      id: map['id'] as int?,
-      firstName: map['firstName'] as String,
-      lastName: map['lastName'] as String,
+      email: map['email'] as String? ?? '',
+      fullName: map['fullName'] as String? ?? '',
+      profilePicture: map['profilePicture'] as String?,
+      age: map['age'] as int?,
       gender: map['gender'] as String?,
-      birthDate: map['birthDate'] as String?,
-      zipCode: map['zipCode'] as String?,
-      phoneNumber: map['phoneNumber'] as String?,
-      email: map['email'] as String?,
-      createdAt: map['createdAt'] != null
-          ? DateTime.parse(map['createdAt'] as String)
-          : null,
-      updatedAt: map['updatedAt'] != null
-          ? DateTime.parse(map['updatedAt'] as String)
-          : null,
+      mobileNumber: map['mobileNumber'] as String?,
+      emergencyContact: map['emergencyContact'] as String?,
+      bloodGroup: map['bloodGroup'] as String?,
+      weight: map['weight'] as String?,
+      height: map['height'] as String?,
+      medicalConditions: map['medicalConditions'] as String?,
     );
   }
-
-  String get fullName => '$firstName $lastName';
-
-  @override
-  String toString() => 'UserProfile($fullName)';
 }
-
-

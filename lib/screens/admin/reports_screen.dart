@@ -105,10 +105,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
       } else {
         // Fallback: active medicines in scope daily status
         for (final med in medsInScope) {
-          final status = med.getDailyStatus();
-          if (status == 'taken') {
+          if (med.status == 'taken') {
             taken++;
-          } else if (status == 'skipped') {
+          } else if (med.status == 'skipped') {
             missed++;
           } else {
             delayed++;
@@ -193,8 +192,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 padding: const EdgeInsets.all(24),
                 children: [
                   // Filter header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       DropdownButton<String>(
                         value: _reportScope,
@@ -213,14 +215,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           }
                         },
                       ),
-                      Row(
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: _saveCurrentReport,
-                            icon: const Icon(Icons.archive_outlined),
-                            label: const Text('Save Report'),
-                          ),
-                        ],
+                      ElevatedButton.icon(
+                        onPressed: _saveCurrentReport,
+                        icon: const Icon(Icons.archive_outlined),
+                        label: const Text('Save Report'),
                       ),
                     ],
                   ),

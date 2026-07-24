@@ -185,8 +185,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                           onChanged: _toggleBackup,
                         ),
                         const Divider(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 12,
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

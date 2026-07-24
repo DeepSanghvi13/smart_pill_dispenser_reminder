@@ -192,8 +192,11 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             DropdownButton<String>(
                               value: _selectedAudience,
@@ -208,16 +211,16 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                 }
                               },
                             ),
-                            FloatingActionButton.extended(
+                            ElevatedButton.icon(
                               onPressed: _isBroadcasting ? null : _sendAnnouncement,
-                              label: _isBroadcasting
+                              icon: _isBroadcasting
                                   ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
                                     )
-                                  : const Text('Broadcast Announcement'),
-                              icon: _isBroadcasting ? null : const Icon(Icons.send),
+                                  : const Icon(Icons.send),
+                              label: const Text('Broadcast'),
                             ),
                           ],
                         ),

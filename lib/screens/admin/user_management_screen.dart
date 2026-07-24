@@ -447,40 +447,45 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
                         children: [
                           Padding(
                             padding: const EdgeInsets.all(16),
-                            child: Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Expanded(
-                                  child: TextField(
-                                    decoration: const InputDecoration(
-                                      hintText: 'Search by user name or email...',
-                                      prefixIcon: Icon(Icons.search),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (val) {
-                                      setState(() => _searchQuery = val);
-                                    },
+                                TextField(
+                                  decoration: const InputDecoration(
+                                    hintText: 'Search by user name or email...',
+                                    prefixIcon: Icon(Icons.search),
+                                    border: OutlineInputBorder(),
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                DropdownButton<String>(
-                                  value: _selectedRoleFilter,
-                                  items: const [
-                                    DropdownMenuItem(value: 'All', child: Text('All Roles')),
-                                    DropdownMenuItem(value: 'Patient', child: Text('Patients')),
-                                    DropdownMenuItem(value: 'Caretaker', child: Text('Caretakers')),
-                                    DropdownMenuItem(value: 'Admin', child: Text('Admins')),
-                                  ],
                                   onChanged: (val) {
-                                    if (val != null) {
-                                      setState(() => _selectedRoleFilter = val);
-                                    }
+                                    setState(() => _searchQuery = val);
                                   },
                                 ),
-                                const SizedBox(width: 16),
-                                FloatingActionButton.extended(
-                                  onPressed: _showAddUserDialog,
-                                  label: const Text('Add User'),
-                                  icon: const Icon(Icons.add),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 12,
+                                  alignment: WrapAlignment.spaceBetween,
+                                  children: [
+                                    DropdownButton<String>(
+                                      value: _selectedRoleFilter,
+                                      items: const [
+                                        DropdownMenuItem(value: 'All', child: Text('All Roles')),
+                                        DropdownMenuItem(value: 'Patient', child: Text('Patients')),
+                                        DropdownMenuItem(value: 'Caretaker', child: Text('Caretakers')),
+                                        DropdownMenuItem(value: 'Admin', child: Text('Admins')),
+                                      ],
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setState(() => _selectedRoleFilter = val);
+                                        }
+                                      },
+                                    ),
+                                    ElevatedButton.icon(
+                                      onPressed: _showAddUserDialog,
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('Add User'),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -582,17 +587,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
                         children: [
                           Padding(
                             padding: const EdgeInsets.all(16),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 const Text(
                                   'Caretaker-Patient Connections',
                                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
-                                FloatingActionButton.extended(
+                                ElevatedButton.icon(
                                   onPressed: _showAddConnectionDialog,
-                                  label: const Text('Link Caretaker & Patient'),
                                   icon: const Icon(Icons.link),
+                                  label: const Text('Link Caretaker & Patient'),
                                 ),
                               ],
                             ),

@@ -449,40 +449,45 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          decoration: const InputDecoration(
-                            hintText: 'Search by medication or patient name...',
-                            prefixIcon: Icon(Icons.search),
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: (val) {
-                            setState(() => _searchQuery = val);
-                          },
+                      TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search by medication or patient name...',
+                          prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      DropdownButton<String>(
-                        value: _selectedTypeFilter,
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All Types')),
-                          DropdownMenuItem(value: 'Tablets', child: Text('Tablets')),
-                          DropdownMenuItem(value: 'Syrup', child: Text('Syrup')),
-                          DropdownMenuItem(value: 'Injection', child: Text('Injection')),
-                        ],
                         onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _selectedTypeFilter = val);
-                          }
+                          setState(() => _searchQuery = val);
                         },
                       ),
-                      const SizedBox(width: 16),
-                      FloatingActionButton.extended(
-                        onPressed: _showAddMedicineDialog,
-                        label: const Text('Schedule Medicine'),
-                        icon: const Icon(Icons.add),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        alignment: WrapAlignment.spaceBetween,
+                        children: [
+                          DropdownButton<String>(
+                            value: _selectedTypeFilter,
+                            items: const [
+                              DropdownMenuItem(value: 'All', child: Text('All Types')),
+                              DropdownMenuItem(value: 'Tablets', child: Text('Tablets')),
+                              DropdownMenuItem(value: 'Syrup', child: Text('Syrup')),
+                              DropdownMenuItem(value: 'Injection', child: Text('Injection')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _selectedTypeFilter = val);
+                              }
+                            },
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _showAddMedicineDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Schedule Medicine'),
+                          ),
+                        ],
                       ),
                     ],
                   ),

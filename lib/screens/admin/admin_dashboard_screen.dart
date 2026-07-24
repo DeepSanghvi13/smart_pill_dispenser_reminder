@@ -258,12 +258,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const SizedBox(height: 24),
 
                   // Analytics Charts Section
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Card(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 600;
+                      final children = [
+                        Card(
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           child: Padding(
                             padding: const EdgeInsets.all(20),
@@ -287,11 +286,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 3,
-                        child: Card(
+                        SizedBox(width: isNarrow ? 0 : 16, height: isNarrow ? 16 : 0),
+                        Card(
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           child: Padding(
                             padding: const EdgeInsets.all(20),
@@ -312,101 +308,128 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ];
+                      if (isNarrow) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: children,
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 2, child: children[0]),
+                          children[1],
+                          Expanded(flex: 3, child: children[2]),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
 
                   // Lists: Recent Registrations & Added Medicines
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Card(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Recent Registrations',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 600;
+                      final regCard = Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Recent Registrations',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const SizedBox(height: 12),
+                              if (_recentUsers.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 20),
+                                  child: Center(child: Text('No recent users.', style: TextStyle(color: Colors.grey))),
+                                )
+                              else
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: _recentUsers.length,
+                                  separatorBuilder: (_, __) => const Divider(),
+                                  itemBuilder: (ctx, index) {
+                                    final user = _recentUsers[index];
+                                    return ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: CircleAvatar(
+                                        backgroundColor: theme.colorScheme.primaryContainer,
+                                        child: Text(user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U'),
+                                      ),
+                                      title: Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                      subtitle: Text('${user.email} • Role: ${user.role}'),
+                                    );
+                                  },
                                 ),
-                                const SizedBox(height: 12),
-                                if (_recentUsers.isEmpty)
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 20),
-                                    child: Center(child: Text('No recent users.', style: TextStyle(color: Colors.grey))),
-                                  )
-                                else
-                                  ListView.separated(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    itemCount: _recentUsers.length,
-                                    separatorBuilder: (_, __) => const Divider(),
-                                    itemBuilder: (ctx, index) {
-                                      final user = _recentUsers[index];
-                                      return ListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        leading: CircleAvatar(
-                                          backgroundColor: theme.colorScheme.primaryContainer,
-                                          child: Text(user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U'),
-                                        ),
-                                        title: Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                        subtitle: Text('${user.email} • Role: ${user.role}'),
-                                      );
-                                    },
-                                  ),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Card(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Recent Medications Added',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      );
+                      final medCard = Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Recent Medications Added',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const SizedBox(height: 12),
+                              if (_recentMedicines.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 20),
+                                  child: Center(child: Text('No medications added recently.', style: TextStyle(color: Colors.grey))),
+                                )
+                              else
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: _recentMedicines.length,
+                                  separatorBuilder: (_, __) => const Divider(),
+                                  itemBuilder: (ctx, index) {
+                                    final med = _recentMedicines[index];
+                                    return ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: CircleAvatar(
+                                        backgroundColor: Colors.teal.shade50,
+                                        child: const Icon(Icons.medication, color: Colors.teal),
+                                      ),
+                                      title: Text(med.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                      subtitle: Text('${med.dosage} • Frequency: ${med.frequency}'),
+                                    );
+                                  },
                                 ),
-                                const SizedBox(height: 12),
-                                if (_recentMedicines.isEmpty)
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 20),
-                                    child: Center(child: Text('No medications added recently.', style: TextStyle(color: Colors.grey))),
-                                  )
-                                else
-                                  ListView.separated(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    itemCount: _recentMedicines.length,
-                                    separatorBuilder: (_, __) => const Divider(),
-                                    itemBuilder: (ctx, index) {
-                                      final med = _recentMedicines[index];
-                                      return ListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        leading: CircleAvatar(
-                                          backgroundColor: Colors.teal.shade50,
-                                          child: const Icon(Icons.medication, color: Colors.teal),
-                                        ),
-                                        title: Text(med.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                        subtitle: Text('${med.dosage} • Frequency: ${med.frequency}'),
-                                      );
-                                    },
-                                  ),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      );
+                      if (isNarrow) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            regCard,
+                            const SizedBox(height: 16),
+                            medCard,
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: regCard),
+                          const SizedBox(width: 16),
+                          Expanded(child: medCard),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
 

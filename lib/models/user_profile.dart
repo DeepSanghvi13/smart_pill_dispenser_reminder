@@ -10,6 +10,14 @@ class UserProfile {
   final String? weight;
   final String? height;
   final String? medicalConditions;
+  final String? relationship; // Caretaker field
+  final String? connectionCode; // Patient field
+  
+  // Audit metadata fields
+  final String createdBy;
+  final String updatedBy;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   UserProfile({
     required this.email,
@@ -23,7 +31,16 @@ class UserProfile {
     this.weight,
     this.height,
     this.medicalConditions,
-  });
+    this.relationship,
+    this.connectionCode,
+    String? createdBy,
+    String? updatedBy,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : createdBy = createdBy ?? email,
+        updatedBy = updatedBy ?? email,
+        createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
 
   UserProfile copyWith({
     String? email,
@@ -37,6 +54,12 @@ class UserProfile {
     String? weight,
     String? height,
     String? medicalConditions,
+    String? relationship,
+    String? connectionCode,
+    String? createdBy,
+    String? updatedBy,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return UserProfile(
       email: email ?? this.email,
@@ -50,6 +73,12 @@ class UserProfile {
       weight: weight ?? this.weight,
       height: height ?? this.height,
       medicalConditions: medicalConditions ?? this.medicalConditions,
+      relationship: relationship ?? this.relationship,
+      connectionCode: connectionCode ?? this.connectionCode,
+      createdBy: createdBy ?? this.createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -66,12 +95,19 @@ class UserProfile {
       'weight': weight,
       'height': height,
       'medicalConditions': medicalConditions,
+      'relationship': relationship,
+      'connectionCode': connectionCode,
+      'createdBy': createdBy,
+      'updatedBy': updatedBy,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
+    final emailVal = map['email'] as String? ?? '';
     return UserProfile(
-      email: map['email'] as String? ?? '',
+      email: emailVal,
       fullName: map['fullName'] as String? ?? '',
       profilePicture: map['profilePicture'] as String?,
       age: map['age'] as int?,
@@ -82,6 +118,12 @@ class UserProfile {
       weight: map['weight'] as String?,
       height: map['height'] as String?,
       medicalConditions: map['medicalConditions'] as String?,
+      relationship: map['relationship'] as String?,
+      connectionCode: map['connectionCode'] as String?,
+      createdBy: map['createdBy'] as String? ?? emailVal,
+      updatedBy: map['updatedBy'] as String? ?? emailVal,
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
+      updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt'] as String) : DateTime.now(),
     );
   }
 }

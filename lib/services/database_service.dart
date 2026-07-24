@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:intl/intl.dart';
 import 'hive_service.dart';
+import '../models/user.dart';
 import '../models/alarm_log.dart';
 import '../models/caretaker.dart';
 import '../models/medicine.dart';
@@ -10,6 +12,7 @@ import '../models/user_profile.dart';
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   static String _currentUserId = 'guest';
+  static String? _activePatientId;
 
   factory DatabaseService() {
     return _instance;
@@ -18,9 +21,16 @@ class DatabaseService {
   DatabaseService._internal();
 
   String get currentUserId => _currentUserId;
+  
+  String get activePatientId => _activePatientId ?? _currentUserId;
 
   Future<void> setCurrentUser(String? userId) async {
     _currentUserId = userId?.trim().toLowerCase() ?? 'guest';
+    _activePatientId = null; // Reset when changing user
+  }
+
+  void setActivePatient(String? patientId) {
+    _activePatientId = patientId?.trim().toLowerCase();
   }
 
   Future<void> initializeHiveBoxes() async {
@@ -47,7 +57,10 @@ class DatabaseService {
     
     final payload = medicine.copyWith(
       id: nextId,
-      userId: _currentUserId,
+      userId: activePatientId,
+      patientId: activePatientId,
+      createdBy: _currentUserId,
+      updatedBy: _currentUserId,
     );
     await box.put(nextId, payload);
     return nextId;
@@ -55,13 +68,13 @@ class DatabaseService {
 
   Future<List<Medicine>> getAllMedicines() async {
     final box = HiveService().medicinesBox;
-    return box.values.where((m) => m.userId == _currentUserId).toList();
+    return box.values.where((m) => m.userId == activePatientId || m.patientId == activePatientId).toList();
   }
 
   Future<Medicine?> getMedicineById(int id) async {
     final box = HiveService().medicinesBox;
     final m = box.get(id);
-    if (m != null && m.userId == _currentUserId) {
+    if (m != null && (m.userId == activePatientId || m.patientId == activePatientId)) {
       return m;
     }
     return null;
@@ -69,7 +82,12 @@ class DatabaseService {
 
   Future<int> updateMedicine(int id, Medicine medicine) async {
     final box = HiveService().medicinesBox;
-    final payload = medicine.copyWith(id: id, userId: _currentUserId);
+    final payload = medicine.copyWith(
+      id: id,
+      userId: activePatientId,
+      patientId: activePatientId,
+      updatedBy: _currentUserId,
+    );
     await box.put(id, payload);
     return 1;
   }
@@ -94,9 +112,14 @@ class DatabaseService {
     return box.get(_currentUserId);
   }
 
-  // ============= REMINDER OPERATIONS (Stored in Hive settings box for multi-user separation) =============
+  Future<UserProfile?> getPatientUserProfileData(String patientId) async {
+    final box = HiveService().profilesBox;
+    return box.get(patientId.trim().toLowerCase());
+  }
 
-  String _remindersKey() => 'reminders_$_currentUserId';
+  // ============= REMINDER OPERATIONS =============
+
+  String _remindersKey() => 'reminders_$activePatientId';
 
   Future<List<Reminder>> getAllReminders() async {
     final settingsBox = HiveService().settingsBox;
@@ -170,7 +193,7 @@ class DatabaseService {
 
   // ============= ALARM LOG OPERATIONS =============
 
-  String _alarmLogsKey() => 'alarmlogs_$_currentUserId';
+  String _alarmLogsKey() => 'alarmlogs_$activePatientId';
 
   Future<List<AlarmLog>> getAllAlarmLogs() async {
     final settingsBox = HiveService().settingsBox;
@@ -329,7 +352,7 @@ class DatabaseService {
     return result;
   }
 
-  // ============= OTHER SUPPORTING PERSISTENCE (Stubs/Local Helpers) =============
+  // ============= LOCAL CARETARKER DB AND HELPERS =============
 
   Future<int> addCaretaker(Caretaker caretaker) async {
     final settingsBox = HiveService().settingsBox;
@@ -445,5 +468,82 @@ class DatabaseService {
 
   Future<void> closeDatabase() async {
     // Compatibility no-op
+  }
+
+  // ============= ADMINISTRATIVE GETTERS =============
+
+  Future<int> adminGetTotalUsersCount() async {
+    return HiveService().usersBox.length;
+  }
+
+  Future<int> adminGetTotalPatientsCount() async {
+    final box = HiveService().usersBox;
+    return box.values.where((u) => u.role == 'patient').length;
+  }
+
+  Future<int> adminGetTotalCaretakersCount() async {
+    final box = HiveService().usersBox;
+    return box.values.where((u) => u.role == 'caretaker').length;
+  }
+
+  Future<int> adminGetTotalMedicinesCount() async {
+    return HiveService().medicinesBox.length;
+  }
+
+  Future<int> adminGetMedicinesTakenTodayCount() async {
+    final box = HiveService().medicinesBox;
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    return box.values.where((m) => m.lastActionDate == todayStr && m.status == 'taken').length;
+  }
+
+  Future<int> adminGetMissedMedicinesTodayCount() async {
+    final box = HiveService().medicinesBox;
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    return box.values.where((m) => m.lastActionDate == todayStr && m.status == 'skipped').length;
+  }
+
+  Future<int> adminGetPendingRemindersCount() async {
+    final box = HiveService().medicinesBox;
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    return box.values.where((m) => m.lastActionDate != todayStr || m.status == 'pending').length;
+  }
+
+  Future<int> adminGetActiveUsersCount() async {
+    final box = HiveService().usersBox;
+    return box.values.where((u) => u.isActive).length;
+  }
+
+  Future<List<User>> adminGetRecentRegistrations({int limit = 5}) async {
+    final box = HiveService().usersBox;
+    final list = box.values.toList();
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list.take(limit).toList();
+  }
+
+  Future<List<Medicine>> adminGetRecentMedicines({int limit = 5}) async {
+    final box = HiveService().medicinesBox;
+    final list = box.values.toList();
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list.take(limit).toList();
+  }
+
+  Future<List<String>> adminGetRecentActivities() async {
+    final box = HiveService().settingsBox;
+    final list = box.get('admin_activities') as List<dynamic>? ?? [];
+    return list.map((e) => e.toString()).toList();
+  }
+
+  Future<void> adminLogActivity(String activity) async {
+    final box = HiveService().settingsBox;
+    final list = box.get('admin_activities') as List<dynamic>? ?? [];
+    final timestamp = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+    final newActivity = '[$timestamp] $activity';
+    final updated = [newActivity, ...list].take(30).toList();
+    await box.put('admin_activities', updated);
+  }
+
+  Future<List<Map<String, dynamic>>> adminGetSystemNotifications() async {
+    final box = HiveService().notificationsBox;
+    return box.values.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 }

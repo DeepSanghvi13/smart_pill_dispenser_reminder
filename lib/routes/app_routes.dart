@@ -36,7 +36,23 @@ import '../screens/client/reminders/reminders_screen.dart';
 import '../screens/database/sql_category_entries_screen.dart';
 import '../screens/database/sql_connection_status_screen.dart';
 
+import '../screens/admin/admin_dashboard_screen.dart';
+import '../screens/admin/user_management_screen.dart';
+import '../screens/admin/medicine_management_screen.dart';
+import '../screens/admin/reports_screen.dart';
+import '../screens/admin/announcements_screen.dart';
+import '../screens/admin/admin_profile_screen.dart';
+import '../screens/admin/admin_settings_screen.dart';
+
 class AppRoutes {
+  static const String adminDashboard = '/admin/dashboard';
+  static const String adminUserList = '/admin/users';
+  static const String adminMedicineList = '/admin/medicines';
+  static const String adminReports = '/admin/reports';
+  static const String adminAnnouncements = '/admin/announcements';
+  static const String adminProfile = '/admin/profile';
+  static const String adminSettings = '/admin/settings';
+
   static const String login = '/login';
   static const String register = '/register';
   static const String userHome = '/home';
@@ -187,6 +203,20 @@ class AppRoutes {
           );
         }
         return _unknownRoute();
+      case adminDashboard:
+        return MaterialPageRoute(builder: (_) => const AdminDashboardScreen());
+      case adminUserList:
+        return MaterialPageRoute(builder: (_) => const UserManagementScreen());
+      case adminMedicineList:
+        return MaterialPageRoute(builder: (_) => const MedicineManagementScreen());
+      case adminReports:
+        return MaterialPageRoute(builder: (_) => const ReportsScreen());
+      case adminAnnouncements:
+        return MaterialPageRoute(builder: (_) => const AnnouncementsScreen());
+      case adminProfile:
+        return MaterialPageRoute(builder: (_) => const AdminProfileScreen());
+      case adminSettings:
+        return MaterialPageRoute(builder: (_) => const AdminSettingsScreen());
       default:
         return _unknownRoute();
     }

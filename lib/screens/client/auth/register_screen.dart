@@ -16,6 +16,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController = TextEditingController();
 
+  String selectedRole = 'patient';
   bool hidePassword = true;
   bool hideConfirmPassword = true;
   bool _isLoading = false;
@@ -40,8 +41,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    // Call Hive-based register service
-    final error = await authService.registerWithMessage(name, email, password);
+    // Call Hive-based register service with selected role
+    final error = await authService.registerWithMessage(
+      name, 
+      email, 
+      password, 
+      role: selectedRole
+    );
 
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -184,6 +190,76 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   }
                                   return null;
                                 },
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Role Selection
+                              Text(
+                                'I want to register as:',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(Icons.healing_outlined),
+                                      label: const Text('Patient'),
+                                      style: OutlinedButton.styleFrom(
+                                        backgroundColor: selectedRole == 'patient'
+                                            ? theme.colorScheme.primaryContainer
+                                            : Colors.transparent,
+                                        foregroundColor: selectedRole == 'patient'
+                                            ? theme.colorScheme.primary
+                                            : Colors.grey.shade700,
+                                        side: BorderSide(
+                                          color: selectedRole == 'patient'
+                                              ? theme.colorScheme.primary
+                                              : Colors.grey.shade300,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          selectedRole = 'patient';
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(Icons.medical_services_outlined),
+                                      label: const Text('Caretaker'),
+                                      style: OutlinedButton.styleFrom(
+                                        backgroundColor: selectedRole == 'caretaker'
+                                            ? theme.colorScheme.primaryContainer
+                                            : Colors.transparent,
+                                        foregroundColor: selectedRole == 'caretaker'
+                                            ? theme.colorScheme.primary
+                                            : Colors.grey.shade700,
+                                        side: BorderSide(
+                                          color: selectedRole == 'caretaker'
+                                              ? theme.colorScheme.primary
+                                              : Colors.grey.shade300,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          selectedRole = 'caretaker';
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 16),
 

@@ -6,6 +6,9 @@ import '../models/reminder.dart';
 import '../models/alarm_log.dart';
 import '../services/medicine_repository.dart';
 import '../services/notification_service.dart';
+import '../services/auth_service.dart';
+import '../services/hive_service.dart';
+import '../services/database_service.dart';
 
 class MedicineProvider extends ChangeNotifier {
   final MedicineRepository _repo = MedicineRepository();
@@ -21,6 +24,8 @@ class MedicineProvider extends ChangeNotifier {
 
   String? _error;
 
+  String? _activePatientId;
+
   // Getters
   List<Medicine> get medicines => _medicines;
   List<Reminder> get reminders => _reminders;
@@ -32,6 +37,14 @@ class MedicineProvider extends ChangeNotifier {
   bool get loadingAlarms => _loadingAlarms;
   String? get error => _error;
   bool get hasError => _error != null;
+
+  String? get activePatientId => _activePatientId;
+
+  void setActivePatient(String? patientId) {
+    _activePatientId = patientId;
+    DatabaseService().setActivePatient(patientId);
+    reloadAll();
+  }
 
   // Helper for notification IDs
   int _notificationIdForMedicine(int medicineId) {
@@ -197,18 +210,71 @@ class MedicineProvider extends ChangeNotifier {
         scheduledDate = scheduledDate.add(const Duration(days: 1));
       }
 
-      await NotificationService.scheduleAlarmNotification(
-        id: _notificationIdForMedicine(medicine.id!),
-        title: 'Medication Reminder',
-        body: 'Time to take ${medicine.name} (${medicine.dosage})',
-        dateTime: scheduledDate,
-        payload: jsonEncode({
-          'type': 'alarm',
-          'id': medicine.id,
-          'name': medicine.name,
-          'dosage': medicine.dosage,
-        }),
-      );
+      final baseId = _notificationIdForMedicine(medicine.id!);
+      final freq = medicine.frequency.trim().toLowerCase();
+
+      if (freq == 'weekly') {
+        await NotificationService.scheduleWeeklyAlarmNotification(
+          id: baseId * 10,
+          title: 'Medication Reminder (Weekly)',
+          body: 'Time to take ${medicine.name} (${medicine.dosage})',
+          dateTime: scheduledDate,
+          payload: jsonEncode({
+            'type': 'alarm',
+            'id': medicine.id,
+            'name': medicine.name,
+            'dosage': medicine.dosage,
+          }),
+        );
+      } else if (freq == 'twice a day') {
+        for (int i = 0; i < 2; i++) {
+          final alarmTime = scheduledDate.add(Duration(hours: 12 * i));
+          await NotificationService.scheduleAlarmNotification(
+            id: baseId * 10 + i + 1,
+            title: 'Medication Reminder',
+            body: 'Time to take ${medicine.name} (${medicine.dosage})',
+            dateTime: alarmTime,
+            payload: jsonEncode({
+              'type': 'alarm',
+              'id': medicine.id,
+              'name': medicine.name,
+              'dosage': medicine.dosage,
+            }),
+          );
+        }
+      } else if (freq == 'three times a day') {
+        for (int i = 0; i < 3; i++) {
+          final alarmTime = scheduledDate.add(Duration(hours: 8 * i));
+          await NotificationService.scheduleAlarmNotification(
+            id: baseId * 10 + i + 1,
+            title: 'Medication Reminder',
+            body: 'Time to take ${medicine.name} (${medicine.dosage})',
+            dateTime: alarmTime,
+            payload: jsonEncode({
+              'type': 'alarm',
+              'id': medicine.id,
+              'name': medicine.name,
+              'dosage': medicine.dosage,
+            }),
+          );
+        }
+      } else if (freq == 'as needed') {
+        // Do not schedule recurring notifications for "As needed"
+      } else {
+        // Default to "Daily" recurring alarm
+        await NotificationService.scheduleAlarmNotification(
+          id: baseId * 10,
+          title: 'Medication Reminder',
+          body: 'Time to take ${medicine.name} (${medicine.dosage})',
+          dateTime: scheduledDate,
+          payload: jsonEncode({
+            'type': 'alarm',
+            'id': medicine.id,
+            'name': medicine.name,
+            'dosage': medicine.dosage,
+          }),
+        );
+      }
     } catch (e) {
       debugPrint('Error scheduling notification: $e');
     }
@@ -216,7 +282,11 @@ class MedicineProvider extends ChangeNotifier {
 
   Future<void> _cancelNotificationForMedicine(int medicineId) async {
     try {
-      await NotificationService.cancelNotification(_notificationIdForMedicine(medicineId));
+      final baseId = _notificationIdForMedicine(medicineId);
+      await NotificationService.cancelNotification(baseId * 10);
+      for (int i = 0; i < 4; i++) {
+        await NotificationService.cancelNotification(baseId * 10 + i + 1);
+      }
     } catch (e) {
       debugPrint('Error cancelling notification: $e');
     }
@@ -328,6 +398,73 @@ class MedicineProvider extends ChangeNotifier {
     }
   }
 
+  // ============= CARETAKER ALERT LOGIC =============
+
+  Future<void> checkMissedMedicinesAndNotifyCaretakers() async {
+    final auth = AuthService();
+    if (!auth.isLoggedIn || !auth.isCaretaker) return;
+
+    final connectedPatients = auth.getConnectedPatients();
+    final medicinesBox = HiveService().medicinesBox;
+    final notificationsBox = HiveService().notificationsBox;
+
+    final now = DateTime.now();
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+
+    for (final patient in connectedPatients) {
+      final patientMeds = medicinesBox.values.where(
+        (m) => m.patientId == patient.email || m.userId == patient.email
+      );
+
+      for (final med in patientMeds) {
+        final clean = med.time.trim();
+        final formats = [
+          DateFormat('h:mm a'),
+          DateFormat('hh:mm a'),
+          DateFormat('H:mm'),
+          DateFormat('HH:mm'),
+        ];
+        DateTime? parsedTime;
+        for (final format in formats) {
+          try {
+            parsedTime = format.parse(clean);
+            break;
+          } catch (_) {}
+        }
+
+        if (parsedTime != null) {
+          final medTime = DateTime(now.year, now.month, now.day, parsedTime.hour, parsedTime.minute);
+          final difference = now.difference(medTime).inMinutes;
+          
+          final dailyStatus = med.getDailyStatus();
+          // If medication was scheduled for today and is > 30 minutes past without action
+          if (difference >= 30 && dailyStatus == 'pending') {
+            final notifId = 'missed_${patient.email}_${med.id}_$todayStr';
+            if (!notificationsBox.containsKey(notifId)) {
+              final notif = {
+                'notificationId': notifId,
+                'patientId': patient.email,
+                'patientName': patient.fullName,
+                'medicineName': med.name,
+                'scheduledTime': med.time,
+                'createdAt': DateTime.now().toIso8601String(),
+                'read': false,
+              };
+              await notificationsBox.put(notifId, notif);
+
+              // Trigger Caretaker Alert
+              await NotificationService.showCaretakerAlert(
+                name: patient.fullName,
+                medicine: med.name,
+                relationship: patient.relationship ?? 'Patient',
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
   // ============= UTILITY METHODS =============
 
   void clearError() {
@@ -342,5 +479,6 @@ class MedicineProvider extends ChangeNotifier {
       loadTodayAlarms(),
       loadMissedAlarms(),
     ]);
+    await checkMissedMedicinesAndNotifyCaretakers();
   }
 }

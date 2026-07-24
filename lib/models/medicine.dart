@@ -34,6 +34,13 @@ class Medicine {
   final String status; // 'pending', 'taken', 'skipped'
   final String? lastActionDate; // YYYY-MM-DD for daily progress
 
+  // Caretaker audit fields
+  final String patientId; // Scoped patient email
+  final String createdBy; // Email of the user who added
+  final String updatedBy; // Email of the user who updated
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
   // Compatibility flags
   final bool isScanned;
   final String? scannedText;
@@ -54,17 +61,29 @@ class Medicine {
     this.notes,
     this.status = 'pending',
     this.lastActionDate,
+    String? patientId,
+    String? createdBy,
+    String? updatedBy,
+    DateTime? createdAt,
+    DateTime? updatedAt,
     this.isScanned = false,
     this.scannedText,
     this.imagePath,
     this.healthCondition,
-  });
+  })  : patientId = patientId ?? userId,
+        createdBy = createdBy ?? userId,
+        updatedBy = updatedBy ?? userId,
+        createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
 
   /// Compatibility getter for category
   MedicineCategory get category => MedicineCategory.fromString(type);
 
   /// Compatibility getter for expiryDate
   DateTime get expiryDate => endDate;
+
+  /// Compatibility getter for medicineId
+  int? get medicineId => id;
 
   Medicine copyWith({
     int? id,
@@ -80,6 +99,11 @@ class Medicine {
     String? notes,
     String? status,
     String? lastActionDate,
+    String? patientId,
+    String? createdBy,
+    String? updatedBy,
+    DateTime? createdAt,
+    DateTime? updatedAt,
     bool? isScanned,
     String? scannedText,
     String? imagePath,
@@ -99,6 +123,11 @@ class Medicine {
       notes: notes ?? this.notes,
       status: status ?? this.status,
       lastActionDate: lastActionDate ?? this.lastActionDate,
+      patientId: patientId ?? this.patientId,
+      createdBy: createdBy ?? this.createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       isScanned: isScanned ?? this.isScanned,
       scannedText: scannedText ?? this.scannedText,
       imagePath: imagePath ?? this.imagePath,
@@ -121,6 +150,11 @@ class Medicine {
       'notes': notes,
       'status': status,
       'lastActionDate': lastActionDate,
+      'patientId': patientId,
+      'createdBy': createdBy,
+      'updatedBy': updatedBy,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
       'isScanned': isScanned ? 1 : 0,
       'scannedText': scannedText,
       'imagePath': imagePath,
@@ -129,9 +163,10 @@ class Medicine {
   }
 
   factory Medicine.fromMap(Map<String, dynamic> map) {
+    final userIdVal = map['userId'] as String? ?? '';
     return Medicine(
       id: map['id'] as int?,
-      userId: map['userId'] as String? ?? '',
+      userId: userIdVal,
       name: map['name'] as String? ?? '',
       type: map['type'] as String? ?? 'Tablets',
       dosage: map['dosage'] as String? ?? '',
@@ -147,6 +182,11 @@ class Medicine {
       notes: map['notes'] as String?,
       status: map['status'] as String? ?? 'pending',
       lastActionDate: map['lastActionDate'] as String?,
+      patientId: map['patientId'] as String? ?? map['userId'] as String? ?? '',
+      createdBy: map['createdBy'] as String? ?? map['userId'] as String? ?? '',
+      updatedBy: map['updatedBy'] as String? ?? map['userId'] as String? ?? '',
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
+      updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt'] as String) : DateTime.now(),
       isScanned: (map['isScanned'] as int? ?? 0) == 1,
       scannedText: map['scannedText'] as String?,
       imagePath: map['imagePath'] as String?,

@@ -60,7 +60,12 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       final auth = context.read<AuthService>();
-      if (auth.hasCompletedProfile()) {
+      if (auth.isAdmin) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.adminDashboard,
+          (route) => false,
+        );
+      } else if (auth.hasCompletedProfile()) {
         Navigator.of(context).pushNamedAndRemoveUntil(
           AppRoutes.userHome,
           (route) => false,

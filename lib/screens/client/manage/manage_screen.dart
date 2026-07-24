@@ -4,6 +4,8 @@ import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/theme_controller.dart';
 import '../../../services/hive_service.dart';
+import '../../../models/user_profile.dart';
+import '../../../services/database_service.dart';
 import 'create_profile_screen.dart';
 
 class ManageScreen extends StatefulWidget {
@@ -122,10 +124,10 @@ class _ManageScreenState extends State<ManageScreen> {
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             SizedBox(height: 4),
-            Text('Version 2.0.0 (Local Hive Build)', style: TextStyle(color: Colors.grey)),
+            Text('Version 3.0.0 (Local Hive Caretaker Build)', style: TextStyle(color: Colors.grey)),
             SizedBox(height: 16),
             Text(
-              'Designed to manage your medicine reminder requirements locally and privately.',
+              'Designed to manage your medicine reminder requirements locally and privately with support for Caregivers.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14),
             ),
@@ -182,7 +184,7 @@ class _ManageScreenState extends State<ManageScreen> {
           ],
         ),
         content: const Text(
-          'WARNING: This action is permanent! It will delete your profile, user settings, all medications list, and cancel all notifications. Are you sure you want to proceed?',
+          'WARNING: This action is permanent! It will delete your profile, user settings, connection lists, and cancel all notifications. Are you sure you want to proceed?',
         ),
         actions: [
           TextButton(
@@ -217,6 +219,8 @@ class _ManageScreenState extends State<ManageScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canPop = Navigator.canPop(context);
+    final auth = context.watch<AuthService>();
+    final isCare = auth.isCaretaker;
 
     final content = ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
@@ -292,6 +296,129 @@ class _ManageScreenState extends State<ManageScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Connected Caretakers / Connected Patients Section
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                isCare ? 'My Connected Patients' : 'Connected Caregivers',
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+
+            if (isCare) ...[
+              FutureBuilder<UserProfile?>(
+                future: DatabaseService().getUserProfileData(),
+                builder: (context, snapshot) {
+                  final patients = auth.getConnectedPatients();
+                  if (patients.isEmpty) {
+                    return _buildEmptyListMessage(
+                      'No connected patients yet. Enter connection codes on home screen.'
+                    );
+                  }
+                  return Column(
+                    children: patients.map((p) {
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListTile(
+                          leading: const CircleAvatar(child: Icon(Icons.person)),
+                          title: Text(p.fullName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(p.email),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.link_off, color: Colors.red),
+                            tooltip: 'Remove connection',
+                            onPressed: () {
+                              auth.disconnectPatient(p.email);
+                            },
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                }
+              ),
+            ] else ...[
+              FutureBuilder<UserProfile?>(
+                future: DatabaseService().getUserProfileData(),
+                builder: (context, snapshot) {
+                  final caretakers = auth.getConnectedCaretakers();
+                  final connectionCode = snapshot.data?.connectionCode ?? 'N/A';
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Patient's own connection code card
+                      Card(
+                        color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.15)),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'My Patient Connection Code',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    connectionCode,
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.primary,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                  const Icon(Icons.share, size: 20, color: Colors.blue),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (caretakers.isEmpty)
+                        _buildEmptyListMessage(
+                          'No connected caregivers yet. Share the code above to allow a family member to monitor your medicines.'
+                        )
+                      else
+                        ...caretakers.map((c) {
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: ListTile(
+                              leading: const CircleAvatar(child: Icon(Icons.medical_services_outlined)),
+                              title: Text(c.fullName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text('Relationship: ${c.relationship ?? 'Caregiver'} • ${c.email}'),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.link_off, color: Colors.red),
+                                tooltip: 'Remove connection',
+                                onPressed: () {
+                                  auth.disconnectCaretaker(c.email);
+                                },
+                              ),
+                            ),
+                          );
+                        }),
+                    ],
+                  );
+                }
+              ),
+            ],
+            const SizedBox(height: 16),
+
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
@@ -365,6 +492,22 @@ class _ManageScreenState extends State<ManageScreen> {
       );
     }
     return content;
+  }
+
+  Widget _buildEmptyListMessage(String msg) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Text(
+        msg,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.grey, fontSize: 13),
+      ),
+    );
   }
 
   Widget _settingsCardTile({

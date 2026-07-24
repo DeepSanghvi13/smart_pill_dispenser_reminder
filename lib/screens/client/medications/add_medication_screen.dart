@@ -28,6 +28,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   late TextEditingController timeController;
   late TextEditingController conditionController;
   late TextEditingController notesController;
+  late TextEditingController startDateController;
+  late TextEditingController endDateController;
 
   late MedicineCategory selectedCategory;
   String selectedFrequency = 'Daily';
@@ -64,6 +66,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     _startDate = widget.medicine?.startDate ?? DateTime.now();
     _endDate = widget.medicine?.endDate ?? DateTime.now().add(const Duration(days: 30));
 
+    startDateController = TextEditingController(text: DateFormat.yMMMd().format(_startDate!));
+    endDateController = TextEditingController(text: DateFormat.yMMMd().format(_endDate!));
+
     _scannedText = widget.medicine?.scannedText;
     _imagePath = widget.medicine?.imagePath;
     _isScanned = widget.medicine?.isScanned ?? false;
@@ -84,6 +89,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     timeController.dispose();
     conditionController.dispose();
     notesController.dispose();
+    startDateController.dispose();
+    endDateController.dispose();
     super.dispose();
   }
 
@@ -111,6 +118,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     if (selected != null) {
       setState(() {
         _startDate = selected;
+        startDateController.text = DateFormat.yMMMd().format(selected);
       });
     }
   }
@@ -126,6 +134,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     if (selected != null) {
       setState(() {
         _endDate = selected;
+        endDateController.text = DateFormat.yMMMd().format(selected);
       });
     }
   }
@@ -145,6 +154,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         }
         if (result.expiryDate != null) {
           _endDate = result.expiryDate;
+          endDateController.text = DateFormat.yMMMd().format(_endDate!);
         }
         if ((result.healthCondition ?? '').trim().isNotEmpty) {
           conditionController.text = result.healthCondition!.trim();
@@ -217,6 +227,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             selectedCategory = resolved.category;
             if (resolved.expiryDate != null) {
               _endDate = resolved.expiryDate;
+              endDateController.text = DateFormat.yMMMd().format(_endDate!);
             }
             if ((resolved.healthCondition ?? '').trim().isNotEmpty) {
               conditionController.text = resolved.healthCondition!.trim();
@@ -426,24 +437,24 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                         children: [
                           Expanded(
                             child: TextFormField(
+                              controller: startDateController,
                               readOnly: true,
                               onTap: _pickStartDate,
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 labelText: 'Start Date',
-                                prefixIcon: const Icon(Icons.calendar_today),
-                                hintText: DateFormat.yMMMd().format(_startDate!),
+                                prefixIcon: Icon(Icons.calendar_today),
                               ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: TextFormField(
+                              controller: endDateController,
                               readOnly: true,
                               onTap: _pickEndDate,
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 labelText: 'End Date',
-                                prefixIcon: const Icon(Icons.calendar_month),
-                                hintText: DateFormat.yMMMd().format(_endDate!),
+                                prefixIcon: Icon(Icons.calendar_month),
                               ),
                             ),
                           ),

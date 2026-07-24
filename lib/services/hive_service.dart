@@ -31,12 +31,22 @@ class HiveService {
     await Hive.openBox<UserProfile>('profiles');
     await Hive.openBox<Medicine>('medicines');
     await Hive.openBox('settings');
+    await Hive.openBox('connections');
+    await Hive.openBox('notifications');
+    await Hive.openBox('caretakers');
+    await Hive.openBox('patients');
+    await Hive.openBox('reports');
   }
 
   Box<User> get usersBox => Hive.box<User>('users');
   Box<UserProfile> get profilesBox => Hive.box<UserProfile>('profiles');
   Box<Medicine> get medicinesBox => Hive.box<Medicine>('medicines');
   Box get settingsBox => Hive.box('settings');
+  Box get connectionsBox => Hive.box('connections');
+  Box get notificationsBox => Hive.box('notifications');
+  Box get caretakersBox => Hive.box('caretakers');
+  Box get patientsBox => Hive.box('patients');
+  Box get reportsBox => Hive.box('reports');
 }
 
 // Hand-written Hive TypeAdapters (avoids complex code generation setup)

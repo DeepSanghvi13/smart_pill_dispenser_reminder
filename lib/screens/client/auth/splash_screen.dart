@@ -43,7 +43,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final auth = context.read<AuthService>();
     
     if (auth.isLoggedIn) {
-      if (auth.hasCompletedProfile()) {
+      if (auth.isAdmin) {
+        Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+      } else if (auth.hasCompletedProfile()) {
         Navigator.pushReplacementNamed(context, AppRoutes.userHome);
       } else {
         Navigator.pushReplacementNamed(context, AppRoutes.createProfile);

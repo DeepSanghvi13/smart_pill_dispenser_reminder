@@ -4,25 +4,12 @@ const express = require('express');
 const cors = require('cors');
 const https = require('https');
 const {
-  connectMongo,
+  connectMySQL,
+  query,
   ping,
-  disconnectMongo,
+  disconnectMySQL,
   generateNextId,
-  models,
 } = require('./db');
-
-const {
-  User,
-  AuthLog,
-  Medicine,
-  Reminder,
-  AlarmLog,
-  Caretaker,
-  Dependent,
-  Setting,
-  UserProfile,
-  ProfessionalReviewRequest,
-} = models;
 
 const app = express();
 app.use(cors());
@@ -79,28 +66,25 @@ async function logAuthEvent({
   source = 'mobile',
   ipAddress = null,
 }) {
-  await AuthLog.create({
-    email: normalizeEmail(email),
-    eventType,
-    status,
-    source,
-    ipAddress,
-    createdAt: new Date(),
-  });
+  await query(
+    'INSERT INTO authLogs (email, eventType, status, source, ipAddress) VALUES (?, ?, ?, ?, ?)',
+    [normalizeEmail(email), eventType, status, source, ipAddress]
+  );
 }
 
 async function ensureDefaultAdmin() {
-  await User.findOneAndUpdate(
-    { email: adminEmail },
-    {
-      email: adminEmail,
-      passwordHash: adminPassword,
-      isAdmin: true,
-      updatedAt: new Date(),
-      $setOnInsert: { createdAt: new Date() },
-    },
-    { upsert: true },
-  );
+  const users = await query('SELECT 1 FROM users WHERE email = ? LIMIT 1', [adminEmail]);
+  if (users.length === 0) {
+    await query(
+      'INSERT INTO users (email, passwordHash, isAdmin) VALUES (?, ?, ?)',
+      [adminEmail, adminPassword, true]
+    );
+  } else {
+    await query(
+      'UPDATE users SET passwordHash = ?, isAdmin = ?, updatedAt = NOW() WHERE email = ?',
+      [adminPassword, true, adminEmail]
+    );
+  }
 }
 
 function toNdcCandidates(digits) {
@@ -213,27 +197,15 @@ function asEntityId(value) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-function byEntityId(userId, id) {
-  return { userId, $or: [{ id }, { localId: id }] };
-}
-
-async function resolveId(Model, userId, idCandidate) {
-  if (Number.isInteger(Number(idCandidate))) {
-    return Number(idCandidate);
-  }
-  return generateNextId(Model, userId);
-}
-
 function medicineToDto(doc) {
-  const id = doc.id ?? doc.localId;
   return {
-    id,
+    id: doc.id,
     name: doc.name,
     dosage: doc.dosage,
     time: doc.time,
     category: doc.category,
     expiryDate: doc.expiryDate,
-    isScanned: doc.isScanned,
+    isScanned: doc.isScanned === 1 || doc.isScanned === true,
     scannedText: doc.scannedText,
     imagePath: doc.imagePath,
     healthCondition: doc.healthCondition,
@@ -242,23 +214,31 @@ function medicineToDto(doc) {
 }
 
 function reminderToDto(doc) {
-  const id = doc.id ?? doc.localId;
+  let days = [];
+  try {
+    if (typeof doc.daysOfWeek === 'string') {
+      days = JSON.parse(doc.daysOfWeek);
+    } else if (Array.isArray(doc.daysOfWeek)) {
+      days = doc.daysOfWeek;
+    }
+  } catch (_) {
+    days = [];
+  }
   return {
-    id,
+    id: doc.id,
     medicineId: doc.medicineId,
     medicineName: doc.medicineName,
     time: doc.time,
-    daysOfWeek: doc.daysOfWeek || [],
-    isActive: !!doc.isActive,
+    daysOfWeek: days || [],
+    isActive: doc.isActive === 1 || doc.isActive === true,
     lastNotifiedAt: doc.lastNotifiedAt,
     createdAt: doc.createdAt,
   };
 }
 
 function alarmLogToDto(doc) {
-  const id = doc.id ?? doc.localId;
   return {
-    id,
+    id: doc.id,
     medicineId: doc.medicineId,
     medicineName: doc.medicineName,
     scheduledTime: doc.scheduledTime,
@@ -271,26 +251,24 @@ function alarmLogToDto(doc) {
 }
 
 function caretakerToDto(doc) {
-  const id = doc.id ?? doc.localId;
   return {
-    id,
+    id: doc.id,
     firstName: doc.firstName,
     lastName: doc.lastName,
     phoneNumber: doc.phoneNumber,
     email: doc.email,
     relationship: doc.relationship,
-    notifyViaSMS: !!doc.notifyViaSMS,
-    notifyViaEmail: !!doc.notifyViaEmail,
-    notifyViaNotification: !!doc.notifyViaNotification,
-    isActive: !!doc.isActive,
+    notifyViaSMS: doc.notifyViaSMS === 1 || doc.notifyViaSMS === true,
+    notifyViaEmail: doc.notifyViaEmail === 1 || doc.notifyViaEmail === true,
+    notifyViaNotification: doc.notifyViaNotification === 1 || doc.notifyViaNotification === true,
+    isActive: doc.isActive === 1 || doc.isActive === true,
     createdAt: doc.createdAt,
   };
 }
 
 function dependentToDto(doc) {
-  const id = doc.id ?? doc.localId;
   return {
-    id,
+    id: doc.id,
     firstName: doc.firstName,
     lastName: doc.lastName,
     gender: doc.gender,
@@ -306,174 +284,205 @@ async function requireMedicine(userId, medicineIdCandidate) {
     throw new Error('medicineId must be a valid positive integer');
   }
 
-  const medicine = await Medicine.findOne(byEntityId(userId, medicineId))
-    .select({ id: 1, localId: 1, name: 1 })
-    .lean();
+  const rows = await query(
+    'SELECT id, name FROM medicines WHERE userId = ? AND id = ? LIMIT 1',
+    [userId, medicineId]
+  );
 
-  if (!medicine) {
+  if (rows.length === 0) {
     throw new Error(
       `Foreign key violation: medicine ${medicineId} not found for user ${userId}`,
     );
   }
 
   return {
-    ...medicine,
-    id: Number(medicine.id ?? medicine.localId),
+    id: rows[0].id,
+    name: rows[0].name,
   };
 }
 
 async function upsertMedicine(userId, medicine) {
-  const id = await resolveId(Medicine, userId, medicine.id);
-  await Medicine.findOneAndUpdate(
-    byEntityId(userId, id),
-    {
+  const id = medicine.id && Number.isInteger(Number(medicine.id))
+    ? Number(medicine.id)
+    : await generateNextId('medicines', userId);
+
+  await query(
+    `INSERT INTO medicines 
+     (userId, id, name, dosage, time, category, expiryDate, isScanned, scannedText, imagePath, healthCondition, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE 
+     name=VALUES(name), dosage=VALUES(dosage), time=VALUES(time), category=VALUES(category), 
+     expiryDate=VALUES(expiryDate), isScanned=VALUES(isScanned), scannedText=VALUES(scannedText), 
+     imagePath=VALUES(imagePath), healthCondition=VALUES(healthCondition)`,
+    [
       userId,
       id,
-      name: medicine.name || '',
-      dosage: medicine.dosage || '',
-      time: medicine.time || '',
-      category: medicine.category || 'tablets',
-      expiryDate: parseDate(medicine.expiryDate),
-      isScanned: medicine.isScanned === true,
-      scannedText: medicine.scannedText || null,
-      imagePath: medicine.imagePath || null,
-      healthCondition: medicine.healthCondition || null,
-      createdAt: parseDate(medicine.createdAt) || new Date(),
-      $unset: { localId: '' },
-    },
-    { upsert: true },
+      medicine.name || '',
+      medicine.dosage || '',
+      medicine.time || '',
+      medicine.category || 'tablets',
+      parseDate(medicine.expiryDate),
+      medicine.isScanned === true ? 1 : 0,
+      medicine.scannedText || null,
+      medicine.imagePath || null,
+      medicine.healthCondition || null,
+      parseDate(medicine.createdAt) || new Date()
+    ]
   );
 
-  await Reminder.updateMany(
-    { userId, medicineId: id },
-    { $set: { medicineName: medicine.name || '' } },
-  );
-  await AlarmLog.updateMany(
-    { userId, medicineId: id },
-    { $set: { medicineName: medicine.name || '' } },
-  );
+  await query('UPDATE reminders SET medicineName = ? WHERE userId = ? AND medicineId = ?', [medicine.name || '', userId, id]);
+  await query('UPDATE alarmLogs SET medicineName = ? WHERE userId = ? AND medicineId = ?', [medicine.name || '', userId, id]);
 
   return id;
 }
 
 async function upsertReminder(userId, reminder) {
   const medicine = await requireMedicine(userId, reminder.medicineId);
-  const id = await resolveId(Reminder, userId, reminder.id);
-  await Reminder.findOneAndUpdate(
-    byEntityId(userId, id),
-    {
+  const id = reminder.id && Number.isInteger(Number(reminder.id))
+    ? Number(reminder.id)
+    : await generateNextId('reminders', userId);
+
+  await query(
+    `INSERT INTO reminders 
+     (userId, id, medicineId, medicineName, time, daysOfWeek, isActive, lastNotifiedAt, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE 
+     medicineId=VALUES(medicineId), medicineName=VALUES(medicineName), time=VALUES(time), 
+     daysOfWeek=VALUES(daysOfWeek), isActive=VALUES(isActive), lastNotifiedAt=VALUES(lastNotifiedAt)`,
+    [
       userId,
       id,
-      medicineId: medicine.id,
-      medicineName: reminder.medicineName || medicine.name || '',
-      time: reminder.time || '',
-      daysOfWeek: parseDays(reminder.daysOfWeek),
-      isActive: reminder.isActive !== false,
-      lastNotifiedAt: parseDate(reminder.lastNotifiedAt),
-      createdAt: parseDate(reminder.createdAt) || new Date(),
-      $unset: { localId: '' },
-    },
-    { upsert: true },
+      medicine.id,
+      reminder.medicineName || medicine.name || '',
+      reminder.time || '',
+      JSON.stringify(parseDays(reminder.daysOfWeek)),
+      reminder.isActive !== false ? 1 : 0,
+      parseDate(reminder.lastNotifiedAt),
+      parseDate(reminder.createdAt) || new Date()
+    ]
   );
   return id;
 }
 
 async function upsertAlarmLog(userId, alarmLog) {
   const medicine = await requireMedicine(userId, alarmLog.medicineId);
-  const id = await resolveId(AlarmLog, userId, alarmLog.id);
-  await AlarmLog.findOneAndUpdate(
-    byEntityId(userId, id),
-    {
+  const id = alarmLog.id && Number.isInteger(Number(alarmLog.id))
+    ? Number(alarmLog.id)
+    : await generateNextId('alarmLogs', userId);
+
+  await query(
+    `INSERT INTO alarmLogs 
+     (userId, id, medicineId, medicineName, scheduledTime, triggeredTime, status, snoozeCount, takenAt, notes, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE 
+     medicineId=VALUES(medicineId), medicineName=VALUES(medicineName), scheduledTime=VALUES(scheduledTime), 
+     triggeredTime=VALUES(triggeredTime), status=VALUES(status), snoozeCount=VALUES(snoozeCount), 
+     takenAt=VALUES(takenAt), notes=VALUES(notes)`,
+    [
       userId,
       id,
-      medicineId: medicine.id,
-      medicineName: alarmLog.medicineName || medicine.name || '',
-      scheduledTime: parseDate(alarmLog.scheduledTime) || new Date(),
-      triggeredTime: parseDate(alarmLog.triggeredTime),
-      status: alarmLog.status || 'pending',
-      snoozeCount: Number(alarmLog.snoozeCount || 0),
-      takenAt: parseDate(alarmLog.takenAt),
-      notes: alarmLog.notes || null,
-      createdAt: parseDate(alarmLog.createdAt) || new Date(),
-      $unset: { localId: '' },
-    },
-    { upsert: true },
+      medicine.id,
+      alarmLog.medicineName || medicine.name || '',
+      parseDate(alarmLog.scheduledTime) || new Date(),
+      parseDate(alarmLog.triggeredTime),
+      alarmLog.status || 'pending',
+      Number(alarmLog.snoozeCount || 0),
+      parseDate(alarmLog.takenAt),
+      alarmLog.notes || null,
+      parseDate(alarmLog.createdAt) || new Date()
+    ]
   );
   return id;
 }
 
 async function upsertCaretaker(userId, caretaker) {
-  const id = await resolveId(Caretaker, userId, caretaker.id);
-  await Caretaker.findOneAndUpdate(
-    byEntityId(userId, id),
-    {
+  const id = caretaker.id && Number.isInteger(Number(caretaker.id))
+    ? Number(caretaker.id)
+    : await generateNextId('caretakers', userId);
+
+  await query(
+    `INSERT INTO caretakers 
+     (userId, id, firstName, lastName, phoneNumber, email, relationship, notifyViaSMS, notifyViaEmail, notifyViaNotification, isActive, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE 
+     firstName=VALUES(firstName), lastName=VALUES(lastName), phoneNumber=VALUES(phoneNumber), email=VALUES(email), 
+     relationship=VALUES(relationship), notifyViaSMS=VALUES(notifyViaSMS), notifyViaEmail=VALUES(notifyViaEmail), 
+     notifyViaNotification=VALUES(notifyViaNotification), isActive=VALUES(isActive)`,
+    [
       userId,
       id,
-      firstName: caretaker.firstName || '',
-      lastName: caretaker.lastName || '',
-      phoneNumber: caretaker.phoneNumber || '',
-      email: caretaker.email || '',
-      relationship: caretaker.relationship || '',
-      notifyViaSMS: caretaker.notifyViaSMS !== false,
-      notifyViaEmail: caretaker.notifyViaEmail !== false,
-      notifyViaNotification: caretaker.notifyViaNotification !== false,
-      isActive: caretaker.isActive !== false,
-      createdAt: parseDate(caretaker.createdAt) || new Date(),
-      $unset: { localId: '' },
-    },
-    { upsert: true },
+      caretaker.firstName || '',
+      caretaker.lastName || '',
+      caretaker.phoneNumber || '',
+      caretaker.email || '',
+      caretaker.relationship || '',
+      caretaker.notifyViaSMS !== false ? 1 : 0,
+      caretaker.notifyViaEmail !== false ? 1 : 0,
+      caretaker.notifyViaNotification !== false ? 1 : 0,
+      caretaker.isActive !== false ? 1 : 0,
+      parseDate(caretaker.createdAt) || new Date()
+    ]
   );
   return id;
 }
 
 async function upsertDependent(userId, dependent) {
-  const id = await resolveId(Dependent, userId, dependent.id);
-  await Dependent.findOneAndUpdate(
-    byEntityId(userId, id),
-    {
+  const id = dependent.id && Number.isInteger(Number(dependent.id))
+    ? Number(dependent.id)
+    : await generateNextId('dependents', userId);
+
+  await query(
+    `INSERT INTO dependents 
+     (userId, id, firstName, lastName, gender, birthDate, color, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE 
+     firstName=VALUES(firstName), lastName=VALUES(lastName), gender=VALUES(gender), 
+     birthDate=VALUES(birthDate), color=VALUES(color)`,
+    [
       userId,
       id,
-      firstName: dependent.firstName || '',
-      lastName: dependent.lastName || '',
-      gender: dependent.gender || null,
-      birthDate: dependent.birthDate || null,
-      color: dependent.color || null,
-      createdAt: parseDate(dependent.createdAt) || new Date(),
-      $unset: { localId: '' },
-    },
-    { upsert: true },
+      dependent.firstName || '',
+      dependent.lastName || '',
+      dependent.gender || null,
+      dependent.birthDate || null,
+      dependent.color || null,
+      parseDate(dependent.createdAt) || new Date()
+    ]
   );
   return id;
 }
 
 async function upsertUserProfile(userId, profile) {
   if (!profile) return;
-  await UserProfile.findOneAndUpdate(
-    { userId },
-    {
+  await query(
+    `INSERT INTO userProfiles 
+     (userId, firstName, lastName, gender, birthDate, zipCode, phoneNumber, email, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE 
+     firstName=VALUES(firstName), lastName=VALUES(lastName), gender=VALUES(gender), 
+     birthDate=VALUES(birthDate), zipCode=VALUES(zipCode), phoneNumber=VALUES(phoneNumber), 
+     email=VALUES(email), updatedAt=NOW()`,
+    [
       userId,
-      firstName: profile.firstName || '',
-      lastName: profile.lastName || '',
-      gender: profile.gender || null,
-      birthDate: profile.birthDate || null,
-      zipCode: profile.zipCode || null,
-      phoneNumber: profile.phoneNumber || null,
-      email: profile.email || null,
-      updatedAt: new Date(),
-      $setOnInsert: { createdAt: new Date() },
-    },
-    { upsert: true },
+      profile.firstName || '',
+      profile.lastName || '',
+      profile.gender || null,
+      profile.birthDate || null,
+      profile.zipCode || null,
+      profile.phoneNumber || null,
+      profile.email || null
+    ]
   );
 }
 
 app.get('/api/health', async (_, res) => {
   try {
     await ping();
-    res.json({ ok: true, message: 'API and MongoDB are connected' });
+    res.json({ ok: true, message: 'API and MySQL are connected' });
   } catch (error) {
     res
       .status(500)
-      .json({ ok: false, message: 'MongoDB connection failed', error: error.message });
+      .json({ ok: false, message: 'MySQL connection failed', error: error.message });
   }
 });
 
@@ -495,8 +504,8 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    const existing = await User.findOne({ email }).select({ _id: 1 }).lean();
-    if (existing) {
+    const existing = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+    if (existing.length > 0) {
       await logAuthEvent({
         email,
         eventType: 'register',
@@ -506,13 +515,10 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(409).json({ ok: false, message: 'Email already registered' });
     }
 
-    await User.create({
-      email,
-      passwordHash: password,
-      isAdmin: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    await query(
+      'INSERT INTO users (email, passwordHash, isAdmin) VALUES (?, ?, ?)',
+      [email, password, false]
+    );
 
     await logAuthEvent({
       email,
@@ -539,7 +545,8 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ email }).lean();
+    const rows = await query('SELECT id, email, passwordHash, isAdmin FROM users WHERE email = ? LIMIT 1', [email]);
+    const user = rows[0];
     if (!user || String(user.passwordHash) !== password) {
       await logAuthEvent({
         email,
@@ -560,9 +567,9 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(200).json({
       ok: true,
       data: {
-        id: Number(String(user._id).slice(-6), 16) || 0,
+        id: user.id,
         email: user.email,
-        isAdmin: user.isAdmin === true,
+        isAdmin: user.isAdmin === 1 || user.isAdmin === true,
       },
     });
   } catch (error) {
@@ -577,8 +584,8 @@ app.get('/api/auth/exists', async (req, res) => {
   }
 
   try {
-    const existing = await User.findOne({ email }).select({ _id: 1 }).lean();
-    return res.status(200).json({ ok: true, exists: !!existing });
+    const rows = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+    return res.status(200).json({ ok: true, exists: rows.length > 0 });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Lookup failed', error: error.message });
   }
@@ -586,8 +593,8 @@ app.get('/api/auth/exists', async (req, res) => {
 
 app.get('/api/auth/stats', async (_, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    return res.status(200).json({ ok: true, totalUsers: Number(totalUsers || 0) });
+    const rows = await query('SELECT COUNT(*) as count FROM users');
+    return res.status(200).json({ ok: true, totalUsers: Number(rows[0].count || 0) });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Stats lookup failed', error: error.message });
   }
@@ -604,53 +611,53 @@ app.get('/api/admin/sql-entries', async (_, res) => {
       caretakers,
       dependents,
       settings,
-      userCount,
-      medicineCount,
-      reminderCount,
-      alarmCount,
-      caretakerCount,
-      dependentCount,
-      settingCount,
+      userCountRows,
+      medicineCountRows,
+      reminderCountRows,
+      alarmCountRows,
+      caretakerCountRows,
+      dependentCountRows,
+      settingCountRows,
     ] = await Promise.all([
-      User.find({}).sort({ _id: -1 }).limit(250).lean(),
-      AuthLog.find({}).sort({ _id: -1 }).limit(500).lean(),
-      Medicine.find({}).sort({ _id: -1 }).limit(500).lean(),
-      Reminder.find({}).sort({ _id: -1 }).limit(500).lean(),
-      AlarmLog.find({}).sort({ _id: -1 }).limit(500).lean(),
-      Caretaker.find({}).sort({ _id: -1 }).limit(500).lean(),
-      Dependent.find({}).sort({ _id: -1 }).limit(500).lean(),
-      Setting.find({}).sort({ _id: -1 }).limit(500).lean(),
-      User.countDocuments(),
-      Medicine.countDocuments(),
-      Reminder.countDocuments(),
-      AlarmLog.countDocuments(),
-      Caretaker.countDocuments(),
-      Dependent.countDocuments(),
-      Setting.countDocuments(),
+      query('SELECT * FROM users ORDER BY id DESC LIMIT 250'),
+      query('SELECT * FROM authLogs ORDER BY id DESC LIMIT 500'),
+      query('SELECT * FROM medicines ORDER BY id DESC LIMIT 500'),
+      query('SELECT * FROM reminders ORDER BY id DESC LIMIT 500'),
+      query('SELECT * FROM alarmLogs ORDER BY id DESC LIMIT 500'),
+      query('SELECT * FROM caretakers ORDER BY id DESC LIMIT 500'),
+      query('SELECT * FROM dependents ORDER BY id DESC LIMIT 500'),
+      query('SELECT * FROM settings ORDER BY keyName DESC LIMIT 500'),
+      query('SELECT COUNT(*) as count FROM users'),
+      query('SELECT COUNT(*) as count FROM medicines'),
+      query('SELECT COUNT(*) as count FROM reminders'),
+      query('SELECT COUNT(*) as count FROM alarmLogs'),
+      query('SELECT COUNT(*) as count FROM caretakers'),
+      query('SELECT COUNT(*) as count FROM dependents'),
+      query('SELECT COUNT(*) as count FROM settings'),
     ]);
 
     return res.status(200).json({
       ok: true,
       data: {
         counts: {
-          users: Number(userCount || 0),
-          medicines: Number(medicineCount || 0),
-          reminders: Number(reminderCount || 0),
-          alarmLogs: Number(alarmCount || 0),
-          caretakers: Number(caretakerCount || 0),
-          dependents: Number(dependentCount || 0),
-          settings: Number(settingCount || 0),
+          users: Number(userCountRows[0].count || 0),
+          medicines: Number(medicineCountRows[0].count || 0),
+          reminders: Number(reminderCountRows[0].count || 0),
+          alarmLogs: Number(alarmCountRows[0].count || 0),
+          caretakers: Number(caretakerCountRows[0].count || 0),
+          dependents: Number(dependentCountRows[0].count || 0),
+          settings: Number(settingCountRows[0].count || 0),
           authLogs: Number(authLogs.length || 0),
         },
         users: users.map((u) => ({
-          id: Number(String(u._id).slice(-6), 16) || 0,
+          id: u.id,
           email: u.email,
-          isAdmin: !!u.isAdmin,
+          isAdmin: u.isAdmin === 1 || u.isAdmin === true,
           createdAt: u.createdAt,
           updatedAt: u.updatedAt,
         })),
         authLogs: authLogs.map((a) => ({
-          id: Number(String(a._id).slice(-6), 16) || 0,
+          id: a.id,
           email: a.email,
           eventType: a.eventType,
           status: a.status,
@@ -659,7 +666,7 @@ app.get('/api/admin/sql-entries', async (_, res) => {
           createdAt: a.createdAt,
         })),
         medicines: medicines.map((m) => ({
-          id: m.id ?? m.localId,
+          id: m.id,
           userId: m.userId,
           name: m.name,
           dosage: m.dosage,
@@ -668,15 +675,15 @@ app.get('/api/admin/sql-entries', async (_, res) => {
           createdAt: m.createdAt,
         })),
         reminders: reminders.map((r) => ({
-          id: r.id ?? r.localId,
+          id: r.id,
           userId: r.userId,
           medicineName: r.medicineName,
           time: r.time,
-          isActive: !!r.isActive,
+          isActive: r.isActive === 1 || r.isActive === true,
           createdAt: r.createdAt,
         })),
         alarmLogs: alarmLogs.map((a) => ({
-          id: a.id ?? a.localId,
+          id: a.id,
           userId: a.userId,
           medicineName: a.medicineName,
           status: a.status,
@@ -684,18 +691,17 @@ app.get('/api/admin/sql-entries', async (_, res) => {
           triggeredTime: a.triggeredTime,
         })),
         caretakers: caretakers.map((c) => ({
-          id: c.id ?? c.localId,
+          id: c.id,
           userId: c.userId,
           firstName: c.firstName,
           lastName: c.lastName,
           email: c.email,
           relationship: c.relationship,
-          isActive: !!c.isActive,
+          isActive: c.isActive === 1 || c.isActive === true,
           createdAt: c.createdAt,
         })),
         dependents: dependents.map(dependentToDto),
         settings: settings.map((s) => ({
-          id: Number(String(s._id).slice(-6), 16) || 0,
           userId: s.userId,
           keyName: s.keyName,
           value: s.value,
@@ -767,10 +773,8 @@ app.post('/api/medicines', async (req, res) => {
 app.get('/api/medicines', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
-    const docs = await Medicine.find({ userId: scopedUserId })
-      .sort({ id: -1, localId: -1 })
-      .lean();
-    res.json({ ok: true, data: docs.map(medicineToDto) });
+    const rows = await query('SELECT * FROM medicines WHERE userId = ? ORDER BY id DESC', [scopedUserId]);
+    res.json({ ok: true, data: rows.map(medicineToDto) });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -796,23 +800,22 @@ app.delete('/api/medicines/:id', async (req, res) => {
   }
 
   try {
-    const [medicineDeleteResult, remindersDeleteResult, alarmLogsDeleteResult] =
-      await Promise.all([
-        Medicine.deleteOne(byEntityId(scopedUserId, id)),
-        Reminder.deleteMany({ userId: scopedUserId, medicineId: id }),
-        AlarmLog.deleteMany({ userId: scopedUserId, medicineId: id }),
-      ]);
+    const [medicineRes, remindersRes, alarmLogsRes] = await Promise.all([
+      query('DELETE FROM medicines WHERE userId = ? AND id = ?', [scopedUserId, id]),
+      query('DELETE FROM reminders WHERE userId = ? AND medicineId = ?', [scopedUserId, id]),
+      query('DELETE FROM alarmLogs WHERE userId = ? AND medicineId = ?', [scopedUserId, id]),
+    ]);
 
-    if (!medicineDeleteResult.deletedCount) {
+    if (medicineRes.affectedRows === 0) {
       return res.status(404).json({ ok: false, error: 'Medicine not found' });
     }
 
     return res.json({
       ok: true,
       deleted: {
-        medicine: Number(medicineDeleteResult.deletedCount || 0),
-        reminders: Number(remindersDeleteResult.deletedCount || 0),
-        alarmLogs: Number(alarmLogsDeleteResult.deletedCount || 0),
+        medicine: Number(medicineRes.affectedRows || 0),
+        reminders: Number(remindersRes.affectedRows || 0),
+        alarmLogs: Number(alarmLogsRes.affectedRows || 0),
       },
     });
   } catch (error) {
@@ -833,10 +836,8 @@ app.post('/api/reminders', async (req, res) => {
 app.get('/api/reminders', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
-    const docs = await Reminder.find({ userId: scopedUserId })
-      .sort({ id: -1, localId: -1 })
-      .lean();
-    res.json({ ok: true, data: docs.map(reminderToDto) });
+    const rows = await query('SELECT * FROM reminders WHERE userId = ? ORDER BY id DESC', [scopedUserId]);
+    res.json({ ok: true, data: rows.map(reminderToDto) });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -846,7 +847,7 @@ app.delete('/api/reminders/:id', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   const id = Number(req.params.id);
   try {
-    await Reminder.deleteOne(byEntityId(scopedUserId, id));
+    await query('DELETE FROM reminders WHERE userId = ? AND id = ?', [scopedUserId, id]);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -866,10 +867,8 @@ app.post('/api/alarm-logs', async (req, res) => {
 app.get('/api/alarm-logs', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
-    const docs = await AlarmLog.find({ userId: scopedUserId })
-      .sort({ id: -1, localId: -1 })
-      .lean();
-    res.json({ ok: true, data: docs.map(alarmLogToDto) });
+    const rows = await query('SELECT * FROM alarmLogs WHERE userId = ? ORDER BY id DESC', [scopedUserId]);
+    res.json({ ok: true, data: rows.map(alarmLogToDto) });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -888,10 +887,8 @@ app.post('/api/caretakers', async (req, res) => {
 app.get('/api/caretakers', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
-    const docs = await Caretaker.find({ userId: scopedUserId })
-      .sort({ id: -1, localId: -1 })
-      .lean();
-    res.json({ ok: true, data: docs.map(caretakerToDto) });
+    const rows = await query('SELECT * FROM caretakers WHERE userId = ? ORDER BY id DESC', [scopedUserId]);
+    res.json({ ok: true, data: rows.map(caretakerToDto) });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -901,7 +898,7 @@ app.delete('/api/caretakers/:id', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   const id = Number(req.params.id);
   try {
-    await Caretaker.deleteOne(byEntityId(scopedUserId, id));
+    await query('DELETE FROM caretakers WHERE userId = ? AND id = ?', [scopedUserId, id]);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -921,7 +918,8 @@ app.post('/api/user-profile', async (req, res) => {
 app.get('/api/user-profile/:userId', async (req, res) => {
   const scopedUserId = asUserId(req.params.userId);
   try {
-    const profile = await UserProfile.findOne({ userId: scopedUserId }).lean();
+    const rows = await query('SELECT * FROM userProfiles WHERE userId = ? LIMIT 1', [scopedUserId]);
+    const profile = rows[0];
     if (!profile) {
       return res.status(404).json({ ok: false, message: 'Profile not found' });
     }
@@ -958,10 +956,8 @@ app.post('/api/dependents', async (req, res) => {
 app.get('/api/dependents', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
-    const docs = await Dependent.find({ userId: scopedUserId })
-      .sort({ id: -1, localId: -1 })
-      .lean();
-    res.json({ ok: true, data: docs.map(dependentToDto) });
+    const rows = await query('SELECT * FROM dependents WHERE userId = ? ORDER BY id DESC', [scopedUserId]);
+    res.json({ ok: true, data: rows.map(dependentToDto) });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -971,7 +967,7 @@ app.delete('/api/dependents/:id', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   const id = Number(req.params.id);
   try {
-    await Dependent.deleteOne(byEntityId(scopedUserId, id));
+    await query('DELETE FROM dependents WHERE userId = ? AND id = ?', [scopedUserId, id]);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -986,15 +982,11 @@ app.post('/api/settings', async (req, res) => {
   }
 
   try {
-    await Setting.findOneAndUpdate(
-      { userId: scopedUserId, keyName: String(key) },
-      {
-        userId: scopedUserId,
-        keyName: String(key),
-        value: String(value),
-        updatedAt: new Date(),
-      },
-      { upsert: true },
+    await query(
+      `INSERT INTO settings (userId, keyName, value, updatedAt) 
+       VALUES (?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE value = VALUES(value), updatedAt = NOW()`,
+      [scopedUserId, String(key), String(value)]
     );
     return res.status(200).json({ ok: true });
   } catch (error) {
@@ -1005,7 +997,7 @@ app.post('/api/settings', async (req, res) => {
 app.get('/api/settings', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
-    const rows = await Setting.find({ userId: scopedUserId }).lean();
+    const rows = await query('SELECT * FROM settings WHERE userId = ?', [scopedUserId]);
     res.json({
       ok: true,
       data: rows.map((row) => ({
@@ -1053,16 +1045,20 @@ app.post('/api/professional-reviews', async (req, res) => {
   }
 
   try {
-    await ProfessionalReviewRequest.create({
-      userId: scopedUserId,
-      patientName: patientName.trim(),
-      contact: contact.trim(),
-      concern: concern.trim(),
-      preferredHospital: preferredHospital ? String(preferredHospital).trim() : null,
-      urgency,
-      status: 'pending',
-      createdAt: new Date(),
-    });
+    await query(
+      `INSERT INTO professionalReviewRequests 
+       (userId, patientName, contact, concern, preferredHospital, urgency, status, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        scopedUserId,
+        patientName.trim(),
+        contact.trim(),
+        concern.trim(),
+        preferredHospital ? String(preferredHospital).trim() : null,
+        urgency,
+        'pending'
+      ]
+    );
 
     return res.status(200).json({
       ok: true,
@@ -1076,13 +1072,14 @@ app.post('/api/professional-reviews', async (req, res) => {
 app.get('/api/professional-reviews', async (req, res) => {
   const scopedUserId = asUserId(req.query.userId);
   try {
-    const rows = await ProfessionalReviewRequest.find({ userId: scopedUserId })
-      .sort({ _id: -1 })
-      .lean();
+    const rows = await query(
+      'SELECT * FROM professionalReviewRequests WHERE userId = ? ORDER BY id DESC',
+      [scopedUserId]
+    );
     return res.json({
       ok: true,
       data: rows.map((row) => ({
-        id: Number(String(row._id).slice(-6), 16) || 0,
+        id: row.id,
         patientName: row.patientName,
         contact: row.contact,
         concern: row.concern,
@@ -1099,17 +1096,16 @@ app.get('/api/professional-reviews', async (req, res) => {
 
 async function startServer() {
   try {
-    await connectMongo();
-    await ping();
+    await connectMySQL();
     await ensureDefaultAdmin();
 
     const server = app.listen(port, () => {
-      console.log(`Mongo API running on http://localhost:${port}/api`);
+      console.log(`MySQL API running on http://localhost:${port}/api`);
     });
 
     const shutdown = async () => {
       try {
-        await disconnectMongo();
+        await disconnectMySQL();
       } catch (_) {
         // ignore during shutdown
       }
@@ -1121,10 +1117,9 @@ async function startServer() {
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
   } catch (error) {
-    console.error('MongoDB connection failed at startup:', error.message);
+    console.error('MySQL connection failed at startup:', error.message);
     process.exit(1);
   }
 }
 
 startServer();
-

@@ -29,11 +29,24 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
   String? _selectedGender;
   String? _selectedBloodGroup;
+  String? _selectedRelationship;
   String? _imagePath;
   bool _isLoading = false;
 
   final List<String> _genders = ['Male', 'Female', 'Other'];
   final List<String> _bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  final List<String> _relationships = [
+    'Father',
+    'Mother',
+    'Wife',
+    'Husband',
+    'Son',
+    'Daughter',
+    'Brother',
+    'Friend',
+    'Doctor',
+    'Other'
+  ];
 
   @override
   void initState() {
@@ -66,6 +79,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         conditionsController.text = profile.medicalConditions ?? '';
         _selectedGender = _genders.contains(profile.gender) ? profile.gender : null;
         _selectedBloodGroup = _bloodGroups.contains(profile.bloodGroup) ? profile.bloodGroup : null;
+        _selectedRelationship = _relationships.contains(profile.relationship) ? profile.relationship : null;
         _imagePath = profile.profilePicture;
       });
     }
@@ -113,19 +127,32 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     try {
       final auth = context.read<AuthService>();
       final email = auth.currentUser ?? 'guest';
+      final isCare = auth.isCaretaker;
+
+      // Handle Connection Code logic for Patient profile
+      String? connCode;
+      if (!isCare) {
+        final existing = await DatabaseService().getUserProfileData();
+        connCode = existing?.connectionCode ??
+            'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
+      }
 
       final profile = UserProfile(
         email: email,
         fullName: nameController.text.trim(),
         profilePicture: _imagePath,
-        age: int.tryParse(ageController.text.trim()),
-        gender: _selectedGender,
+        age: isCare ? null : int.tryParse(ageController.text.trim()),
+        gender: isCare ? null : _selectedGender,
         mobileNumber: mobileController.text.trim(),
-        emergencyContact: emergencyController.text.trim(),
-        bloodGroup: _selectedBloodGroup,
-        weight: weightController.text.trim(),
-        height: heightController.text.trim(),
-        medicalConditions: conditionsController.text.trim().isEmpty ? null : conditionsController.text.trim(),
+        emergencyContact: isCare ? null : emergencyController.text.trim(),
+        bloodGroup: isCare ? null : _selectedBloodGroup,
+        weight: isCare ? null : weightController.text.trim(),
+        height: isCare ? null : heightController.text.trim(),
+        medicalConditions: isCare
+            ? null
+            : (conditionsController.text.trim().isEmpty ? null : conditionsController.text.trim()),
+        relationship: isCare ? _selectedRelationship : null,
+        connectionCode: connCode,
       );
 
       await DatabaseService().saveUserProfile(profile);
@@ -143,9 +170,9 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
       // Routing logic
       if (widget.isEditing || Navigator.canPop(context)) {
-        Navigator.pop(context, true); // go back if editing from settings or drawer
+        Navigator.pop(context, true); // go back if editing
       } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.userHome); // go to home if first time
+        Navigator.pushReplacementNamed(context, AppRoutes.userHome); // go to home
       }
     } catch (e) {
       if (!mounted) return;
@@ -159,6 +186,8 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final auth = context.read<AuthService>();
+    final isCare = auth.isCaretaker;
     final isFirstTime = !widget.isEditing;
 
     return Scaffold(
@@ -180,7 +209,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                   children: [
                     if (isFirstTime) ...[
                       Text(
-                        'Set Up Your Profile',
+                        isCare ? 'Set Up Caretaker Profile' : 'Set Up Your Profile',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.bold,
@@ -189,7 +218,9 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Fill out your medical details to configure personalization.',
+                        isCare
+                            ? 'Configure your credentials to monitor your patients.'
+                            : 'Fill out your medical details to configure personalization.',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade600,
@@ -209,7 +240,11 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                 ? FileImage(File(_imagePath!))
                                 : null,
                             child: _imagePath == null
-                                ? Icon(Icons.person, size: 64, color: theme.colorScheme.primary)
+                                ? Icon(
+                                    isCare ? Icons.medical_services_outlined : Icons.person,
+                                    size: 64,
+                                    color: theme.colorScheme.primary,
+                                  )
                                 : null,
                           ),
                           Positioned(
@@ -247,57 +282,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               validator: (value) => value == null || value.trim().isEmpty
-                                  ? 'Please enter your full name'
+                                  ? 'Please enter full name'
                                   : null,
                             ),
                             const SizedBox(height: 16),
 
-                            // Age & Gender Row
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: TextFormField(
-                                    controller: ageController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: InputDecoration(
-                                      labelText: 'Age',
-                                      prefixIcon: const Icon(Icons.calendar_today_outlined),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'Required';
-                                      }
-                                      if (int.tryParse(value) == null) {
-                                        return 'Invalid';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 3,
-                                  child: DropdownButtonFormField<String>(
-                                    value: _selectedGender,
-                                    decoration: InputDecoration(
-                                      labelText: 'Gender',
-                                      prefixIcon: const Icon(Icons.wc),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    items: _genders
-                                        .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                                        .toList(),
-                                    onChanged: (val) => setState(() => _selectedGender = val),
-                                    validator: (value) => value == null ? 'Required' : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Mobile & Emergency Contacts
+                            // Mobile Number
                             TextFormField(
                               controller: mobileController,
                               keyboardType: TextInputType.phone,
@@ -312,80 +302,158 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            TextFormField(
-                              controller: emergencyController,
-                              keyboardType: TextInputType.phone,
-                              decoration: InputDecoration(
-                                labelText: 'Emergency Contact',
-                                prefixIcon: const Icon(Icons.contact_phone_outlined),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            // Dynamic fields: Patient vs Caretaker
+                            if (isCare) ...[
+                              // Relationship Field
+                              DropdownButtonFormField<String>(
+                                value: _selectedRelationship,
+                                decoration: InputDecoration(
+                                  labelText: 'Relationship to Patient(s)',
+                                  prefixIcon: const Icon(Icons.people_outline),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                items: _relationships
+                                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                                    .toList(),
+                                onChanged: (val) => setState(() => _selectedRelationship = val),
+                                validator: (value) => value == null ? 'Required' : null,
                               ),
-                              validator: (value) => value == null || value.trim().isEmpty
-                                  ? 'Please enter emergency contact'
-                                  : null,
-                            ),
-                            const SizedBox(height: 16),
+                              const SizedBox(height: 16),
 
-                            // Blood Group, Weight, Height
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    value: _selectedBloodGroup,
-                                    decoration: InputDecoration(
-                                      labelText: 'Blood Group',
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    items: _bloodGroups
-                                        .map((bg) => DropdownMenuItem(value: bg, child: Text(bg)))
-                                        .toList(),
-                                    onChanged: (val) => setState(() => _selectedBloodGroup = val),
-                                    validator: (value) => value == null ? 'Required' : null,
-                                  ),
+                              // Caretaker Email (Read Only Display)
+                              TextFormField(
+                                initialValue: auth.currentUser,
+                                readOnly: true,
+                                decoration: InputDecoration(
+                                  labelText: 'Registered Email',
+                                  prefixIcon: const Icon(Icons.email_outlined),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade100,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: weightController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: InputDecoration(
-                                      labelText: 'Weight (kg)',
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    validator: (value) => value == null || value.trim().isEmpty
-                                        ? 'Required'
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: heightController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: InputDecoration(
-                                      labelText: 'Height (cm)',
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    validator: (value) => value == null || value.trim().isEmpty
-                                        ? 'Required'
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Medical Conditions
-                            TextFormField(
-                              controller: conditionsController,
-                              maxLines: 3,
-                              decoration: InputDecoration(
-                                labelText: 'Medical Conditions (optional)',
-                                alignLabelWithHint: true,
-                                prefixIcon: const Icon(Icons.healing_outlined),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               ),
-                            ),
+                            ] else ...[
+                              // Age & Gender Row
+                              Row(
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: TextFormField(
+                                      controller: ageController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        labelText: 'Age',
+                                        prefixIcon: const Icon(Icons.calendar_today_outlined),
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      validator: (value) {
+                                        if (value == null || value.trim().isEmpty) {
+                                          return 'Required';
+                                        }
+                                        if (int.tryParse(value) == null) {
+                                          return 'Invalid';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    flex: 3,
+                                    child: DropdownButtonFormField<String>(
+                                      value: _selectedGender,
+                                      decoration: InputDecoration(
+                                        labelText: 'Gender',
+                                        prefixIcon: const Icon(Icons.wc),
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      items: _genders
+                                          .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                                          .toList(),
+                                      onChanged: (val) => setState(() => _selectedGender = val),
+                                      validator: (value) => value == null ? 'Required' : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Emergency Contact
+                              TextFormField(
+                                controller: emergencyController,
+                                keyboardType: TextInputType.phone,
+                                decoration: InputDecoration(
+                                  labelText: 'Emergency Contact',
+                                  prefixIcon: const Icon(Icons.contact_phone_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                validator: (value) => value == null || value.trim().isEmpty
+                                    ? 'Please enter emergency contact'
+                                    : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Blood Group, Weight, Height Row
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      value: _selectedBloodGroup,
+                                      decoration: InputDecoration(
+                                        labelText: 'Blood Group',
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      items: _bloodGroups
+                                          .map((bg) => DropdownMenuItem(value: bg, child: Text(bg)))
+                                          .toList(),
+                                      onChanged: (val) => setState(() => _selectedBloodGroup = val),
+                                      validator: (value) => value == null ? 'Required' : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: weightController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        labelText: 'Weight (kg)',
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      validator: (value) => value == null || value.trim().isEmpty
+                                          ? 'Required'
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: heightController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        labelText: 'Height (cm)',
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      validator: (value) => value == null || value.trim().isEmpty
+                                          ? 'Required'
+                                          : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Medical Conditions
+                              TextFormField(
+                                controller: conditionsController,
+                                maxLines: 3,
+                                decoration: InputDecoration(
+                                  labelText: 'Medical Conditions (optional)',
+                                  alignLabelWithHint: true,
+                                  prefixIcon: const Icon(Icons.healing_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -394,7 +462,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
                     // Save Button
                     ElevatedButton(
-                      style: ElevatedButton.styleFrom(
+                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.colorScheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),

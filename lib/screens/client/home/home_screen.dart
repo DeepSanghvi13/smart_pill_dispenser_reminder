@@ -7,6 +7,7 @@ import '../../../models/user_profile.dart';
 import '../../../providers/medicine_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
+import '../../../services/hive_service.dart';
 import '../../../widgets/bottom_nav.dart';
 import '../../../widgets/app_drawer.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
@@ -31,40 +32,76 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     Future.microtask(() {
       if (mounted) {
-        context.read<MedicineProvider>().loadMedicines();
+        final auth = context.read<AuthService>();
+        final provider = context.read<MedicineProvider>();
+        
+        if (auth.isCaretaker) {
+          // Initialize Caretaker active patient to first connected patient
+          final patients = auth.getConnectedPatients();
+          if (patients.isNotEmpty) {
+            provider.setActivePatient(patients.first.email);
+          } else {
+            provider.setActivePatient(null);
+          }
+        } else {
+          provider.setActivePatient(auth.currentUser);
+        }
+        provider.reloadAll();
       }
     });
   }
 
-  Widget _buildCurrentPage(List<Medicine> medicines, String userName, String? profilePic) {
-    switch (_currentIndex) {
-      case 0:
-        return HomeBody(
-          medicines: medicines,
-          userName: userName,
-          profilePic: profilePic,
-          searchQuery: _searchQuery,
-          onSearchChanged: (val) {
-            setState(() {
-              _searchQuery = val;
-            });
-          },
-          onEdit: _editMedicine,
-          onDelete: _deleteMedicine,
-        );
-      case 1:
-        return const UpdatesScreen();
-      case 2:
-        return MedicationsScreen(
-          medicines: medicines,
-          onAddMed: _addMedicine,
-          onEdit: _editMedicine,
-          onDelete: _deleteMedicine,
-        );
-      case 3:
-        return const ManageScreen();
-      default:
-        return const SizedBox.shrink();
+  Widget _buildCurrentPage(List<Medicine> medicines, String userName, String? profilePic, bool isCaretaker) {
+    if (_currentIndex == 3) {
+      return const ManageScreen();
+    }
+    if (_currentIndex == 1) {
+      return const UpdatesScreen();
+    }
+
+    if (isCaretaker) {
+      switch (_currentIndex) {
+        case 0:
+          return CaretakerHomeBody(
+            onEdit: _editMedicine,
+            onDelete: _deleteMedicine,
+          );
+        case 2:
+          return MedicationsScreen(
+            medicines: medicines,
+            onAddMed: _addMedicine,
+            onEdit: _editMedicine,
+            onDelete: _deleteMedicine,
+          );
+        default:
+          return const SizedBox.shrink();
+      }
+    } else {
+      switch (_currentIndex) {
+        case 0:
+          return HomeBody(
+            medicines: medicines,
+            userName: userName,
+            profilePic: profilePic,
+            searchQuery: _searchQuery,
+            onSearchChanged: (val) {
+              setState(() {
+                _searchQuery = val;
+              });
+            },
+            onEdit: _editMedicine,
+            onDelete: _deleteMedicine,
+          );
+        case 2:
+          return MedicationsScreen(
+            medicines: medicines,
+            onAddMed: _addMedicine,
+            onEdit: _editMedicine,
+            onDelete: _deleteMedicine,
+          );
+        default:
+          return const SizedBox.shrink();
+      }
     }
   }
 
@@ -145,9 +182,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    final isCare = auth.isCaretaker;
     final medicineProvider = context.watch<MedicineProvider>();
     final medicines = medicineProvider.medicines;
-    final currentUserEmail = context.watch<AuthService>().currentUser ?? 'Guest';
+    final currentUserEmail = auth.currentUser ?? 'Guest';
 
     return FutureBuilder<UserProfile?>(
       future: DatabaseService().getUserProfileData(),
@@ -159,9 +198,15 @@ class _HomeScreenState extends State<HomeScreen> {
         return Scaffold(
           drawer: const AppDrawer(),
           appBar: AppBar(
-            title: Text(_currentIndex == 0 ? 'PillDispenser' : _currentIndex == 2 ? 'My Medications' : 'Settings'),
+            title: Text(
+              _currentIndex == 0 
+                  ? (isCare ? 'Caregiver Dashboard' : 'PillDispenser') 
+                  : _currentIndex == 2 
+                      ? 'My Medications' 
+                      : 'Settings'
+            ),
             actions: [
-              if (_currentIndex == 0)
+              if (_currentIndex == 0 && !isCare)
                 IconButton(
                   icon: const Icon(Icons.search),
                   onPressed: () {
@@ -177,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          body: _buildCurrentPage(medicines, userName, profilePic),
+          body: _buildCurrentPage(medicines, userName, profilePic, isCare),
           floatingActionButton: (_currentIndex == 0 || _currentIndex == 2)
               ? FloatingActionButton(
                   backgroundColor: Theme.of(context).colorScheme.primary,
@@ -196,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ================= HOME BODY =================
+// ================= PATIENT HOME BODY =================
 
 class HomeBody extends StatelessWidget {
   final List<Medicine> medicines;
@@ -241,7 +286,6 @@ class HomeBody extends StatelessWidget {
       } catch (_) {}
     }
 
-    // Manual fallback for 24-hour time strings
     try {
       final parts = clean.split(':');
       if (parts.length >= 2) {
@@ -261,14 +305,12 @@ class HomeBody extends StatelessWidget {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
-    // 1. Filter Today's Medicines
     final todayMedicines = medicines.where((m) {
       final start = DateTime(m.startDate.year, m.startDate.month, m.startDate.day);
       final end = DateTime(m.endDate.year, m.endDate.month, m.endDate.day);
       return !today.isBefore(start) && !today.isAfter(end);
     }).toList();
 
-    // 2. Group today's medicines
     final completed = <Medicine>[];
     final upcoming = <Medicine>[];
     final missed = <Medicine>[];
@@ -280,7 +322,6 @@ class HomeBody extends StatelessWidget {
       } else if (status == 'skipped') {
         missed.add(m);
       } else {
-        // Pending status
         final scheduledTime = _getScheduledDateTime(m.time);
         if (scheduledTime != null && scheduledTime.isBefore(now)) {
           missed.add(m);
@@ -290,17 +331,15 @@ class HomeBody extends StatelessWidget {
       }
     }
 
-    // Recent medicines (overall)
     final recentMedicines = medicines.reversed.take(5).toList();
 
     return RefreshIndicator(
       onRefresh: () async {
-        await context.read<MedicineProvider>().loadMedicines();
+        await context.read<MedicineProvider>().reloadAll();
       },
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          // Greeting Backplate
           Card(
             elevation: 0,
             color: theme.colorScheme.primaryContainer.withOpacity(0.4),
@@ -349,11 +388,9 @@ class HomeBody extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Overview counters
           _buildQuickSummary(context, upcoming.length, completed.length, missed.length),
           const SizedBox(height: 24),
 
-          // Upcoming Section
           _buildCategoryHeader(context, "Upcoming Medicines", upcoming.length, Colors.blue),
           if (upcoming.isEmpty)
             _buildEmptyState("No upcoming medications left for today.")
@@ -361,7 +398,6 @@ class HomeBody extends StatelessWidget {
             ...upcoming.map((m) => _buildMedicineActionCard(context, m, theme)),
           const SizedBox(height: 20),
 
-          // Missed Section
           _buildCategoryHeader(context, "Missed / Skipped", missed.length, Colors.red),
           if (missed.isEmpty)
             _buildEmptyState("No missed medications today. Good job!")
@@ -369,7 +405,6 @@ class HomeBody extends StatelessWidget {
             ...missed.map((m) => _buildMedicineActionCard(context, m, theme)),
           const SizedBox(height: 20),
 
-          // Completed Section
           _buildCategoryHeader(context, "Completed", completed.length, Colors.green),
           if (completed.isEmpty)
             _buildEmptyState("Take your first medication to see it here!")
@@ -377,7 +412,6 @@ class HomeBody extends StatelessWidget {
             ...completed.map((m) => _buildMedicineActionCard(context, m, theme)),
           const SizedBox(height: 24),
 
-          // Recent Medicines Section
           if (recentMedicines.isNotEmpty) ...[
             Text(
               'Recent Additions',
@@ -530,7 +564,6 @@ class HomeBody extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            // Medicine Category Icon
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -541,7 +574,6 @@ class HomeBody extends StatelessWidget {
             ),
             const SizedBox(width: 16),
 
-            // Medicine text details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -569,7 +601,6 @@ class HomeBody extends StatelessWidget {
             ),
             const SizedBox(width: 8),
 
-            // Actions Buttons
             if (status == 'taken')
               const Icon(Icons.check_circle, color: Colors.green, size: 28)
             else if (status == 'skipped')
@@ -605,6 +636,634 @@ class HomeBody extends StatelessWidget {
       case MedicineCategory.tablets:
         return const Icon(Icons.medication, size: 24, color: Colors.indigo);
     }
+  }
+}
+
+// ================= CARETAKER HOME BODY =================
+
+class CaretakerHomeBody extends StatefulWidget {
+  final Function(int) onEdit;
+  final Function(int) onDelete;
+
+  const CaretakerHomeBody({
+    super.key,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  State<CaretakerHomeBody> createState() => _CaretakerHomeBodyState();
+}
+
+class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
+  final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  void _showAddPatientDialog(BuildContext context, AuthService auth, MedicineProvider provider) {
+    int methodIndex = 0; // 0 = SDP Code, 1 = Email & Phone
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add Connected Patient'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(value: 0, label: Text('SDP Code'), icon: Icon(Icons.qr_code)),
+                        ButtonSegment(value: 1, label: Text('Email & Phone'), icon: Icon(Icons.email_outlined)),
+                      ],
+                      selected: {methodIndex},
+                      onSelectionChanged: (val) {
+                        setDialogState(() {
+                          methodIndex = val.first;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    if (methodIndex == 0) ...[
+                      const Text(
+                        'Enter the patient unique connection code (e.g. SPD-482915) to connect.',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _codeController,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: 'Patient Connection Code',
+                          hintText: 'SPD-XXXXXX',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.qr_code),
+                        ),
+                      ),
+                    ] else ...[
+                      const Text(
+                        'Enter the patient registered email and phone number to connect.',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Patient Registered Email',
+                          hintText: 'patient@email.com',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.email),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Patient Phone Number',
+                          hintText: 'Enter phone or emergency contact',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.phone),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    _codeController.clear();
+                    _emailController.clear();
+                    _phoneController.clear();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    String? error;
+                    if (methodIndex == 0) {
+                      final code = _codeController.text.trim();
+                      error = await auth.connectPatient(code);
+                    } else {
+                      final email = _emailController.text.trim();
+                      final phone = _phoneController.text.trim();
+                      error = await auth.connectPatient(email, phone);
+                    }
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      _codeController.clear();
+                      _emailController.clear();
+                      _phoneController.clear();
+                      if (error != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error), backgroundColor: Colors.red),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Successfully connected to patient!'), backgroundColor: Colors.green),
+                        );
+                        // Update active patient
+                        final list = auth.getConnectedPatients();
+                        if (list.isNotEmpty) {
+                          provider.setActivePatient(list.last.email);
+                        }
+                      }
+                    }
+                  },
+                  child: const Text('Connect'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _getMedicineStatus(Medicine med) {
+    final dailyStatus = med.getDailyStatus();
+    if (dailyStatus == 'taken') return 'Taken';
+    if (dailyStatus == 'skipped') return 'Skipped';
+
+    // Parse time
+    final clean = med.time.trim();
+    final formats = [
+      DateFormat('h:mm a'),
+      DateFormat('hh:mm a'),
+      DateFormat('H:mm'),
+      DateFormat('HH:mm'),
+    ];
+    DateTime? parsedTime;
+    for (final format in formats) {
+      try {
+        parsedTime = format.parse(clean);
+        break;
+      } catch (_) {}
+    }
+    if (parsedTime == null) return 'Upcoming';
+
+    final now = DateTime.now();
+    final medTime = DateTime(now.year, now.month, now.day, parsedTime.hour, parsedTime.minute);
+    final diff = now.difference(medTime).inMinutes;
+
+    if (diff < 0) {
+      return 'Upcoming';
+    } else if (diff < 30) {
+      return 'Delayed';
+    } else {
+      return 'Missed';
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Taken':
+        return Colors.green;
+      case 'Upcoming':
+        return Colors.blue;
+      case 'Delayed':
+        return Colors.orange;
+      case 'Missed':
+      case 'Skipped':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'Taken':
+        return Icons.check_circle_outline;
+      case 'Upcoming':
+        return Icons.alarm_outlined;
+      case 'Delayed':
+        return Icons.pending_actions_outlined;
+      case 'Missed':
+      case 'Skipped':
+        return Icons.highlight_off_outlined;
+      default:
+        return Icons.help_outline;
+    }
+  }
+
+  DateTime? _getScheduledDateTime(String timeStr) {
+    final clean = timeStr.trim();
+    final formats = [
+      DateFormat('h:mm a'),
+      DateFormat('hh:mm a'),
+      DateFormat('H:mm'),
+      DateFormat('HH:mm'),
+    ];
+    for (final format in formats) {
+      try {
+        final parsed = format.parse(clean);
+        final now = DateTime.now();
+        return DateTime(now.year, now.month, now.day, parsed.hour, parsed.minute);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final auth = context.watch<AuthService>();
+    final provider = context.watch<MedicineProvider>();
+    final connectedPatients = auth.getConnectedPatients();
+    final activePatientEmail = provider.activePatientId;
+
+    UserProfile? activePatient;
+    if (activePatientEmail != null) {
+      try {
+        activePatient = connectedPatients.firstWhere((p) => p.email == activePatientEmail);
+      } catch (_) {}
+    }
+
+    final notifications = HiveService()
+        .notificationsBox
+        .values
+        .where((n) => activePatientEmail == null || n['patientId'] == activePatientEmail)
+        .toList()
+        .reversed
+        .toList();
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final todayMedicines = provider.medicines.where((m) {
+      final start = DateTime(m.startDate.year, m.startDate.month, m.startDate.day);
+      final end = DateTime(m.endDate.year, m.endDate.month, m.endDate.day);
+      return !today.isBefore(start) && !today.isAfter(end);
+    }).toList();
+
+    final completed = <Medicine>[];
+    final upcoming = <Medicine>[];
+    final missed = <Medicine>[];
+
+    for (final m in todayMedicines) {
+      final status = _getMedicineStatus(m);
+      if (status == 'Taken') {
+        completed.add(m);
+      } else if (status == 'Upcoming') {
+        upcoming.add(m);
+      } else {
+        missed.add(m);
+      }
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        await provider.reloadAll();
+      },
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        children: [
+          // 1. Connected Patients horizontal header selector
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Monitored Patients',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Patient'),
+                onPressed: () => _showAddPatientDialog(context, auth, provider),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (connectedPatients.isEmpty)
+            Card(
+              elevation: 0,
+              color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Icon(Icons.people_outline, size: 48, color: theme.colorScheme.primary),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'No Patients Connected Yet',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Ask your family member for their connection code (e.g. SPD-482915) to connect and manage their pill logs.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.link),
+                      label: const Text('Connect Patient'),
+                      onPressed: () => _showAddPatientDialog(context, auth, provider),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 100,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: connectedPatients.length,
+                itemBuilder: (context, idx) {
+                  final patient = connectedPatients[idx];
+                  final isSelected = patient.email == activePatientEmail;
+                  return GestureDetector(
+                    onTap: () {
+                      provider.setActivePatient(patient.email);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 16),
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 30,
+                            backgroundColor: isSelected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.primary.withOpacity(0.1),
+                            child: CircleAvatar(
+                              radius: 27,
+                              backgroundColor: Colors.white,
+                              backgroundImage: patient.profilePicture != null && patient.profilePicture!.isNotEmpty
+                                  ? FileImage(File(patient.profilePicture!))
+                                  : null,
+                              child: patient.profilePicture == null
+                                  ? Icon(Icons.person, color: theme.colorScheme.primary)
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            patient.fullName.split(' ').first,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? theme.colorScheme.primary : Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 16),
+
+          if (activePatient != null) ...[
+            // Patient details banner
+            Card(
+              elevation: 0,
+              color: theme.colorScheme.secondaryContainer.withOpacity(0.3),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundImage: activePatient.profilePicture != null && activePatient.profilePicture!.isNotEmpty
+                          ? FileImage(File(activePatient.profilePicture!))
+                          : null,
+                      child: activePatient.profilePicture == null ? const Icon(Icons.person) : null,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            activePatient.fullName,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Age: ${activePatient.age ?? 'N/A'} • Blood: ${activePatient.bloodGroup ?? 'N/A'}',
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                          ),
+                          if (activePatient.medicalConditions != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Conditions: ${activePatient.medicalConditions}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.info_outline, color: Colors.blue),
+                      onPressed: () {
+                        // View patient profile dialog
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Patient Medical Details'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Name: ${activePatient!.fullName}'),
+                                const SizedBox(height: 8),
+                                Text('Age: ${activePatient.age ?? 'N/A'}'),
+                                const SizedBox(height: 8),
+                                Text('Gender: ${activePatient.gender ?? 'N/A'}'),
+                                const SizedBox(height: 8),
+                                Text('Blood Group: ${activePatient.bloodGroup ?? 'N/A'}'),
+                                const SizedBox(height: 8),
+                                Text('Weight: ${activePatient.weight ?? 'N/A'} kg'),
+                                const SizedBox(height: 8),
+                                Text('Height: ${activePatient.height ?? 'N/A'} cm'),
+                                const SizedBox(height: 8),
+                                Text('Emergency Contact: ${activePatient.emergencyContact ?? 'N/A'}'),
+                                const SizedBox(height: 8),
+                                Text('Medical Conditions: ${activePatient.medicalConditions ?? 'None'}'),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Today schedule status
+            Text(
+              "Today's Medication Tracker",
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            if (todayMedicines.isEmpty)
+              _buildEmptyState("No medicines scheduled for this patient today.")
+            else
+              ...todayMedicines.map((m) {
+                final status = _getMedicineStatus(m);
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: _getStatusColor(status).withOpacity(0.1),
+                      child: Icon(_getStatusIcon(status), color: _getStatusColor(status)),
+                    ),
+                    title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('${m.dosage} • ${m.time}'),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(status).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          color: _getStatusColor(status), 
+                          fontWeight: FontWeight.bold, 
+                          fontSize: 12
+                        ),
+                      ),
+                    ),
+                    onTap: () {
+                      // Allow editing/deleting patient medication
+                      final idx = provider.medicines.indexOf(m);
+                      showModalBottomSheet(
+                        context: context,
+                        builder: (_) => Container(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                m.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                              ),
+                              const SizedBox(height: 24),
+                              ListTile(
+                                leading: const Icon(Icons.edit, color: Colors.blue),
+                                title: const Text('Edit Medication'),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  widget.onEdit(idx);
+                                },
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.delete, color: Colors.red),
+                                title: const Text('Delete Medication'),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  widget.onDelete(idx);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }),
+            const SizedBox(height: 24),
+          ],
+
+          // Missed & Alerts Log
+          Text(
+            'Caregiver Alerts Log',
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          if (notifications.isEmpty)
+            _buildEmptyState("No caregiver alerts logged.")
+          else
+            ...notifications.take(5).map((n) {
+              final isAnn = n['type'] == 'announcement';
+              return Card(
+                color: isAnn ? Colors.indigo.shade50.withOpacity(0.4) : Colors.red.shade50.withOpacity(0.4),
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: isAnn ? Colors.indigo.shade100 : Colors.red.shade100),
+                ),
+                child: ListTile(
+                  leading: isAnn
+                      ? const Icon(Icons.campaign, color: Colors.indigo)
+                      : const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                  title: Text(
+                    isAnn
+                        ? '${n['title']}'
+                        : '${n['patientName']} missed ${n['medicineName']}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    isAnn
+                        ? '${n['body']}'
+                        : 'Scheduled for ${n['scheduledTime']}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.check, size: 18),
+                    onPressed: () async {
+                      final notifId = n['notificationId'] as String;
+                      await HiveService().notificationsBox.delete(notifId);
+                      setState(() {});
+                    },
+                    tooltip: 'Dismiss alert',
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String msg) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Text(
+        msg,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.grey, fontSize: 13),
+      ),
+    );
   }
 }
 
@@ -685,7 +1344,6 @@ class MedicineSearchDelegate extends SearchDelegate {
               icon: const Icon(Icons.chevron_right),
               onPressed: () {
                 close(context, null);
-                // Open Medication edit
                 final idxInOrig = medicines.indexOf(m);
                 if (idxInOrig >= 0) {
                   onEdit(idxInOrig);

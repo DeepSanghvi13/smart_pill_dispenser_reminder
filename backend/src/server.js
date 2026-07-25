@@ -26,6 +26,11 @@ const adminEmail = (process.env.ADMIN_EMAIL || 'admin@medisafe.com')
   .toLowerCase();
 const adminPassword = (process.env.ADMIN_PASSWORD || 'admin123').trim();
 
+// Health Check Endpoint
+app.get(['/api/health', '/health'], (req, res) => {
+  res.status(200).json({ ok: true, status: 'healthy', timestamp: new Date().toISOString() });
+});
+
 // Auxiliary helper functions
 function parseDate(value) {
   if (!value) return null;
@@ -63,14 +68,43 @@ function getClientIp(req) {
 
 // Map user ID (email or numeric string) to database integer ID
 async function resolveUserId(val) {
-  if (!val) return null;
+  if (!val || val === 'guest') return null;
   const str = String(val).trim();
   if (/^\d+$/.test(str)) {
-    return Number(str);
+    const num = Number(str);
+    return num > 0 ? num : null;
   }
-  const rows = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [str]);
+  const normEmail = normalizeEmail(str);
+  if (!normEmail) return null;
+
+  const rows = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [normEmail]);
   if (rows.length > 0) {
     return rows[0].id;
+  }
+  // Auto-create user if email provided but not in MySQL table yet (from offline Hive sync)
+  if (normEmail.includes('@')) {
+    try {
+      const hash = await bcrypt.hash('defaultpass123', 10);
+      const namePart = normEmail.split('@')[0];
+      const res = await query(
+        `INSERT INTO users (fullName, email, passwordHash, role, status)
+         VALUES (?, ?, ?, 'patient', 'active')`,
+        [namePart, normEmail, hash]
+      );
+      const newId = res.insertId;
+      await query(
+        'INSERT INTO patients (userId) VALUES (?) ON DUPLICATE KEY UPDATE userId=userId',
+        [newId]
+      );
+      await query(
+        'INSERT INTO userProfiles (userId, firstName, email) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE userId=userId',
+        [newId, namePart, normEmail]
+      );
+      return newId;
+    } catch (err) {
+      console.error('Error auto-creating user in resolveUserId:', err.message);
+      return null;
+    }
   }
   return null;
 }
@@ -119,29 +153,36 @@ async function logActivity({
 // Seed admin account
 async function ensureDefaultAdmin() {
   try {
-    const users = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [adminEmail]);
-    const hash = await bcrypt.hash(adminPassword, 10);
-    let adminUserId;
+    const adminEmails = [adminEmail, 'admin@smartpill.com'];
+    for (const email of adminEmails) {
+      const users = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+      const hash = await bcrypt.hash(adminPassword, 10);
+      let adminUserId;
 
-    if (users.length === 0) {
-      const result = await query(
-        'INSERT INTO users (fullName, email, passwordHash, role, status) VALUES (?, ?, ?, ?, ?)',
-        ['System Admin', adminEmail, hash, 'admin', 'active']
-      );
-      adminUserId = result.insertId;
-      await query('INSERT INTO admins (userId) VALUES (?)', [adminUserId]);
-      console.log('Admin account auto-seeded successfully');
-    } else {
-      adminUserId = users[0].id;
-      await query(
-        'UPDATE users SET fullName = ?, passwordHash = ?, role = ?, status = ?, updatedAt = NOW() WHERE id = ?',
-        ['System Admin', hash, 'admin', 'active', adminUserId]
-      );
-      const adminExists = await query('SELECT 1 FROM admins WHERE userId = ? LIMIT 1', [adminUserId]);
-      if (adminExists.length === 0) {
+      if (users.length === 0) {
+        const result = await query(
+          'INSERT INTO users (fullName, email, passwordHash, role, status) VALUES (?, ?, ?, ?, ?)',
+          ['System Admin', email, hash, 'admin', 'active']
+        );
+        adminUserId = result.insertId;
         await query('INSERT INTO admins (userId) VALUES (?)', [adminUserId]);
+        await query(
+          'INSERT INTO userProfiles (userId, firstName, lastName, email) VALUES (?, ?, ?, ?)',
+          [adminUserId, 'System', 'Admin', email]
+        );
+      } else {
+        adminUserId = users[0].id;
+        await query(
+          'UPDATE users SET fullName = ?, passwordHash = ?, role = ?, status = ?, updatedAt = NOW() WHERE id = ?',
+          ['System Admin', hash, 'admin', 'active', adminUserId]
+        );
+        const adminExists = await query('SELECT 1 FROM admins WHERE userId = ? LIMIT 1', [adminUserId]);
+        if (adminExists.length === 0) {
+          await query('INSERT INTO admins (userId) VALUES (?)', [adminUserId]);
+        }
       }
     }
+    console.log('Default admin accounts verified in MySQL');
   } catch (error) {
     console.error('Error seeding default admin:', error.message);
   }
@@ -161,17 +202,20 @@ function authenticateTokenOrFallback(req, res, next) {
       next();
     });
   } else {
-    const fallbackId = req.body?.userId || req.query?.userId || req.body?.patientId;
-    if (fallbackId) {
+    const fallbackId = req.body?.userId || req.query?.userId || req.body?.patientId || req.body?.email;
+    if (fallbackId && fallbackId !== 'guest') {
       resolveUserId(fallbackId).then((resolvedId) => {
+        if (!resolvedId || resolvedId <= 0) {
+          return res.status(400).json({ ok: false, message: 'User mapping failed' });
+        }
         req.user = {
-          id: resolvedId || 0,
-          email: fallbackId.includes('@') ? fallbackId : 'fallback@smartpill.com',
+          id: resolvedId,
+          email: String(fallbackId).includes('@') ? String(fallbackId) : 'fallback@smartpill.com',
           role: 'patient',
           isAdmin: false
         };
         next();
-      }).catch(() => next());
+      }).catch(() => res.status(500).json({ ok: false, message: 'User resolution failed' }));
     } else {
       next();
     }
@@ -568,6 +612,18 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
     } else if (userRole === 'admin') {
       await query('INSERT INTO admins (userId) VALUES (?)', [userId]);
     }
+
+    // Always create userProfile entry in userProfiles table
+    const nameParts = fullName.trim().split(' ');
+    const fName = nameParts.length > 0 ? nameParts[0] : fullName.trim();
+    const lName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+    await query(
+      `INSERT INTO userProfiles (userId, firstName, lastName, email, phoneNumber, gender)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+       firstName=VALUES(firstName), lastName=VALUES(lastName), email=VALUES(email), phoneNumber=VALUES(phoneNumber)`,
+      [userId, fName, lName, normEmail, phoneNumber, gender]
+    );
 
     // Log Registration Activity
     await logActivity({
@@ -1645,6 +1701,17 @@ async function startServer() {
 
     const server = app.listen(port, () => {
       console.log(`MySQL API running on http://localhost:${port}/api`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n⚠️ Port ${port} is ALREADY in use by another running server instance.`);
+        console.error(`The backend API is ALREADY active and serving requests on http://localhost:${port}/api.`);
+        console.error(`If you wish to restart it, run: Stop-Process -Name node -Force in PowerShell.\n`);
+        process.exit(1);
+      } else {
+        console.error('Server startup error:', err.message);
+      }
     });
 
     const shutdown = async () => {

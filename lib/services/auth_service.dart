@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'hive_service.dart';
+import 'mysql_api_service.dart';
 import 'database_service.dart';
 import '../models/user.dart';
 import '../models/user_profile.dart';
@@ -24,15 +25,18 @@ class AuthService extends ChangeNotifier {
   // Key for session storage in Hive settings box
   static const String _sessionKey = 'current_user_session';
 
-  /// Register a new user locally.
+  /// Register a new user — saves locally AND sends to MySQL database
   Future<String?> registerWithMessage(String name, String email, String password, {String role = 'patient'}) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
       if (normalizedEmail.isEmpty) {
         return 'Email cannot be empty.';
       }
-      if (password.length < 8) {
-        return 'Password must be at least 8 characters.';
+      if (name.trim().isEmpty) {
+        return 'Full name cannot be empty.';
+      }
+      if (password.length < 6) {
+        return 'Password must be at least 6 characters.';
       }
 
       final box = HiveService().usersBox;
@@ -40,28 +44,43 @@ class AuthService extends ChangeNotifier {
         return 'Email already registered. Please login.';
       }
 
+      // 1. Save locally in Hive
       final newUser = User(
-        fullName: name,
+        fullName: name.trim(),
         email: normalizedEmail,
         password: password,
         role: role,
       );
       await box.put(normalizedEmail, newUser);
 
-      // Generating connection code for patients
       String? connectionCode;
       if (role == 'patient') {
         connectionCode = 'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
       }
 
-      // Create a default profile automatically with the provided name
       final profileBox = HiveService().profilesBox;
       final defaultProfile = UserProfile(
         email: normalizedEmail,
-        fullName: name,
+        fullName: name.trim(),
         connectionCode: connectionCode,
       );
       await profileBox.put(normalizedEmail, defaultProfile);
+      final settings = HiveService().settingsBox;
+      await settings.put(_sessionKey, normalizedEmail);
+      _currentUser = normalizedEmail;
+
+      // 2. Connect to MySQL Database via backend API
+      try {
+        await MySQLApiService().registerUser(
+          email: normalizedEmail,
+          password: password,
+          fullName: name.trim(),
+          role: role,
+        );
+        await MySQLApiService().saveUserProfileToServer(defaultProfile);
+      } catch (e) {
+        debugPrint('MySQL registration error: $e');
+      }
 
       return null; // Success
     } catch (e) {
@@ -104,12 +123,50 @@ class AuthService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Login local user
+  /// Login — authenticates with MySQL backend, falls back to Hive local database
   Future<bool> login(String email, String password) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
+
+      // 1. Try MySQL server login first
+      final sessionData = await MySQLApiService().loginUser(normalizedEmail, password);
+      if (sessionData != null && sessionData['ok'] == true) {
+        final token = sessionData['token'] as String?;
+        final settings = HiveService().settingsBox;
+        if (token != null) await settings.put('jwt_token', token);
+
+        final userData = sessionData['data'] as Map<String, dynamic>? ?? {};
+        final userRole = userData['role'] as String? ?? 'patient';
+        final fullName = userData['fullName'] as String? ?? normalizedEmail;
+
+        final box = HiveService().usersBox;
+        final localUser = User(
+          fullName: fullName,
+          email: normalizedEmail,
+          password: password,
+          role: userRole,
+        );
+        await box.put(normalizedEmail, localUser);
+
+        final profileBox = HiveService().profilesBox;
+        if (!profileBox.containsKey(normalizedEmail)) {
+          final defaultProfile = UserProfile(
+            email: normalizedEmail,
+            fullName: fullName,
+          );
+          await profileBox.put(normalizedEmail, defaultProfile);
+        }
+
+        _currentUser = normalizedEmail;
+        _isLoggedIn = true;
+        await settings.put(_sessionKey, normalizedEmail);
+        await DatabaseService().setCurrentUser(normalizedEmail);
+        notifyListeners();
+        return true;
+      }
+
+      // 2. Offline / local fallback
       final box = HiveService().usersBox;
-      
       if (!box.containsKey(normalizedEmail)) {
         return false;
       }
@@ -119,7 +176,6 @@ class AuthService extends ChangeNotifier {
         _currentUser = normalizedEmail;
         _isLoggedIn = true;
         
-        // Save session
         final settings = HiveService().settingsBox;
         await settings.put(_sessionKey, normalizedEmail);
 
@@ -136,12 +192,9 @@ class AuthService extends ChangeNotifier {
   /// Checks if the logged-in user has created/completed their profile
   bool hasCompletedProfile() {
     if (_currentUser == null) return false;
-    final profile = HiveService().profilesBox.get(_currentUser);
-    if (profile == null) return false;
-    
-    // We track completion using a flag in the settings box
     final settings = HiveService().settingsBox;
-    return settings.get('${_currentUser}_profile_created') == true;
+    final flag = settings.get('${_currentUser}_profile_created');
+    return flag == true;
   }
 
   /// Marks profile as completed
@@ -153,11 +206,16 @@ class AuthService extends ChangeNotifier {
 
   /// Logout
   Future<void> logout() async {
+    try {
+      await MySQLApiService().logoutUser();
+    } catch (_) {}
+
     _currentUser = null;
     _isLoggedIn = false;
     
     final settings = HiveService().settingsBox;
     await settings.delete(_sessionKey);
+    await settings.delete('jwt_token');
 
     await DatabaseService().setCurrentUser(null);
     notifyListeners();
@@ -345,6 +403,15 @@ class AuthService extends ChangeNotifier {
       updatedBy: _currentUser ?? 'admin',
     );
     await HiveService().profilesBox.put(normalized, defaultProfile);
+
+    // Sync to MySQL Database
+    MySQLApiService().registerUser(
+      email: normalized,
+      password: password,
+      fullName: name,
+      role: role,
+    ).then((_) {}).catchError((_) => null);
+
     notifyListeners();
     return null;
   }

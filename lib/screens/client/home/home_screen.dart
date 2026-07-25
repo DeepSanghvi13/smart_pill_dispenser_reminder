@@ -861,24 +861,6 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
     }
   }
 
-  DateTime? _getScheduledDateTime(String timeStr) {
-    final clean = timeStr.trim();
-    final formats = [
-      DateFormat('h:mm a'),
-      DateFormat('hh:mm a'),
-      DateFormat('H:mm'),
-      DateFormat('HH:mm'),
-    ];
-    for (final format in formats) {
-      try {
-        final parsed = format.parse(clean);
-        final now = DateTime.now();
-        return DateTime(now.year, now.month, now.day, parsed.hour, parsed.minute);
-      } catch (_) {}
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

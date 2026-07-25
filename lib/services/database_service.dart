@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'hive_service.dart';
+import 'mysql_sync_helper.dart';
 import '../models/user.dart';
 import '../models/alarm_log.dart';
 import '../models/caretaker.dart';
@@ -63,6 +64,7 @@ class DatabaseService {
       updatedBy: _currentUserId,
     );
     await box.put(nextId, payload);
+    MySQLSyncHelper.syncMedicine(payload);
     return nextId;
   }
 
@@ -89,12 +91,14 @@ class DatabaseService {
       updatedBy: _currentUserId,
     );
     await box.put(id, payload);
+    MySQLSyncHelper.syncMedicine(payload);
     return 1;
   }
 
   Future<int> deleteMedicine(int id) async {
     final box = HiveService().medicinesBox;
     await box.delete(id);
+    MySQLSyncHelper.deleteMedicine(id);
     return 1;
   }
 
@@ -104,6 +108,7 @@ class DatabaseService {
     final box = HiveService().profilesBox;
     final payload = profile.copyWith(email: _currentUserId);
     await box.put(_currentUserId, payload);
+    MySQLSyncHelper.syncUserProfile(payload);
     return 1;
   }
 
@@ -223,6 +228,7 @@ class DatabaseService {
     final payload = log.copyWith(id: nextId);
     all.add(payload);
     await _saveAlarmLogs(all);
+    MySQLSyncHelper.syncAlarmLog(payload);
     return nextId;
   }
 
@@ -329,18 +335,18 @@ class DatabaseService {
 
   Future<void> saveSetting(String key, String value) async {
     final settingsBox = HiveService().settingsBox;
-    await settingsBox.put('$_currentUserId\_$key', value);
+    await settingsBox.put('${_currentUserId}_$key', value);
   }
 
   Future<String?> getSetting(String key) async {
     final settingsBox = HiveService().settingsBox;
-    return settingsBox.get('$_currentUserId\_$key') as String?;
+    return settingsBox.get('${_currentUserId}_$key') as String?;
   }
 
   Future<Map<String, String>> getAllSettings() async {
     final settingsBox = HiveService().settingsBox;
     final result = <String, String>{};
-    final prefix = '$_currentUserId\_';
+    final prefix = '${_currentUserId}_';
     for (final key in settingsBox.keys) {
       if (key is String && key.startsWith(prefix)) {
         final val = settingsBox.get(key);

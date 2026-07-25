@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/hive_service.dart';
 import '../../../widgets/admin_sidebar.dart';
@@ -97,7 +95,6 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final isDark = themeNotifier.value == ThemeMode.dark;
 
     return AdminLayout(

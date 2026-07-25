@@ -2,24 +2,10 @@
 CREATE DATABASE IF NOT EXISTS `smart_pill_reminder` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `smart_pill_reminder`;
 
--- Drop existing tables in correct order of dependency if they exist
-SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `caretaker_connections`;
-DROP TABLE IF EXISTS `notifications`;
-DROP TABLE IF EXISTS `reminders`;
-DROP TABLE IF EXISTS `alarmLogs`;
-DROP TABLE IF EXISTS `medicines`;
-DROP TABLE IF EXISTS `activity_logs`;
-DROP TABLE IF EXISTS `user_sessions`;
-DROP TABLE IF EXISTS `admins`;
-DROP TABLE IF EXISTS `caretakers`;
-DROP TABLE IF EXISTS `patients`;
-DROP TABLE IF EXISTS `dependents`;
-DROP TABLE IF EXISTS `settings`;
-DROP TABLE IF EXISTS `professionalReviewRequests`;
-DROP TABLE IF EXISTS `userProfiles`;
-DROP TABLE IF EXISTS `users`;
-SET FOREIGN_KEY_CHECKS = 1;
+-- ============================================================
+-- NOTE: Tables use CREATE TABLE IF NOT EXISTS so they are NEVER
+-- dropped on server restart. User data is preserved permanently.
+-- ============================================================
 
 -- Table 1: users (core identity table)
 CREATE TABLE IF NOT EXISTS `users` (
@@ -73,7 +59,7 @@ CREATE TABLE IF NOT EXISTS `user_sessions` (
   `operatingSystem` VARCHAR(100) DEFAULT NULL,
   `loginAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `logoutAt` DATETIME DEFAULT NULL,
-  `sessionDuration` INT DEFAULT NULL, -- session duration in seconds
+  `sessionDuration` INT DEFAULT NULL,
   CONSTRAINT `fk_sessions_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -81,17 +67,17 @@ CREATE TABLE IF NOT EXISTS `user_sessions` (
 CREATE TABLE IF NOT EXISTS `activity_logs` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `userId` INT DEFAULT NULL,
-  `userRole` VARCHAR(50) NOT NULL,
+  `userRole` VARCHAR(50) NOT NULL DEFAULT 'guest',
   `userName` VARCHAR(255) DEFAULT NULL,
   `userEmail` VARCHAR(255) DEFAULT NULL,
-  `activityType` VARCHAR(100) NOT NULL, -- REGISTER, REGISTER_FAILED, LOGIN, LOGIN_FAILED, LOGOUT
+  `activityType` VARCHAR(100) NOT NULL,
   `description` TEXT DEFAULT NULL,
   `timestamp` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `ipAddress` VARCHAR(100) DEFAULT NULL,
   `device` VARCHAR(255) DEFAULT NULL,
   `browser` VARCHAR(255) DEFAULT NULL,
   `operatingSystem` VARCHAR(100) DEFAULT NULL,
-  `status` VARCHAR(50) DEFAULT NULL, -- SUCCESS, FAILED
+  `status` VARCHAR(50) DEFAULT NULL,
   `sessionId` INT DEFAULT NULL,
   CONSTRAINT `fk_activity_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_activity_sessionId` FOREIGN KEY (`sessionId`) REFERENCES `user_sessions` (`id`) ON DELETE SET NULL,
@@ -104,11 +90,11 @@ CREATE TABLE IF NOT EXISTS `medicines` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `userId` INT NOT NULL,
   `name` VARCHAR(255) NOT NULL,
-  `type` VARCHAR(100) NOT NULL, -- tablets, syrup, injection
+  `type` VARCHAR(100) NOT NULL DEFAULT 'tablets',
   `dosage` VARCHAR(255) NOT NULL,
-  `quantity` VARCHAR(100) NOT NULL,
-  `frequency` VARCHAR(100) NOT NULL, -- Daily, Weekly
-  `time` VARCHAR(255) NOT NULL, -- e.g. "08:00 AM"
+  `quantity` VARCHAR(100) NOT NULL DEFAULT '1 Pill',
+  `frequency` VARCHAR(100) NOT NULL DEFAULT 'Daily',
+  `time` VARCHAR(255) NOT NULL,
   `startDate` DATE NOT NULL,
   `endDate` DATE NOT NULL,
   `notes` TEXT DEFAULT NULL,
@@ -133,7 +119,7 @@ CREATE TABLE IF NOT EXISTS `reminders` (
   `userId` INT NOT NULL,
   `medicineId` INT NOT NULL,
   `time` VARCHAR(255) NOT NULL,
-  `daysOfWeek` TEXT DEFAULT NULL, -- JSON array
+  `daysOfWeek` TEXT DEFAULT NULL,
   `isActive` BOOLEAN DEFAULT TRUE,
   `lastNotifiedAt` DATETIME DEFAULT NULL,
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -170,7 +156,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   CONSTRAINT `fk_notifications_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table 11: caretaker_connections (caretaker relationships mapping)
+-- Table 11: caretaker_connections (caretaker relationship mapping)
 CREATE TABLE IF NOT EXISTS `caretaker_connections` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `patientId` INT NOT NULL,
@@ -223,8 +209,8 @@ CREATE TABLE IF NOT EXISTS `professionalReviewRequests` (
 -- Table 15: userProfiles
 CREATE TABLE IF NOT EXISTS `userProfiles` (
   `userId` INT PRIMARY KEY,
-  `firstName` VARCHAR(255) NOT NULL,
-  `lastName` VARCHAR(255) NOT NULL,
+  `firstName` VARCHAR(255) NOT NULL DEFAULT '',
+  `lastName` VARCHAR(255) NOT NULL DEFAULT '',
   `gender` VARCHAR(100) DEFAULT NULL,
   `birthDate` VARCHAR(100) DEFAULT NULL,
   `zipCode` VARCHAR(100) DEFAULT NULL,

@@ -56,9 +56,7 @@ class MedicationsScreen extends StatelessWidget {
                   itemCount: medicines.length,
                   itemBuilder: (context, index) {
                     final med = medicines[index];
-                    final expiryText = med.expiryDate == null
-                        ? 'Continuous therapy'
-                        : 'Until: ${DateFormat.yMMMd().format(med.expiryDate!)}';
+                    final expiryText = 'Until: ${DateFormat.yMMMd().format(med.expiryDate)}';
 
                     // Color based on category type
                     Color categoryColor;

@@ -18,7 +18,6 @@ class _ExpiryCalendarScreenState extends State<ExpiryCalendarScreen> {
   List<Medicine> _forDate(DateTime date) {
     return widget.medicines.where((medicine) {
       final expiry = medicine.expiryDate;
-      if (expiry == null) return false;
       return expiry.year == date.year &&
           expiry.month == date.month &&
           expiry.day == date.day;
@@ -51,7 +50,7 @@ class _ExpiryCalendarScreenState extends State<ExpiryCalendarScreen> {
                     itemCount: medicinesOnDate.length,
                     itemBuilder: (context, index) {
                       final medicine = medicinesOnDate[index];
-                      final expiry = medicine.expiryDate!;
+                      final expiry = medicine.expiryDate;
 
                       return ListTile(
                         leading: const Icon(Icons.event_busy, color: Colors.red),

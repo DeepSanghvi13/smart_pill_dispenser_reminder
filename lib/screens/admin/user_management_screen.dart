@@ -6,7 +6,6 @@ import '../../../services/hive_service.dart';
 import '../../../widgets/admin_sidebar.dart';
 import '../../../models/user.dart';
 import '../../../models/user_profile.dart';
-import '../../../models/medicine.dart';
 import '../../../routes/app_routes.dart';
 import 'package:intl/intl.dart';
 
@@ -422,8 +421,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return AdminLayout(
       title: 'User Management',
       activeRoute: AppRoutes.adminUserList,

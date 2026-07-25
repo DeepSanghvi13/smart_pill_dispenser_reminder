@@ -146,17 +146,17 @@ class _ManageScreenState extends State<ManageScreen> {
   void _handleLogout() {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Logout'),
         content: const Text('Are you sure you want to log out of your session?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               await context.read<AuthService>().logout();
               if (!mounted) return;
               Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(

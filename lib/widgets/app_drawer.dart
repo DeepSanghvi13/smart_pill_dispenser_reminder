@@ -94,18 +94,17 @@ class AppDrawer extends StatelessWidget {
             onTap: () {
               showDialog(
                 context: context,
-                builder: (_) => AlertDialog(
+                builder: (dialogContext) => AlertDialog(
                   title: const Text('Logout'),
                   content: const Text('Are you sure you want to log out?'),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(dialogContext),
                       child: const Text('Cancel'),
                     ),
                     TextButton(
                       onPressed: () async {
-                        Navigator.pop(context); // Close dialog
-                        Navigator.pop(context); // Close drawer
+                        Navigator.pop(dialogContext); // Close dialog
                         await context.read<AuthService>().logout();
                         if (!context.mounted) return;
                         Navigator.of(context, rootNavigator: true)

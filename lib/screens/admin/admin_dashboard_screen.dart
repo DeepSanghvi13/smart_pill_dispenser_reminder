@@ -194,7 +194,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
                     shrinkWrap: true,
-                    childAspectRatio: 2.2,
+                    childAspectRatio: isDesktop ? 2.5 : (width > 600 ? 2.2 : 3.0),
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
                       _buildKPICard(

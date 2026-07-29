@@ -68,6 +68,9 @@ class AuthService extends ChangeNotifier {
       final settings = HiveService().settingsBox;
       await settings.put(_sessionKey, normalizedEmail);
       _currentUser = normalizedEmail;
+      _isLoggedIn = true;
+      await DatabaseService().setCurrentUser(normalizedEmail);
+      notifyListeners();
 
       // 2. Connect to MySQL Database via backend API
       try {

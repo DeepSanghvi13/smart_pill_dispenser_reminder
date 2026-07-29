@@ -133,6 +133,12 @@ class MySQLApiService {
 
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       if (res.statusCode == 200 && body['ok'] == true) {
+        final token = body['token'] as String?;
+        if (token != null) {
+          try {
+            HiveService().settingsBox.put('jwt_token', token);
+          } catch (_) {}
+        }
         return null; // success
       }
       return body['message'] as String? ?? 'Registration failed (${res.statusCode})';

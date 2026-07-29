@@ -637,7 +637,23 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
       req
     });
 
-    return res.status(200).json({ ok: true, message: 'Registration successful' });
+    const token = jwt.sign(
+      { id: userId, email: normEmail, role: userRole, isAdmin: userRole === 'admin' },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Registration successful',
+      token,
+      data: {
+        id: userId,
+        email: normEmail,
+        fullName: fullName.trim(),
+        role: userRole
+      }
+    });
   } catch (error) {
     await logActivity({
       activityType: 'REGISTER_FAILED',

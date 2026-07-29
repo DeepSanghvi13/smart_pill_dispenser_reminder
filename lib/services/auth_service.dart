@@ -65,27 +65,19 @@ class AuthService extends ChangeNotifier {
         connectionCode: connectionCode,
       );
       await profileBox.put(normalizedEmail, defaultProfile);
-      final settings = HiveService().settingsBox;
-      await settings.put(_sessionKey, normalizedEmail);
-      _currentUser = normalizedEmail;
-      _isLoggedIn = true;
-      await DatabaseService().setCurrentUser(normalizedEmail);
-      notifyListeners();
 
-      // 2. Connect to MySQL Database via backend API
-      try {
-        await MySQLApiService().registerUser(
-          email: normalizedEmail,
-          password: password,
-          fullName: name.trim(),
-          role: role,
-        );
-        await MySQLApiService().saveUserProfileToServer(defaultProfile);
-      } catch (e) {
+      // 2. Connect to MySQL Database via backend API in background
+      MySQLApiService().registerUser(
+        email: normalizedEmail,
+        password: password,
+        fullName: name.trim(),
+        role: role,
+      ).catchError((e) {
         debugPrint('MySQL registration error: $e');
-      }
+        return null;
+      });
 
-      return null; // Success
+      return null; // Success immediately
     } catch (e) {
       return 'Registration failed: $e';
     }
@@ -126,12 +118,36 @@ class AuthService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Login — authenticates with MySQL backend, falls back to Hive local database
+  /// Login — authenticates with local database instantly & syncs with MySQL backend
   Future<bool> login(String email, String password) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
+      final box = HiveService().usersBox;
 
-      // 1. Try MySQL server login first
+      // 1. Fast local verification (< 5ms)
+      if (box.containsKey(normalizedEmail)) {
+        final localUser = box.get(normalizedEmail);
+        if (localUser != null && localUser.password == password) {
+          _currentUser = normalizedEmail;
+          _isLoggedIn = true;
+          
+          final settings = HiveService().settingsBox;
+          await settings.put(_sessionKey, normalizedEmail);
+          await DatabaseService().setCurrentUser(normalizedEmail);
+          notifyListeners();
+
+          // Sync JWT token with backend asynchronously in background
+          MySQLApiService().loginUser(normalizedEmail, password).then((sessionData) {
+            if (sessionData != null && sessionData['token'] != null) {
+              settings.put('jwt_token', sessionData['token']);
+            }
+          }).catchError((_) => null);
+
+          return true;
+        }
+      }
+
+      // 2. MySQL server authentication fallback (e.g. registered from another device)
       final sessionData = await MySQLApiService().loginUser(normalizedEmail, password);
       if (sessionData != null && sessionData['ok'] == true) {
         final token = sessionData['token'] as String?;
@@ -142,7 +158,6 @@ class AuthService extends ChangeNotifier {
         final userRole = userData['role'] as String? ?? 'patient';
         final fullName = userData['fullName'] as String? ?? normalizedEmail;
 
-        final box = HiveService().usersBox;
         final localUser = User(
           fullName: fullName,
           email: normalizedEmail,
@@ -168,24 +183,6 @@ class AuthService extends ChangeNotifier {
         return true;
       }
 
-      // 2. Offline / local fallback
-      final box = HiveService().usersBox;
-      if (!box.containsKey(normalizedEmail)) {
-        return false;
-      }
-
-      final user = box.get(normalizedEmail);
-      if (user != null && user.password == password) {
-        _currentUser = normalizedEmail;
-        _isLoggedIn = true;
-        
-        final settings = HiveService().settingsBox;
-        await settings.put(_sessionKey, normalizedEmail);
-
-        await DatabaseService().setCurrentUser(normalizedEmail);
-        notifyListeners();
-        return true;
-      }
       return false;
     } catch (_) {
       return false;
@@ -197,7 +194,18 @@ class AuthService extends ChangeNotifier {
     if (_currentUser == null) return false;
     final settings = HiveService().settingsBox;
     final flag = settings.get('${_currentUser}_profile_created');
-    return flag == true;
+    if (flag == true) return true;
+
+    final profile = HiveService().profilesBox.get(_currentUser);
+    if (profile != null) {
+      final hasMobile = profile.mobileNumber != null && profile.mobileNumber!.trim().isNotEmpty;
+      final hasAge = profile.age != null;
+      final hasRelationship = profile.relationship != null && profile.relationship!.trim().isNotEmpty;
+      if (hasMobile && (hasAge || hasRelationship)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Marks profile as completed
@@ -207,11 +215,10 @@ class AuthService extends ChangeNotifier {
     await settings.put('${_currentUser}_profile_created', true);
   }
 
-  /// Logout
+  /// Logout — clears local session immediately & notifies server asynchronously
   Future<void> logout() async {
-    try {
-      await MySQLApiService().logoutUser();
-    } catch (_) {}
+    // Notify server asynchronously in background
+    MySQLApiService().logoutUser().catchError((_) => false);
 
     _currentUser = null;
     _isLoggedIn = false;

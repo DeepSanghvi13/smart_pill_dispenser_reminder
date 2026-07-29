@@ -62,19 +62,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Registration successful! Setting up your profile...'),
+          content: Text('Registration successful! Please log in with your credentials.'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
       );
 
-      // Auto-navigate to Profile Creation page
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Navigate to Login page with prefilled email
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
-        AppRoutes.createProfile,
+        AppRoutes.login,
         (route) => false,
+        arguments: email,
       );
     }
   }

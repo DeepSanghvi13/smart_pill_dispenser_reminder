@@ -65,27 +65,75 @@ class MySQLApiService {
 
   /// Automatically tests and discovers working backend URL (localhost, emulator 10.0.2.2, PC LAN IP)
   Future<bool> checkServerConnection() async {
-    final candidates = <String>[];
-    if (kIsWeb) {
-      candidates.add('http://localhost:$_port');
-    } else {
-      candidates.add('http://10.0.2.2:$_port');
-      candidates.add('http://$_pcLanIp:$_port');
-      candidates.add('http://127.0.0.1:$_port');
-      candidates.add('http://localhost:$_port');
-    }
-
-    for (final candidate in candidates) {
+    // 1. Quick validation of cached URL if available
+    if (_resolvedBaseUrl != null) {
       try {
         final res = await http
-            .get(Uri.parse('$candidate/api/health'))
-            .timeout(const Duration(seconds: 3));
+            .get(Uri.parse('$_resolvedBaseUrl/api/health'))
+            .timeout(const Duration(milliseconds: 800));
         if (res.statusCode == 200) {
-          _resolvedBaseUrl = candidate;
           return true;
         }
-      } catch (_) {}
+      } catch (_) {
+        _resolvedBaseUrl = null;
+      }
     }
+
+    // 2. Build candidate list based on platform
+    final candidates = <String>[];
+    if (kIsWeb) {
+      candidates.addAll([
+        'http://localhost:$_port',
+        'http://127.0.0.1:$_port',
+      ]);
+    } else {
+      bool isAndroid = false;
+      try {
+        isAndroid = Platform.isAndroid;
+      } catch (_) {}
+
+      if (isAndroid) {
+        candidates.addAll([
+          'http://10.0.2.2:$_port',
+          'http://127.0.0.1:$_port',
+          'http://localhost:$_port',
+          'http://$_pcLanIp:$_port',
+        ]);
+      } else {
+        candidates.addAll([
+          'http://localhost:$_port',
+          'http://127.0.0.1:$_port',
+          'http://$_pcLanIp:$_port',
+        ]);
+      }
+    }
+
+    // 3. Test candidates concurrently in parallel for maximum speed
+    try {
+      final futures = candidates.map((candidate) async {
+        try {
+          final res = await http
+              .get(Uri.parse('$candidate/api/health'))
+              .timeout(const Duration(milliseconds: 1200));
+          if (res.statusCode == 200) {
+            return candidate;
+          }
+        } catch (_) {}
+        return null;
+      });
+
+      final results = await Future.wait(futures);
+      final workingCandidate = results.firstWhere(
+        (url) => url != null,
+        orElse: () => null,
+      );
+
+      if (workingCandidate != null) {
+        _resolvedBaseUrl = workingCandidate;
+        return true;
+      }
+    } catch (_) {}
+
     return false;
   }
 
@@ -114,7 +162,10 @@ class MySQLApiService {
     String? phoneNumber,
   }) async {
     // Attempt auto-discovery if URL not resolved yet
-    await checkServerConnection();
+    final isConnected = await checkServerConnection();
+    if (!isConnected && _resolvedBaseUrl == null) {
+      return null; // Return cleanly for offline local mode
+    }
 
     try {
       final res = await http
@@ -129,7 +180,7 @@ class MySQLApiService {
               if (phoneNumber != null) 'phoneNumber': phoneNumber,
             }),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(milliseconds: 2500));
 
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       if (res.statusCode == 200 && body['ok'] == true) {
@@ -151,7 +202,10 @@ class MySQLApiService {
       registerUser(email: email, password: password, fullName: email, role: 'patient');
 
   Future<Map<String, dynamic>?> loginUser(String email, String password) async {
-    await checkServerConnection();
+    final isConnected = await checkServerConnection();
+    if (!isConnected && _resolvedBaseUrl == null) {
+      return null;
+    }
 
     try {
       final res = await http
@@ -160,7 +214,7 @@ class MySQLApiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'email': email, 'password': password}),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(milliseconds: 2500));
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
@@ -174,7 +228,7 @@ class MySQLApiService {
     try {
       final res = await http
           .post(Uri.parse('$baseUrl/logout'), headers: _headers)
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(milliseconds: 2000));
       return res.statusCode == 200;
     } catch (_) {
       return false;

@@ -32,7 +32,7 @@ class AdminSidebar extends StatelessWidget {
           ),
         ),
         selected: isActive,
-        selectedTileColor: theme.colorScheme.primaryContainer.withOpacity(0.4),
+        selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onTap: () {
           if (!isActive) {
@@ -49,7 +49,7 @@ class AdminSidebar extends StatelessWidget {
 
     return Container(
       width: 280,
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
       child: Column(
         children: [
           // Header
@@ -136,6 +136,8 @@ class AdminSidebar extends StatelessWidget {
               ),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               onTap: () async {
+                final auth = context.read<AuthService>();
+                final navigator = Navigator.of(context);
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
@@ -153,15 +155,12 @@ class AdminSidebar extends StatelessWidget {
                     ],
                   ),
                 );
-
                 if (confirm == true) {
-                  await context.read<AuthService>().logout();
-                  if (context.mounted) {
-                    Navigator.of(context).pushNamedAndRemoveUntil(
-                      AppRoutes.login,
-                      (route) => false,
-                    );
-                  }
+                  await auth.logout();
+                  navigator.pushNamedAndRemoveUntil(
+                    AppRoutes.login,
+                    (route) => false,
+                  );
                 }
               },
             ),

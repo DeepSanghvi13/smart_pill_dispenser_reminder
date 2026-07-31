@@ -353,11 +353,11 @@ class _ManageScreenState extends State<ManageScreen> {
                     children: [
                       // Patient's own connection code card
                       Card(
-                        color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+                        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.15)),
+                          side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.15)),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -498,9 +498,9 @@ class _ManageScreenState extends State<ManageScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.04),
+        color: Colors.grey.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
       ),
       child: Text(
         msg,

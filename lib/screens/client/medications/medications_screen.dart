@@ -31,21 +31,21 @@ class MedicationsScreen extends StatelessWidget {
                       Icon(
                         Icons.medication,
                         size: 100,
-                        color: theme.colorScheme.primary.withOpacity(0.3),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.3),
                       ),
                       const SizedBox(height: 24),
                       Text(
                         'No medicines added yet',
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Tap the "+" button below or on home to add one.',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.4),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                         ),
                       ),
                     ],
@@ -91,7 +91,7 @@ class MedicationsScreen extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: categoryColor.withOpacity(0.12),
+                                color: categoryColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Icon(
@@ -148,7 +148,7 @@ class MedicationsScreen extends StatelessWidget {
                                       'Note: ${med.notes}',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
@@ -194,7 +194,7 @@ class MedicationsScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.2 : 0.08),
+        color: color.withValues(alpha: isDark ? 0.2 : 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -207,7 +207,7 @@ class MedicationsScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: isDark ? color.withOpacity(0.9) : color.darken(),
+              color: isDark ? color.withValues(alpha: 0.9) : color.darken(),
             ),
           ),
         ],

@@ -14,7 +14,7 @@ class AdminSettingsScreen extends StatefulWidget {
 
 class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   final DatabaseService _db = DatabaseService();
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   bool _notificationsEnabled = true;
   bool _backupEnabled = true;

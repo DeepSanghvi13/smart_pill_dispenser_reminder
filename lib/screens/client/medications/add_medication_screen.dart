@@ -375,7 +375,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
                       // Category (Type)
                       DropdownButtonFormField<MedicineCategory>(
-                        value: selectedCategory,
+                        initialValue: selectedCategory,
                         decoration: const InputDecoration(
                           labelText: 'Medicine Type',
                           prefixIcon: Icon(Icons.category),
@@ -398,7 +398,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
                       // Frequency
                       DropdownButtonFormField<String>(
-                        value: selectedFrequency,
+                        initialValue: selectedFrequency,
                         decoration: const InputDecoration(
                           labelText: 'Frequency',
                           prefixIcon: Icon(Icons.repeat),

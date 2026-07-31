@@ -164,6 +164,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       await reportsBox.put(reportId, reportData);
       await _db.adminLogActivity('Generated and archived compliance report: $_reportScope');
       
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Saved $_reportScope report to archive.')),
       );
@@ -366,7 +367,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: color.withOpacity(0.2)),
+        side: BorderSide(color: color.withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

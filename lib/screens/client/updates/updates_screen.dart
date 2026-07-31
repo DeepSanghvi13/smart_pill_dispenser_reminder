@@ -191,7 +191,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                       'Health Insights',
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onBackground,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -231,10 +231,10 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
               // 1. Compliance Progress Card
               Card(
                 elevation: 0,
-                color: theme.colorScheme.primaryContainer.withOpacity(0.2),
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
-                  side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.1)),
+                  side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.1)),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -285,7 +285,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                             child: CircularProgressIndicator(
                               value: totalToday > 0 ? complianceRate : 0.0,
                               strokeWidth: 10,
-                              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                               color: theme.colorScheme.primary,
                               strokeCap: StrokeCap.round,
                             ),
@@ -312,9 +312,9 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.04),
+                    color: Colors.grey.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
                   ),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -339,7 +339,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withOpacity(0.08),
+                            color: theme.colorScheme.primary.withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
                           child: _categoryIcon(_nextMedicine!.type),
@@ -465,7 +465,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: color.withOpacity(0.2)),
+        side: BorderSide(color: color.withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

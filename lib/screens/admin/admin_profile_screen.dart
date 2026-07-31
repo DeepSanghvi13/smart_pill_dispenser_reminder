@@ -92,6 +92,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       await HiveService().profilesBox.put(email, updatedProfile);
 
       await _db.adminLogActivity('Administrator profile information updated');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile information updated successfully.')),
       );
@@ -125,6 +126,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       _passwordController.clear();
 
       await _db.adminLogActivity('Administrator account password updated');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password changed successfully.')),
       );
@@ -150,7 +152,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                   children: [
                     CircleAvatar(
                       radius: 40,
-                      backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                       child: Text(
                         _adminUser?.fullName.isNotEmpty == true ? _adminUser!.fullName[0].toUpperCase() : 'A',
                         style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: theme.colorScheme.primary),

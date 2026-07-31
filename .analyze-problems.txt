@@ -1,0 +1,203 @@
+﻿
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\main.dart:115:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\main.dart:125:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\admin\admin_dashboard_screen.dart:135:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\admin\admin_dashboard_screen.dart:144:30 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\admin_profile_screen.dart:95:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\admin_profile_screen.dart:128:28 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\admin\admin_profile_screen.dart:153:66 - deprecated_member_use
+   info - The private field _isLoading could be 'final'. Try making the field 'final' - lib\screens\admin\admin_settings_screen.dart:17:8 - 
+prefer_final_fields
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\admin\announcements_screen.dart:262:78 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\medicine_management_screen.dart:94:19 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\medicine_management_screen.dart:110:19 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\medicine_management_screen.dart:136:19 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\medicine_management_screen.dart:254:31 - use_build_context_synchronously
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\medicine_management_screen.dart:298:19 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\medicine_management_screen.dart:324:19 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\medicine_management_screen.dart:431:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\reports_screen.dart:167:28 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\admin\reports_screen.dart:369:39 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\user_management_screen.dart:107:19 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:139:40 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:142:33 - use_build_context_synchronously
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\user_management_screen.dart:172:17 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:202:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:241:29 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:242:36 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\admin\user_management_screen.dart:277:62 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\user_management_screen.dart:379:17 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\admin\user_management_screen.dart:390:17 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:411:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:562:66 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:648:60 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\login_screen.dart:114:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\login_screen.dart:115:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\login_screen.dart:136:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\login_screen.dart:168:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\register_screen.dart:101:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\register_screen.dart:102:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\register_screen.dart:137:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\splash_screen.dart:93:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\auth\splash_screen.dart:120:43 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\client\home\home_screen.dart:116:30 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\client\home\home_screen.dart:140:32 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:345:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:490:41 - deprecated_member_use
+   info - 'onBackground' is deprecated and shouldn't be used. Use onSurface instead. This feature was deprecated after v3.18.0-0.1.pre. Try 
+replacing the use of the deprecated member with the replacement - lib\screens\client\home\home_screen.dart:520:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:526:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:545:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:547:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:570:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:937:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:986:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:1020:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:1119:64 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:1127:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:1194:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:1194:92 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:1239:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\home\home_screen.dart:1241:47 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\client\manage\create_profile_screen.dart:114:28 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\manage\create_profile_screen.dart:238:72 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\client\manage\create_profile_screen.dart:309:33 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\client\manage\create_profile_screen.dart:361:37 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\client\manage\create_profile_screen.dart:375:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\manage\manage_screen.dart:356:67 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\manage\manage_screen.dart:360:77 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\manage\manage_screen.dart:501:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\manage\manage_screen.dart:503:47 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\client\medications\add_medication_screen.dart:378:25 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This 
+feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - 
+lib\screens\client\medications\add_medication_screen.dart:401:25 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\medications\medications_screen.dart:34:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\medications\medications_screen.dart:41:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\medications\medications_screen.dart:48:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\medications\medications_screen.dart:94:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\medications\medications_screen.dart:151:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\medications\medications_screen.dart:197:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\medications\medications_screen.dart:210:37 - deprecated_member_use
+   info - 'onBackground' is deprecated and shouldn't be used. Use onSurface instead. This feature was deprecated after v3.18.0-0.1.pre. Try 
+replacing the use of the deprecated member with the replacement - lib\screens\client\updates\updates_screen.dart:194:50 - 
+deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\updates\updates_screen.dart:234:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\updates\updates_screen.dart:237:69 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\updates\updates_screen.dart:288:74 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\updates\updates_screen.dart:315:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\updates\updates_screen.dart:317:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\updates\updates_screen.dart:342:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\screens\client\updates\updates_screen.dart:468:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\widgets\admin_sidebar.dart:35:63 - deprecated_member_use
+   info - 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after 
+v3.18.0-0.1.pre. Try replacing the use of the deprecated member with the replacement - lib\widgets\admin_sidebar.dart:52:32 - 
+deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\widgets\admin_sidebar.dart:52:47 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\widgets\admin_sidebar.dart:158:25 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\widgets\app_drawer.dart:59:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\widgets\custom_charts.dart:135:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\widgets\custom_charts.dart:135:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the 
+deprecated member with the replacement - lib\widgets\custom_charts.dart:218:44 - deprecated_member_use
+
+

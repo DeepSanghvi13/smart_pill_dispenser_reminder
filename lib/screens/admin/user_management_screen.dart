@@ -104,7 +104,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedRole,
+                  initialValue: selectedRole,
                   decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.badge)),
                   items: const [
                     DropdownMenuItem(value: 'patient', child: Text('Patient')),
@@ -136,9 +136,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
                 );
 
                 if (err != null) {
+                  if (!mounted || !ctx.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
                 } else {
                   await _db.adminLogActivity('User Account Created: ${emailController.text.trim()} ($selectedRole)');
+                  if (!mounted || !ctx.mounted) return;
                   Navigator.pop(ctx);
                   _loadData();
                 }
@@ -169,7 +171,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: selectedRole,
+                initialValue: selectedRole,
                 decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.badge)),
                 items: const [
                   DropdownMenuItem(value: 'patient', child: Text('Patient')),
@@ -199,6 +201,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
                 );
                 await HiveService().usersBox.put(user.email, updated);
                 await _db.adminLogActivity('Updated Details for User: ${user.email}');
+                if (!mounted || !ctx.mounted) return;
                 Navigator.pop(ctx);
                 _loadData();
               },
@@ -230,6 +233,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
           ElevatedButton(
             onPressed: () async {
               if (passwordController.text.trim().length < 8) {
+                  if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Password must be at least 8 characters.')),
                 );
@@ -238,6 +242,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
               final auth = context.read<AuthService>();
               await auth.adminResetPassword(user.email, passwordController.text.trim());
               await _db.adminLogActivity('Password Reset for User: ${user.email}');
+                if (!mounted || !ctx.mounted) return;
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Password updated successfully.')),
@@ -274,7 +279,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
               children: [
                 CircleAvatar(
                   radius: 36,
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                   child: Text(
                     user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U',
                     style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
@@ -376,7 +381,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: selectedCaretaker,
+                initialValue: selectedCaretaker,
                 decoration: const InputDecoration(labelText: 'Caretaker', prefixIcon: Icon(Icons.supervised_user_circle)),
                 items: caretakers.map((u) => DropdownMenuItem(value: u.email, child: Text(u.fullName))).toList(),
                 onChanged: (val) {
@@ -387,7 +392,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: selectedPatient,
+                initialValue: selectedPatient,
                 decoration: const InputDecoration(labelText: 'Patient', prefixIcon: Icon(Icons.person)),
                 items: patients.map((u) => DropdownMenuItem(value: u.email, child: Text(u.fullName))).toList(),
                 onChanged: (val) {
@@ -405,9 +410,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
             ),
             ElevatedButton(
               onPressed: () async {
+                if (!mounted || !ctx.mounted) return;
                 final auth = context.read<AuthService>();
                 await auth.adminLinkCaretakerAndPatient(selectedPatient, selectedCaretaker);
                 await _db.adminLogActivity('Established Link: $selectedCaretaker to $selectedPatient');
+                if (!mounted || !ctx.mounted) return;
                 Navigator.pop(ctx);
                 _loadData();
               },
@@ -559,9 +566,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
                                                   );
 
                                                   if (confirm == true) {
+                                                    if (!context.mounted) return;
                                                     final auth = context.read<AuthService>();
                                                     await auth.adminDeleteUser(user.email);
                                                     await _db.adminLogActivity('Permanently Deleted User: ${user.email}');
+                                                    if (!mounted) return;
                                                     _loadData();
                                                   }
                                                 },
@@ -645,9 +654,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
                                             );
 
                                             if (confirm == true) {
+                                              if (!mounted || !ctx.mounted) return;
                                               final auth = context.read<AuthService>();
                                               await auth.adminUnlinkCaretakerAndPatient(conn['connectionId']);
                                               await _db.adminLogActivity('Severed monitoring link between $caretakerEmail and $patientEmail');
+                                              if (!mounted) return;
                                               _loadData();
                                             }
                                           },

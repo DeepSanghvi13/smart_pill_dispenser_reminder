@@ -112,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result != null && result is Medicine) {
       final provider = context.read<MedicineProvider>();
       final id = await provider.addMedicine(result);
+      if (!mounted) return;
       if (id != null && id > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Medicine added successfully'), backgroundColor: Colors.green),
@@ -136,6 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final medicineId = medicines[index].id;
       if (medicineId != null) {
         final success = await provider.updateMedicine(medicineId, result);
+        if (!mounted) return;
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Medicine updated successfully'), backgroundColor: Colors.green),
@@ -342,7 +344,7 @@ class HomeBody extends StatelessWidget {
         children: [
           Card(
             elevation: 0,
-            color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -487,7 +489,7 @@ class HomeBody extends StatelessWidget {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: color.withOpacity(0.2)),
+          side: BorderSide(color: color.withValues(alpha: 0.2)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -517,13 +519,13 @@ class HomeBody extends StatelessWidget {
             title,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onBackground,
+              color: theme.colorScheme.onSurface,
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -542,9 +544,9 @@ class HomeBody extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.05),
+        color: Colors.grey.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
       ),
       child: Text(
         msg,
@@ -567,7 +569,7 @@ class HomeBody extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.08),
+                color: theme.colorScheme.primary.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: _categoryIcon(m.category),
@@ -934,7 +936,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
           if (connectedPatients.isEmpty)
             Card(
               elevation: 0,
-              color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -983,7 +985,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                             radius: 30,
                             backgroundColor: isSelected
                                 ? theme.colorScheme.primary
-                                : theme.colorScheme.primary.withOpacity(0.1),
+                                : theme.colorScheme.primary.withValues(alpha: 0.1),
                             child: CircleAvatar(
                               radius: 27,
                               backgroundColor: Colors.white,
@@ -1017,7 +1019,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
             // Patient details banner
             Card(
               elevation: 0,
-              color: theme.colorScheme.secondaryContainer.withOpacity(0.3),
+              color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -1116,7 +1118,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: _getStatusColor(status).withOpacity(0.1),
+                      backgroundColor: _getStatusColor(status).withValues(alpha: 0.1),
                       child: Icon(_getStatusIcon(status), color: _getStatusColor(status)),
                     ),
                     title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1124,7 +1126,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                     trailing: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _getStatusColor(status).withOpacity(0.1),
+                        color: _getStatusColor(status).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -1191,7 +1193,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
             ...notifications.take(5).map((n) {
               final isAnn = n['type'] == 'announcement';
               return Card(
-                color: isAnn ? Colors.indigo.shade50.withOpacity(0.4) : Colors.red.shade50.withOpacity(0.4),
+                color: isAnn ? Colors.indigo.shade50.withValues(alpha: 0.4) : Colors.red.shade50.withValues(alpha: 0.4),
                 margin: const EdgeInsets.only(bottom: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1236,9 +1238,9 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.05),
+        color: Colors.grey.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
       ),
       child: Text(
         msg,

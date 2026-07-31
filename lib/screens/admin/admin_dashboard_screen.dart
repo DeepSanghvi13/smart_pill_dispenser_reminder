@@ -132,7 +132,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: color.withOpacity(0.15)),
+        side: BorderSide(color: color.withValues(alpha: 0.15)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -141,7 +141,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.08),
+                color: color.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 28),

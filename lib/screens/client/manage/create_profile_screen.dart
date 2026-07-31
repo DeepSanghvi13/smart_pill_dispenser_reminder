@@ -111,6 +111,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to pick image: $e')),
       );
@@ -235,7 +236,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                         children: [
                           CircleAvatar(
                             radius: 64,
-                            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                             backgroundImage: _imagePath != null && _imagePath!.isNotEmpty
                                 ? FileImage(File(_imagePath!))
                                 : null,
@@ -306,7 +307,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                             if (isCare) ...[
                               // Relationship Field
                               DropdownButtonFormField<String>(
-                                value: _selectedRelationship,
+                                initialValue: _selectedRelationship,
                                 decoration: InputDecoration(
                                   labelText: 'Relationship to Patient(s)',
                                   prefixIcon: const Icon(Icons.people_outline),
@@ -358,7 +359,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                   );
 
                                   final genderField = DropdownButtonFormField<String>(
-                                    value: _selectedGender,
+                                    initialValue: _selectedGender,
                                     decoration: InputDecoration(
                                       labelText: 'Gender',
                                       prefixIcon: const Icon(Icons.wc),
@@ -372,7 +373,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                   );
 
                                   final bloodField = DropdownButtonFormField<String>(
-                                    value: _selectedBloodGroup,
+                                    initialValue: _selectedBloodGroup,
                                     decoration: InputDecoration(
                                       labelText: 'Blood Group',
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

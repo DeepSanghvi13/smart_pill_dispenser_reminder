@@ -7,12 +7,12 @@ import '../models/user_profile.dart';
 
 /// Fire-and-forget sync helper connecting local operations to MySQL backend.
 class MySQLSyncHelper {
-  static void syncMedicine(Medicine medicine) {
-    MySQLApiService().createMedicineOnServer(medicine);
+  static Future<void> syncMedicine(Medicine medicine) async {
+    await MySQLApiService().createMedicineOnServer(medicine);
   }
 
-  static void deleteMedicine(int id) {
-    MySQLApiService().deleteMedicineFromServer(id);
+  static Future<void> deleteMedicine(int id, {String? userId}) async {
+    await MySQLApiService().deleteMedicineFromServer(id, userId: userId);
   }
 
   static void syncReminder(Reminder reminder) {

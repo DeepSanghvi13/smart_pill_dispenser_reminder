@@ -56,6 +56,12 @@ class MySQLApiService {
   }
 
   void configure({required String userId, String? authToken}) {
+    final normalizedUserId = userId.trim().toLowerCase();
+    if (normalizedUserId.isNotEmpty) {
+      try {
+        HiveService().settingsBox.put('current_user_session', normalizedUserId);
+      } catch (_) {}
+    }
     if (authToken != null) {
       try {
         HiveService().settingsBox.put('jwt_token', authToken);
@@ -286,11 +292,12 @@ class MySQLApiService {
     }
   }
 
-  Future<bool> deleteMedicineFromServer(int id) async {
+  Future<bool> deleteMedicineFromServer(int id, {String? userId}) async {
     try {
+      final ownerId = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId;
       final res = await http
           .delete(
-            Uri.parse('$baseUrl/api/medicines/$id?userId=$_currentUserId'),
+            Uri.parse('$baseUrl/api/medicines/$id?userId=$ownerId'),
             headers: _headers,
           )
           .timeout(const Duration(seconds: 10));
@@ -319,7 +326,7 @@ class MySQLApiService {
   }
 
   Map<String, dynamic> _medicinePayload(Medicine m) => {
-        'userId': _currentUserId,
+      'userId': m.userId.trim().isNotEmpty ? m.userId.trim() : _currentUserId,
         'id': m.id,
         'name': m.name,
         'type': m.type,

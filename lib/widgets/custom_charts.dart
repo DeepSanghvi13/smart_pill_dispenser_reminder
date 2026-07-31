@@ -132,7 +132,7 @@ class _LineChartPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [lineColor.withOpacity(0.3), lineColor.withOpacity(0.01)],
+        colors: [lineColor.withValues(alpha: 0.3), lineColor.withValues(alpha: 0.01)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
 
@@ -215,7 +215,7 @@ class CustomProgressRing extends StatelessWidget {
             child: CircularProgressIndicator(
               value: percentage.clamp(0.0, 1.0),
               strokeWidth: 12,
-              backgroundColor: activeColor.withOpacity(0.1),
+              backgroundColor: activeColor.withValues(alpha: 0.1),
               color: activeColor,
               strokeCap: StrokeCap.round,
             ),

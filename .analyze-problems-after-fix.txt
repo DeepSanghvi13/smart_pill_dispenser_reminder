@@ -1,0 +1,37 @@
+﻿
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\admin_profile_screen.dart:95:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\admin_profile_screen.dart:128:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\medicine_management_screen.dart:254:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\medicine_management_screen.dart:431:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\reports_screen.dart:167:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:139:40 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:142:33 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:202:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:241:29 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:242:36 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:411:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:562:66 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\admin\user_management_screen.dart:648:60 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\client\home\home_screen.dart:116:30 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\client\home\home_screen.dart:140:32 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\screens\client\manage\create_profile_screen.dart:114:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 
+'mounted' check - lib\widgets\admin_sidebar.dart:158:25 - use_build_context_synchronously
+
+

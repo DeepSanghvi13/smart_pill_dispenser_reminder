@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/hive_service.dart';
+import '../../../services/mysql_sync_helper.dart';
 import '../../../widgets/admin_sidebar.dart';
 import '../../../models/medicine.dart';
 import '../../../models/user.dart';
@@ -90,7 +91,7 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: selectedPatient,
+                  initialValue: selectedPatient,
                   decoration: const InputDecoration(labelText: 'Target Patient', prefixIcon: Icon(Icons.person)),
                   items: _patients.map((p) => DropdownMenuItem(value: p.email, child: Text(p.fullName))).toList(),
                   onChanged: (val) {
@@ -106,7 +107,7 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedType,
+                  initialValue: selectedType,
                   decoration: const InputDecoration(labelText: 'Type', prefixIcon: Icon(Icons.category)),
                   items: const [
                     DropdownMenuItem(value: 'Tablets', child: Text('Tablets')),
@@ -132,7 +133,7 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedFrequency,
+                  initialValue: selectedFrequency,
                   decoration: const InputDecoration(labelText: 'Frequency', prefixIcon: Icon(Icons.repeat)),
                   items: const [
                     DropdownMenuItem(value: 'Daily', child: Text('Daily')),
@@ -248,7 +249,9 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
                 );
 
                 await box.put(nextId, med);
+                await MySQLSyncHelper.syncMedicine(med);
                 await _db.adminLogActivity('Medication Schedule added: ${nameController.text.trim()} for patient $selectedPatient');
+                if (!mounted || !ctx.mounted) return;
                 Navigator.pop(ctx);
                 _loadData();
               },
@@ -293,7 +296,7 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedType,
+                  initialValue: selectedType,
                   decoration: const InputDecoration(labelText: 'Type', prefixIcon: Icon(Icons.category)),
                   items: const [
                     DropdownMenuItem(value: 'Tablets', child: Text('Tablets')),
@@ -319,7 +322,7 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedFrequency,
+                  initialValue: selectedFrequency,
                   decoration: const InputDecoration(labelText: 'Frequency', prefixIcon: Icon(Icons.repeat)),
                   items: const [
                     DropdownMenuItem(value: 'Daily', child: Text('Daily')),
@@ -424,7 +427,9 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
                 );
 
                 await box.put(med.id, updated);
+                await MySQLSyncHelper.syncMedicine(updated);
                 await _db.adminLogActivity('Modified Medication Info: ${med.name} for Patient ${med.patientId}');
+                if (!mounted || !ctx.mounted) return;
                 Navigator.pop(ctx);
                 _loadData();
               },
@@ -563,6 +568,9 @@ class _MedicineManagementScreenState extends State<MedicineManagementScreen> {
 
                                               if (confirm == true) {
                                                 await HiveService().medicinesBox.delete(med.id);
+                                                if (med.id != null) {
+                                                  await MySQLSyncHelper.deleteMedicine(med.id!, userId: med.patientId);
+                                                }
                                                 await _db.adminLogActivity('Permanently Deleted Medicine: ${med.name} for Patient ${med.patientId}');
                                                 _loadData();
                                               }

@@ -112,7 +112,7 @@ class MyApp extends StatelessWidget {
               inputDecorationTheme: InputDecorationTheme(
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
-                fillColor: Colors.grey.shade50.withOpacity(0.3),
+                fillColor: Colors.grey.shade50.withValues(alpha: 0.3),
               ),
             ),
             darkTheme: ThemeData(
@@ -122,7 +122,7 @@ class MyApp extends StatelessWidget {
               inputDecorationTheme: InputDecorationTheme(
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
-                fillColor: Colors.grey.shade900.withOpacity(0.3),
+                fillColor: Colors.grey.shade900.withValues(alpha: 0.3),
               ),
             ),
             themeMode: themeMode,

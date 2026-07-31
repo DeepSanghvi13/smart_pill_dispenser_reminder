@@ -259,7 +259,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                               
                               return ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: theme.colorScheme.primary.withOpacity(0.08),
+                                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.08),
                                   child: const Icon(Icons.campaign, color: Colors.indigo),
                                 ),
                                 title: Text(ann['title'] ?? 'No Title', style: const TextStyle(fontWeight: FontWeight.bold)),

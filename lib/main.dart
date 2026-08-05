@@ -8,6 +8,7 @@ import 'services/auth_service.dart';
 import 'services/hive_service.dart';
 import 'providers/sync_provider.dart';
 import 'providers/medicine_provider.dart';
+import 'providers/photo_provider.dart';
 import 'routes/app_routes.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'theme/theme_controller.dart';
@@ -94,6 +95,7 @@ class MyApp extends StatelessWidget {
             ChangeNotifierProvider(create: (_) => AlarmService()),
             ChangeNotifierProvider(create: (_) => AuthService()),
             ChangeNotifierProvider(create: (_) => MedicineProvider()),
+            ChangeNotifierProvider(create: (_) => PhotoProvider()),
             ChangeNotifierProvider(
               create: (_) {
                 final provider = SyncProvider();

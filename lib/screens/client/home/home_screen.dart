@@ -10,6 +10,7 @@ import '../../../services/database_service.dart';
 import '../../../services/hive_service.dart';
 import '../../../widgets/bottom_nav.dart';
 import '../../../widgets/app_drawer.dart';
+import '../../../widgets/photo_picker_bottom_sheet.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 import '../updates/updates_screen.dart';
@@ -388,7 +389,10 @@ class HomeBody extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          _buildPatientQuickActions(context),
+          const SizedBox(height: 20),
 
           _buildQuickSummary(context, upcoming.length, completed.length, missed.length),
           const SizedBox(height: 24),
@@ -466,6 +470,135 @@ class HomeBody extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPatientQuickActions(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quick Actions',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _quickActionButton(
+              context: context,
+              icon: Icons.add_circle_outline,
+              label: 'Add Medicine',
+              color: Colors.blue,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.addMedication),
+            ),
+            const SizedBox(width: 8),
+            _quickActionButton(
+              context: context,
+              icon: Icons.camera_alt_outlined,
+              label: 'Add Photo',
+              color: Colors.purple,
+              onTap: () => PhotoPickerBottomSheet.show(context),
+            ),
+            const SizedBox(width: 8),
+            _quickActionButton(
+              context: context,
+              icon: Icons.photo_library_outlined,
+              label: 'My Photos',
+              color: Colors.teal,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.myPhotos),
+            ),
+            const SizedBox(width: 8),
+            _quickActionButton(
+              context: context,
+              icon: Icons.people_outline,
+              label: 'My Caretaker',
+              color: Colors.orange,
+              onTap: () => _showCaretakerDialog(context),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _quickActionButton({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Material(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: 24),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCaretakerDialog(BuildContext context) {
+    final auth = context.read<AuthService>();
+    final caretakers = auth.getConnectedCaretakers();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('My Connected Caretakers'),
+        content: caretakers.isEmpty
+            ? const Text(
+                'No caretakers connected yet.\n\nTo connect with a caretaker, ask them to connect using your unique Connection Code found in your profile.',
+              )
+            : SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: caretakers.length,
+                  itemBuilder: (ctx, i) {
+                    final c = caretakers[i];
+                    return ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.person)),
+                      title: Text(c.fullName),
+                      subtitle: Text(c.email),
+                    );
+                  },
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
@@ -917,6 +1050,10 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
+          // Caretaker Quick Actions
+          _buildCaretakerQuickActions(context, auth, provider),
+          const SizedBox(height: 20),
+
           // 1. Connected Patients horizontal header selector
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1228,6 +1365,111 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
               );
             }),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCaretakerQuickActions(
+    BuildContext context,
+    AuthService auth,
+    MedicineProvider provider,
+  ) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quick Actions',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _quickActionButton(
+              context: context,
+              icon: Icons.people_alt_outlined,
+              label: 'My Patients',
+              color: Colors.blue,
+              onTap: () => _showAddPatientDialog(context, auth, provider),
+            ),
+            const SizedBox(width: 8),
+            _quickActionButton(
+              context: context,
+              icon: Icons.camera_alt_outlined,
+              label: 'Add Photo',
+              color: Colors.purple,
+              onTap: () => PhotoPickerBottomSheet.show(context),
+            ),
+            const SizedBox(width: 8),
+            _quickActionButton(
+              context: context,
+              icon: Icons.photo_library_outlined,
+              label: 'My Photos',
+              color: Colors.teal,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.myPhotos),
+            ),
+            const SizedBox(width: 8),
+            _quickActionButton(
+              context: context,
+              icon: Icons.notifications_outlined,
+              label: 'Notifications',
+              color: Colors.orange,
+              onTap: () {
+                final count = HiveService().notificationsBox.length;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Caregiver Alerts: $count notifications in log.'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _quickActionButton({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Material(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: 24),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/user.dart';
 import '../models/user_profile.dart';
 import '../models/medicine.dart';
+import '../models/user_photo.dart';
 
 class HiveService {
   static final HiveService _instance = HiveService._internal();
@@ -25,11 +26,15 @@ class HiveService {
     if (!Hive.isAdapterRegistered(3)) {
       Hive.registerAdapter(MedicineAdapter());
     }
+    if (!Hive.isAdapterRegistered(4)) {
+      Hive.registerAdapter(UserPhotoAdapter());
+    }
 
     // Open required boxes
     await Hive.openBox<User>('users');
     await Hive.openBox<UserProfile>('profiles');
     await Hive.openBox<Medicine>('medicines');
+    await Hive.openBox<UserPhoto>('user_photos');
     await Hive.openBox('settings');
     await Hive.openBox('connections');
     await Hive.openBox('notifications');
@@ -41,6 +46,7 @@ class HiveService {
   Box<User> get usersBox => Hive.box<User>('users');
   Box<UserProfile> get profilesBox => Hive.box<UserProfile>('profiles');
   Box<Medicine> get medicinesBox => Hive.box<Medicine>('medicines');
+  Box<UserPhoto> get userPhotosBox => Hive.box<UserPhoto>('user_photos');
   Box get settingsBox => Hive.box('settings');
   Box get connectionsBox => Hive.box('connections');
   Box get notificationsBox => Hive.box('notifications');
@@ -97,3 +103,20 @@ class MedicineAdapter extends TypeAdapter<Medicine> {
     writer.writeMap(obj.toMap());
   }
 }
+
+class UserPhotoAdapter extends TypeAdapter<UserPhoto> {
+  @override
+  final int typeId = 4;
+
+  @override
+  UserPhoto read(BinaryReader reader) {
+    final map = Map<String, dynamic>.from(reader.readMap());
+    return UserPhoto.fromMap(map);
+  }
+
+  @override
+  void write(BinaryWriter writer, UserPhoto obj) {
+    writer.writeMap(obj.toMap());
+  }
+}
+

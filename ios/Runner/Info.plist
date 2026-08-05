@@ -46,6 +46,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Camera access is used to scan medicine labels and barcodes.</string>
+	<string>Camera access is used to capture medication photos and scan barcodes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is used to select medication photos.</string>
 </dict>
 </plist>

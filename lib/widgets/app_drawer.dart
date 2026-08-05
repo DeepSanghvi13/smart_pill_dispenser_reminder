@@ -76,6 +76,14 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('My Photos'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, AppRoutes.myPhotos);
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: const Text('Settings'),
             onTap: () {

@@ -44,7 +44,17 @@ import '../screens/admin/announcements_screen.dart';
 import '../screens/admin/admin_profile_screen.dart';
 import '../screens/admin/admin_settings_screen.dart';
 
+import 'dart:io';
+import '../models/user_photo.dart';
+import '../screens/photos/add_photo_screen.dart';
+import '../screens/photos/my_photos_screen.dart';
+import '../screens/photos/photo_details_screen.dart';
+
 class AppRoutes {
+  static const String myPhotos = '/photos/my-photos';
+  static const String addPhoto = '/photos/add';
+  static const String photoDetails = '/photos/details';
+
   static const String adminDashboard = '/admin/dashboard';
   static const String adminUserList = '/admin/users';
   static const String adminMedicineList = '/admin/medicines';
@@ -90,6 +100,20 @@ class AppRoutes {
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case myPhotos:
+        return MaterialPageRoute(builder: (_) => const MyPhotosScreen());
+      case addPhoto:
+        final args = settings.arguments;
+        if (args is File) {
+          return MaterialPageRoute(builder: (_) => AddPhotoScreen(initialFile: args));
+        }
+        return _unknownRoute();
+      case photoDetails:
+        final args = settings.arguments;
+        if (args is UserPhoto) {
+          return MaterialPageRoute(builder: (_) => PhotoDetailsScreen(photo: args));
+        }
+        return _unknownRoute();
       case login:
         final args = settings.arguments;
         final prefilledEmail = args is String ? args : null;

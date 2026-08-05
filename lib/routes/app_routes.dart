@@ -49,6 +49,7 @@ import '../models/user_photo.dart';
 import '../screens/photos/add_photo_screen.dart';
 import '../screens/photos/my_photos_screen.dart';
 import '../screens/photos/photo_details_screen.dart';
+import '../widgets/photo_picker_bottom_sheet.dart';
 
 class AppRoutes {
   static const String myPhotos = '/photos/my-photos';
@@ -107,7 +108,17 @@ class AppRoutes {
         if (args is File) {
           return MaterialPageRoute(builder: (_) => AddPhotoScreen(initialFile: args));
         }
-        return _unknownRoute();
+        return MaterialPageRoute(
+          builder: (context) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.pop(context);
+              PhotoPickerBottomSheet.show(context);
+            });
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          },
+        );
       case photoDetails:
         final args = settings.arguments;
         if (args is UserPhoto) {

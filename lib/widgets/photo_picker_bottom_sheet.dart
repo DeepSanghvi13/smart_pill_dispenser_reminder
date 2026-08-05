@@ -25,8 +25,8 @@ class PhotoPickerBottomSheet extends StatelessWidget {
     navigator.pop();
 
     try {
-      // Permission check if camera
-      if (source == ImageSource.camera) {
+      // Permission check if camera on mobile platforms
+      if (source == ImageSource.camera && (Platform.isAndroid || Platform.isIOS)) {
         final status = await Permission.camera.status;
         if (status.isPermanentlyDenied) {
           if (context.mounted) {

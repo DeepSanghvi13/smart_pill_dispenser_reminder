@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../models/medicine.dart';
 import '../../../models/user_profile.dart';
 import '../../../providers/medicine_provider.dart';
+import '../../../providers/photo_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/hive_service.dart';
@@ -90,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _searchQuery = val;
               });
             },
+            onAddMed: _addMedicine,
             onEdit: _editMedicine,
             onDelete: _deleteMedicine,
           );
@@ -252,6 +254,7 @@ class HomeBody extends StatelessWidget {
   final String? profilePic;
   final String searchQuery;
   final ValueChanged<String> onSearchChanged;
+  final VoidCallback onAddMed;
   final Function(int) onEdit;
   final Function(int) onDelete;
 
@@ -262,6 +265,7 @@ class HomeBody extends StatelessWidget {
     this.profilePic,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.onAddMed,
     required this.onEdit,
     required this.onDelete,
   });
@@ -492,7 +496,7 @@ class HomeBody extends StatelessWidget {
               icon: Icons.add_circle_outline,
               label: 'Add Medicine',
               color: Colors.blue,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.addMedication),
+              onTap: onAddMed,
             ),
             const SizedBox(width: 8),
             _quickActionButton(
@@ -508,7 +512,12 @@ class HomeBody extends StatelessWidget {
               icon: Icons.photo_library_outlined,
               label: 'My Photos',
               color: Colors.teal,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.myPhotos),
+              onTap: () {
+                final auth = context.read<AuthService>();
+                final photoProvider = context.read<PhotoProvider>();
+                photoProvider.loadPhotos(auth.currentUser);
+                Navigator.pushNamed(context, AppRoutes.myPhotos);
+              },
             ),
             const SizedBox(width: 8),
             _quickActionButton(

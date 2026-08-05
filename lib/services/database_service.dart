@@ -114,12 +114,47 @@ class DatabaseService {
 
   Future<UserProfile?> getUserProfileData() async {
     final box = HiveService().profilesBox;
-    return box.get(_currentUserId);
+    final email = _currentUserId.trim().toLowerCase();
+    var profile = box.get(email);
+
+    final usersBox = HiveService().usersBox;
+    final user = usersBox.get(email);
+
+    if (profile == null) {
+      if (user != null) {
+        String? code;
+        if (user.role == 'patient') {
+          code = 'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
+        }
+        profile = UserProfile(email: email, fullName: user.fullName, connectionCode: code);
+        await box.put(email, profile);
+      }
+    } else if ((user == null || user.role == 'patient') && (profile.connectionCode == null || profile.connectionCode!.isEmpty)) {
+      final code = 'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
+      profile = profile.copyWith(connectionCode: code);
+      await box.put(email, profile);
+    }
+    return profile;
   }
 
   Future<UserProfile?> getPatientUserProfileData(String patientId) async {
     final box = HiveService().profilesBox;
-    return box.get(patientId.trim().toLowerCase());
+    final email = patientId.trim().toLowerCase();
+    var profile = box.get(email);
+    if (profile == null || profile.connectionCode == null || profile.connectionCode!.isEmpty) {
+      final usersBox = HiveService().usersBox;
+      final user = usersBox.get(email);
+      if (user != null) {
+        final code = 'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
+        if (profile == null) {
+          profile = UserProfile(email: email, fullName: user.fullName, connectionCode: code);
+        } else {
+          profile = profile.copyWith(connectionCode: code);
+        }
+        await box.put(email, profile);
+      }
+    }
+    return profile;
   }
 
   // ============= REMINDER OPERATIONS =============

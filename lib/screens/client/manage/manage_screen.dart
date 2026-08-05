@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:provider/provider.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
@@ -359,32 +361,61 @@ class _ManageScreenState extends State<ManageScreen> {
                           borderRadius: BorderRadius.circular(16),
                           side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.15)),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'My Patient Connection Code',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: connectionCode));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connection code copied to clipboard!'),
+                                duration: Duration(seconds: 2),
                               ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    connectionCode,
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.primary,
-                                      letterSpacing: 1.5,
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: const [
+                                    Text(
+                                      'My Patient Connection Code (SDP Code)',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                     ),
-                                  ),
-                                  const Icon(Icons.share, size: 20, color: Colors.blue),
-                                ],
-                              ),
-                            ],
+                                    Text(
+                                      'Tap to copy',
+                                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      connectionCode,
+                                      style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.primary,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.share, size: 20, color: Colors.blue),
+                                      tooltip: 'Share SDP Code',
+                                      onPressed: () {
+                                        Share.share(
+                                          'My Smart Pill Reminder connection code is: $connectionCode',
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

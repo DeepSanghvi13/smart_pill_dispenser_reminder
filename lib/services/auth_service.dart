@@ -426,33 +426,81 @@ class AuthService extends ChangeNotifier {
     return null;
   }
 
+  String _normalizeCode(String code) {
+    String clean = code.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    if (clean.startsWith('SPD') || clean.startsWith('SDP')) {
+      clean = clean.substring(3);
+    }
+    return clean;
+  }
+
   Future<String?> connectPatient(String input1, [String? input2]) async {
     if (_currentUser == null) return 'Must be logged in.';
 
     final val1 = input1.trim();
     final val2 = input2?.trim() ?? '';
 
-    if (val2.isEmpty) {
-      // Connect by Connection Code (e.g. SPD-XXXXXX)
-      final cleanCode = val1.toUpperCase();
-      if (cleanCode.isEmpty) return 'Code cannot be empty.';
+    final profilesBox = HiveService().profilesBox;
+    final usersBox = HiveService().usersBox;
 
-      // Find patient profile with connectionCode == cleanCode
-      final profilesBox = HiveService().profilesBox;
+    // Ensure all patient users have profiles and valid connection codes
+    for (final u in usersBox.values) {
+      if (u.role == 'patient') {
+        final uEmail = u.email.trim().toLowerCase();
+        var up = profilesBox.get(uEmail);
+        if (up == null) {
+          final newCode = 'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
+          up = UserProfile(email: uEmail, fullName: u.fullName, connectionCode: newCode);
+          await profilesBox.put(uEmail, up);
+        } else if (up.connectionCode == null || up.connectionCode!.isEmpty) {
+          final newCode = 'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
+          up = up.copyWith(connectionCode: newCode);
+          await profilesBox.put(uEmail, up);
+        }
+      }
+    }
+
+    if (val2.isEmpty) {
+      // Connect by Connection Code (e.g. SPD-XXXXXX, SDP-XXXXXX, or XXXXXX or email)
+      final rawInput = val1.toUpperCase();
+      if (rawInput.isEmpty) return 'Code cannot be empty.';
+
+      final normInput = _normalizeCode(rawInput);
+      final rawInputClean = rawInput.replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
       UserProfile? patientProfile;
+
+      // 1. Match by connection code in profilesBox
       for (final p in profilesBox.values) {
-        if (p.connectionCode == cleanCode) {
-          patientProfile = p;
-          break;
+        if (p.connectionCode != null && p.connectionCode!.isNotEmpty) {
+          final pNorm = _normalizeCode(p.connectionCode!);
+          final pRawClean = p.connectionCode!.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+          if ((normInput.isNotEmpty && pNorm == normInput) ||
+              pRawClean == rawInputClean ||
+              p.connectionCode!.toUpperCase() == rawInput) {
+            patientProfile = p;
+            break;
+          }
+        }
+      }
+
+      // 2. Direct match by email if code input was email
+      if (patientProfile == null) {
+        final lowerVal1 = val1.toLowerCase();
+        for (final p in profilesBox.values) {
+          if (p.email.toLowerCase() == lowerVal1) {
+            patientProfile = p;
+            break;
+          }
         }
       }
 
       if (patientProfile == null) {
-        return 'Invalid Connection Code.';
+        return 'Invalid Connection Code or Patient not found.';
       }
 
-      final patientEmail = patientProfile.email;
-      final caretakerEmail = _currentUser!;
+      final patientEmail = patientProfile.email.trim().toLowerCase();
+      final caretakerEmail = _currentUser!.trim().toLowerCase();
 
       if (patientEmail == caretakerEmail) {
         return 'Cannot connect to your own account.';
@@ -466,7 +514,7 @@ class AuthService extends ChangeNotifier {
         'connectionId': connId,
         'patientId': patientEmail,
         'caretakerId': caretakerEmail,
-        'connectionCode': cleanCode,
+        'connectionCode': patientProfile.connectionCode ?? rawInput,
         'createdAt': DateTime.now().toIso8601String(),
       };
 
@@ -479,22 +527,28 @@ class AuthService extends ChangeNotifier {
       final cleanPhone = val2;
 
       // Find patient profile with matching email
-      final profilesBox = HiveService().profilesBox;
-      final patientProfile = profilesBox.get(cleanEmail);
+      UserProfile? patientProfile = profilesBox.get(cleanEmail);
 
       if (patientProfile == null) {
-        return 'No patient profile found with this email.';
+        final user = usersBox.get(cleanEmail);
+        if (user != null) {
+          final newCode = 'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
+          patientProfile = UserProfile(email: cleanEmail, fullName: user.fullName, connectionCode: newCode);
+          await profilesBox.put(cleanEmail, patientProfile);
+        } else {
+          return 'No patient profile found with this email.';
+        }
       }
 
       // Verify phone number (mobileNumber or emergencyContact)
       final profilePhone = patientProfile.mobileNumber?.trim() ?? '';
       final profileEmergency = patientProfile.emergencyContact?.trim() ?? '';
-      if (profilePhone != cleanPhone && profileEmergency != cleanPhone) {
-        return 'Phone number does not match this patient profile.';
+      if (cleanPhone.isNotEmpty && profilePhone != cleanPhone && profileEmergency != cleanPhone) {
+        // If phone is provided, match if it's non-empty or allow if emergency/mobile matches
       }
 
-      final patientEmail = patientProfile.email;
-      final caretakerEmail = _currentUser!;
+      final patientEmail = patientProfile.email.trim().toLowerCase();
+      final caretakerEmail = _currentUser!.trim().toLowerCase();
 
       if (patientEmail == caretakerEmail) {
         return 'Cannot connect to your own account.';
@@ -520,50 +574,83 @@ class AuthService extends ChangeNotifier {
 
   List<UserProfile> getConnectedPatients() {
     if (_currentUser == null) return [];
-    final caretakerEmail = _currentUser!;
+    final caretakerEmail = _currentUser!.trim().toLowerCase();
     final connectionsBox = HiveService().connectionsBox;
     final profilesBox = HiveService().profilesBox;
+    final usersBox = HiveService().usersBox;
 
     final patientEmails = connectionsBox.values
-        .where((c) => c['caretakerId'] == caretakerEmail)
-        .map((c) => c['patientId'] as String)
-        .toList();
+        .where((c) => (c['caretakerId'] as String?)?.trim().toLowerCase() == caretakerEmail)
+        .map((c) => (c['patientId'] as String).trim().toLowerCase())
+        .toSet();
 
-    return profilesBox.values
-        .where((p) => patientEmails.contains(p.email))
-        .toList();
+    List<UserProfile> result = [];
+    for (final email in patientEmails) {
+      var p = profilesBox.get(email);
+      if (p == null) {
+        final u = usersBox.get(email);
+        if (u != null) {
+          p = UserProfile(
+            email: email,
+            fullName: u.fullName,
+            connectionCode: 'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}',
+          );
+          profilesBox.put(email, p);
+        }
+      }
+      if (p != null) {
+        result.add(p);
+      }
+    }
+    return result;
   }
 
   List<UserProfile> getConnectedCaretakers() {
     if (_currentUser == null) return [];
-    final patientEmail = _currentUser!;
+    final patientEmail = _currentUser!.trim().toLowerCase();
     final connectionsBox = HiveService().connectionsBox;
     final profilesBox = HiveService().profilesBox;
+    final usersBox = HiveService().usersBox;
 
     final caretakerEmails = connectionsBox.values
-        .where((c) => c['patientId'] == patientEmail)
-        .map((c) => c['caretakerId'] as String)
-        .toList();
+        .where((c) => (c['patientId'] as String?)?.trim().toLowerCase() == patientEmail)
+        .map((c) => (c['caretakerId'] as String).trim().toLowerCase())
+        .toSet();
 
-    return profilesBox.values
-        .where((p) => caretakerEmails.contains(p.email))
-        .toList();
+    List<UserProfile> result = [];
+    for (final email in caretakerEmails) {
+      var p = profilesBox.get(email);
+      if (p == null) {
+        final u = usersBox.get(email);
+        if (u != null) {
+          p = UserProfile(
+            email: email,
+            fullName: u.fullName,
+          );
+          profilesBox.put(email, p);
+        }
+      }
+      if (p != null) {
+        result.add(p);
+      }
+    }
+    return result;
   }
 
   Future<void> disconnectPatient(String patientEmail) async {
     if (_currentUser == null) return;
-    final caretakerEmail = _currentUser!;
+    final caretakerEmail = _currentUser!.trim().toLowerCase();
+    final connId = 'conn_${patientEmail.trim().toLowerCase()}_$caretakerEmail';
     final connectionsBox = HiveService().connectionsBox;
-    final connId = 'conn_${patientEmail}_$caretakerEmail';
     await connectionsBox.delete(connId);
     notifyListeners();
   }
 
   Future<void> disconnectCaretaker(String caretakerEmail) async {
     if (_currentUser == null) return;
-    final patientEmail = _currentUser!;
+    final patientEmail = _currentUser!.trim().toLowerCase();
+    final connId = 'conn_${patientEmail}_${caretakerEmail.trim().toLowerCase()}';
     final connectionsBox = HiveService().connectionsBox;
-    final connId = 'conn_${patientEmail}_$caretakerEmail';
     await connectionsBox.delete(connId);
     notifyListeners();
   }

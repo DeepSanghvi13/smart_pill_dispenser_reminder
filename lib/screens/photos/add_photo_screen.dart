@@ -234,33 +234,4 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
     );
   }
 }
-                  ),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _changePhoto,
-                  icon: const Icon(Icons.cameraswitch),
-                  label: const Text('Retake / Change Photo'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                  label: const Text('Cancel'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    foregroundColor: Colors.grey,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+

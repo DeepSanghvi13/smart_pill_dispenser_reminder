@@ -31,6 +31,7 @@ class _MyPhotosScreenState extends State<MyPhotosScreen> {
     final auth = context.watch<AuthService>();
     final photoProvider = context.watch<PhotoProvider>();
     final userPhotos = photoProvider.userPhotos;
+    final currentUserId = auth.currentUser ?? 'Guest';
 
     return Scaffold(
       appBar: AppBar(
@@ -45,7 +46,7 @@ class _MyPhotosScreenState extends State<MyPhotosScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          photoProvider.loadPhotos(auth.currentUser);
+          photoProvider.loadPhotos(currentUserId);
         },
         child: photoProvider.isLoading
             ? const Center(child: CircularProgressIndicator())

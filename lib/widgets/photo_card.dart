@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/user_photo.dart';
+import '../services/photo_service.dart';
 
 class PhotoCard extends StatelessWidget {
   final UserPhoto photo;
@@ -31,6 +32,7 @@ class PhotoCard extends StatelessWidget {
             file.existsSync()
                 ? Image.file(
                     file,
+                    key: ValueKey(photo.photoId),
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: Colors.grey.shade300,
@@ -39,11 +41,24 @@ class PhotoCard extends StatelessWidget {
                       ),
                     ),
                   )
-                : Container(
-                    color: Colors.grey.shade300,
-                    child: const Center(
-                      child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
-                    ),
+                : FutureBuilder<File?>(
+                    future: PhotoService().getValidImageFile(photo),
+                    builder: (context, snapshot) {
+                      final resolvedFile = snapshot.data;
+                      if (resolvedFile != null && resolvedFile.existsSync()) {
+                        return Image.file(
+                          resolvedFile,
+                          key: ValueKey(photo.photoId),
+                          fit: BoxFit.cover,
+                        );
+                      }
+                      return Container(
+                        color: Colors.grey.shade300,
+                        child: const Center(
+                          child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
+                        ),
+                      );
+                    },
                   ),
 
             // Gradient shadow overlay at the bottom

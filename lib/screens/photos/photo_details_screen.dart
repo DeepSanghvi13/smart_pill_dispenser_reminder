@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../models/user_photo.dart';
 import '../../providers/photo_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/photo_service.dart';
 
 class PhotoDetailsScreen extends StatefulWidget {
   final UserPhoto photo;
@@ -212,13 +213,31 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
                           fit: BoxFit.contain,
                         ),
                       )
-                    : const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.broken_image, size: 64, color: Colors.grey),
-                          SizedBox(height: 8),
-                          Text('Image file not found', style: TextStyle(color: Colors.white70)),
-                        ],
+                    : FutureBuilder<File?>(
+                        future: PhotoService().getValidImageFile(_currentPhoto),
+                        builder: (context, snapshot) {
+                          final resolvedFile = snapshot.data;
+                          if (resolvedFile != null && resolvedFile.existsSync()) {
+                            return InteractiveViewer(
+                              panEnabled: true,
+                              boundaryMargin: const EdgeInsets.all(20),
+                              minScale: 0.8,
+                              maxScale: 4.0,
+                              child: Image.file(
+                                resolvedFile,
+                                fit: BoxFit.contain,
+                              ),
+                            );
+                          }
+                          return const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image, size: 64, color: Colors.grey),
+                              SizedBox(height: 8),
+                              Text('Image file not found', style: TextStyle(color: Colors.white70)),
+                            ],
+                          );
+                        },
                       ),
               ),
             ),

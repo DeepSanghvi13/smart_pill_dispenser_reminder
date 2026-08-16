@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/photo_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
 import '../../routes/app_routes.dart';
 
 class AddPhotoScreen extends StatefulWidget {
@@ -82,17 +83,9 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
 
   Future<void> _savePhoto() async {
     final auth = context.read<AuthService>();
-    final userId = auth.currentUser;
-
-    if (userId == null || userId.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error: User session not found. Please log in again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    final userId = (auth.currentUser != null && auth.currentUser!.trim().isNotEmpty)
+        ? auth.currentUser!
+        : DatabaseService().activePatientId;
 
     final userRole = auth.isCaretaker
         ? 'caretaker'
@@ -226,7 +219,6 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
                     foregroundColor: Colors.grey,
                   ),
                 ),
-              ],
             ],
           ),
         ),
@@ -234,4 +226,3 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
     );
   }
 }
-

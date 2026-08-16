@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/user_photo.dart';
 import '../services/photo_service.dart';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
 
 class PhotoProvider extends ChangeNotifier {
   final PhotoService _photoService = PhotoService();
@@ -14,20 +16,27 @@ class PhotoProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  /// Load photos for the given userId
-  void loadPhotos(String? userId) {
-    if (userId == null || userId.trim().isEmpty) {
-      _userPhotos = [];
-      notifyListeners();
-      return;
+  String _resolveUserId(String? userId) {
+    if (userId != null && userId.trim().isNotEmpty) {
+      return userId.trim().toLowerCase();
     }
+    final current = AuthService().currentUser;
+    if (current != null && current.trim().isNotEmpty) {
+      return current.trim().toLowerCase();
+    }
+    return DatabaseService().activePatientId.trim().toLowerCase();
+  }
+
+  /// Load photos for the given userId
+  void loadPhotos([String? userId]) {
+    final targetUserId = _resolveUserId(userId);
 
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _userPhotos = _photoService.getUserPhotos(userId);
+      _userPhotos = _photoService.getUserPhotos(targetUserId);
     } catch (e) {
       _errorMessage = "Failed to load photos: $e";
     } finally {
@@ -43,6 +52,8 @@ class PhotoProvider extends ChangeNotifier {
     required String userRole,
     String? caption,
   }) async {
+    final targetUserId = _resolveUserId(userId);
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -50,13 +61,13 @@ class PhotoProvider extends ChangeNotifier {
     try {
       final savedPhoto = await _photoService.savePhoto(
         sourceFile: imageFile,
-        userId: userId,
+        userId: targetUserId,
         userRole: userRole,
         caption: caption,
       );
 
       if (savedPhoto != null) {
-        loadPhotos(userId);
+        _userPhotos = _photoService.getUserPhotos(targetUserId);
       } else {
         _errorMessage = "Could not save photo to storage.";
       }
@@ -76,14 +87,16 @@ class PhotoProvider extends ChangeNotifier {
     required String userId,
     required String newCaption,
   }) async {
+    final targetUserId = _resolveUserId(userId);
+
     final success = await _photoService.updateCaption(
       photoId: photoId,
-      userId: userId,
+      userId: targetUserId,
       newCaption: newCaption,
     );
 
     if (success) {
-      loadPhotos(userId);
+      loadPhotos(targetUserId);
     }
     return success;
   }
@@ -93,13 +106,15 @@ class PhotoProvider extends ChangeNotifier {
     required UserPhoto photo,
     required String userId,
   }) async {
+    final targetUserId = _resolveUserId(userId);
+
     final success = await _photoService.deletePhoto(
       photo: photo,
-      userId: userId,
+      userId: targetUserId,
     );
 
     if (success) {
-      loadPhotos(userId);
+      loadPhotos(targetUserId);
     }
     return success;
   }

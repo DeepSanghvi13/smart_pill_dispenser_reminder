@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/validators.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 
@@ -189,15 +190,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                     borderSide: BorderSide(color: Colors.grey.shade300),
                                   ),
                                 ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Please enter your email';
-                                  }
-                                  if (!value.contains('@')) {
-                                    return 'Please enter a valid email';
-                                  }
-                                  return null;
-                                },
+                                validator: (value) => AppValidators.validateGmail(
+                                  value,
+                                  allowAdmin: true,
+                                ),
                               ),
                               const SizedBox(height: 20),
 

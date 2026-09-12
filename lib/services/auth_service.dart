@@ -4,6 +4,7 @@ import 'mysql_api_service.dart';
 import 'database_service.dart';
 import '../models/user.dart';
 import '../models/user_profile.dart';
+import '../core/validators.dart';
 import 'notification_service.dart';
 
 class AuthService extends ChangeNotifier {
@@ -31,6 +32,9 @@ class AuthService extends ChangeNotifier {
       final normalizedEmail = email.trim().toLowerCase();
       if (normalizedEmail.isEmpty) {
         return 'Email cannot be empty.';
+      }
+      if (role.toLowerCase() != 'admin' && !AppValidators.isValidGmail(normalizedEmail)) {
+        return 'Please enter a valid Gmail address ending with @gmail.com.';
       }
       if (name.trim().isEmpty) {
         return 'Full name cannot be empty.';
@@ -385,6 +389,9 @@ class AuthService extends ChangeNotifier {
 
   Future<String?> adminCreateUser(String name, String email, String password, String role) async {
     final normalized = email.trim().toLowerCase();
+    if (role.toLowerCase() != 'admin' && !AppValidators.isValidGmail(normalized)) {
+      return 'Please enter a valid Gmail address ending with @gmail.com.';
+    }
     final box = HiveService().usersBox;
     if (box.containsKey(normalized)) {
       return 'Email already exists.';

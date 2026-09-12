@@ -57,6 +57,25 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+const GMAIL_REGEX = /^[A-Za-z0-9._%+-]+@gmail\.com$/;
+const PHONE_REGEX = /^[0-9]{10}$/;
+
+function isValidGmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  return GMAIL_REGEX.test(email.trim());
+}
+
+function isValidPhone(phone) {
+  if (!phone || typeof phone !== 'string') return false;
+  return PHONE_REGEX.test(phone.trim());
+}
+
+function isAdminEmail(email) {
+  if (!email) return false;
+  const norm = normalizeEmail(email);
+  return norm === adminEmail || norm === 'admin@smartpill.com';
+}
+
 function getClientIp(req) {
   if (!req) return null;
   const forwarded = req.headers['x-forwarded-for'];
@@ -535,6 +554,10 @@ async function upsertUserProfile(userId, profile) {
       profile.email || null
     ]
   );
+
+  if (profile.phoneNumber && String(profile.phoneNumber).trim().length > 0) {
+    await query('UPDATE users SET phoneNumber = ? WHERE id = ?', [String(profile.phoneNumber).trim(), userId]);
+  }
 }
 
 // ----------------- API ENDPOINTS -----------------
@@ -571,6 +594,35 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
 
   const validRoles = ['patient', 'caretaker', 'admin'];
   const userRole = validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'patient';
+
+  // Gmail and Phone Validation for Patient and Caretaker accounts
+  if (userRole !== 'admin') {
+    if (!isValidGmail(normEmail)) {
+      const errorMsg = 'Please enter a valid Gmail address ending with @gmail.com.';
+      await logActivity({
+        activityType: 'REGISTER_FAILED',
+        userEmail: normEmail || 'unknown',
+        description: errorMsg,
+        status: 'FAILED',
+        req
+      });
+      return res.status(400).json({ ok: false, message: errorMsg });
+    }
+
+    if (phoneNumber && String(phoneNumber).trim().length > 0) {
+      if (!isValidPhone(String(phoneNumber).trim())) {
+        const errorMsg = 'Phone number must be exactly 10 digits.';
+        await logActivity({
+          activityType: 'REGISTER_FAILED',
+          userEmail: normEmail || 'unknown',
+          description: errorMsg,
+          status: 'FAILED',
+          req
+        });
+        return res.status(400).json({ ok: false, message: errorMsg });
+      }
+    }
+  }
 
   try {
     // Check if email already registered
@@ -683,6 +735,22 @@ app.post(['/api/auth/login', '/login'], async (req, res) => {
       req
     });
     return res.status(400).json({ ok: false, message: 'Email and password are required' });
+  }
+
+  // Gmail Validation for Patient & Caretaker logins (Admin logins bypass)
+  if (!isAdminEmail(email) && !isValidGmail(email)) {
+    const adminCheck = await query('SELECT id FROM users WHERE email = ? AND role = "admin" LIMIT 1', [email]);
+    if (adminCheck.length === 0) {
+      const errorMsg = 'Please enter a valid Gmail address ending with @gmail.com.';
+      await logActivity({
+        activityType: 'LOGIN_FAILED',
+        userEmail: email,
+        description: errorMsg,
+        status: 'FAILED',
+        req
+      });
+      return res.status(400).json({ ok: false, message: errorMsg });
+    }
   }
 
   try {
@@ -1089,6 +1157,25 @@ app.post('/api/caretakers', authenticateTokenOrFallback, async (req, res) => {
   const userId = req.user ? req.user.id : await resolveUserId(inputUserId);
   if (!userId) return res.status(400).json({ ok: false, error: 'User mapping failed' });
 
+  if (req.body?.email && String(req.body.email).trim().length > 0) {
+    if (!isValidGmail(String(req.body.email).trim())) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Please enter a valid Gmail address ending with @gmail.com.'
+      });
+    }
+  }
+
+  const phone = req.body?.phoneNumber || req.body?.phone;
+  if (phone && String(phone).trim().length > 0) {
+    if (!isValidPhone(String(phone).trim())) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Phone number must be exactly 10 digits.'
+      });
+    }
+  }
+
   try {
     const id = await upsertCaretaker(userId, req.body || {});
     await logActivity({
@@ -1143,6 +1230,28 @@ app.post('/api/user-profile', authenticateTokenOrFallback, async (req, res) => {
   const inputUserId = req.body?.userId;
   const userId = req.user ? req.user.id : await resolveUserId(inputUserId);
   if (!userId) return res.status(400).json({ ok: false, error: 'User mapping failed' });
+
+  const role = req.user?.role || 'patient';
+  if (role !== 'admin') {
+    if (req.body?.email && String(req.body.email).trim().length > 0) {
+      if (!isValidGmail(String(req.body.email).trim())) {
+        return res.status(400).json({
+          ok: false,
+          message: 'Please enter a valid Gmail address ending with @gmail.com.'
+        });
+      }
+    }
+
+    const phone = req.body?.phoneNumber || req.body?.mobileNumber;
+    if (phone && String(phone).trim().length > 0) {
+      if (!isValidPhone(String(phone).trim())) {
+        return res.status(400).json({
+          ok: false,
+          message: 'Phone number must be exactly 10 digits.'
+        });
+      }
+    }
+  }
 
   try {
     await upsertUserProfile(userId, req.body || {});

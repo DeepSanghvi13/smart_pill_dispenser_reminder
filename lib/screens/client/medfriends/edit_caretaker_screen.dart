@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/validators.dart';
 import '../../../services/caretaker_service.dart';
 import '../../../models/caretaker.dart';
 
@@ -91,8 +92,9 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
                         borderRadius: BorderRadius.circular(8)),
                     prefixIcon: const Icon(Icons.phone)),
                 keyboardType: TextInputType.phone,
+                inputFormatters: AppValidators.phoneInputFormatters,
                 onChanged: (v) => phone = v,
-                validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                validator: (v) => AppValidators.validatePhone(v),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -104,7 +106,7 @@ class _EditCaretakerScreenState extends State<EditCaretakerScreen> {
                     prefixIcon: const Icon(Icons.email)),
                 keyboardType: TextInputType.emailAddress,
                 onChanged: (v) => email = v,
-                validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                validator: (v) => AppValidators.validateGmail(v),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(

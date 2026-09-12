@@ -12,6 +12,7 @@ import '../../../services/hive_service.dart';
 import '../../../widgets/bottom_nav.dart';
 import '../../../widgets/app_drawer.dart';
 import '../../../widgets/photo_picker_bottom_sheet.dart';
+import '../../../core/validators.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 import '../updates/updates_screen.dart';
@@ -875,9 +876,10 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                       TextField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
+                        inputFormatters: AppValidators.phoneInputFormatters,
                         decoration: const InputDecoration(
                           labelText: 'Patient Phone Number',
-                          hintText: 'Enter phone or emergency contact',
+                          hintText: 'Enter 10-digit phone number',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.phone),
                         ),
@@ -905,6 +907,27 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                     } else {
                       final email = _emailController.text.trim();
                       final phone = _phoneController.text.trim();
+
+                      if (!AppValidators.isValidGmail(email)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please enter a valid Gmail address ending with @gmail.com.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (!AppValidators.isValidPhone(phone)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Phone number must be exactly 10 digits.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
                       error = await auth.connectPatient(email, phone);
                     }
                     if (context.mounted) {

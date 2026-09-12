@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/validators.dart';
 
 class InviteMedfriendScreen extends StatefulWidget {
   const InviteMedfriendScreen({super.key});
@@ -33,6 +34,20 @@ class _InviteMedfriendScreenState extends State<InviteMedfriendScreen> {
     if (name.isEmpty || (phone.isEmpty && email.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter name and at least phone or email')),
+      );
+      return;
+    }
+
+    if (phone.isNotEmpty && !AppValidators.isValidPhone(phone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number must be exactly 10 digits.')),
+      );
+      return;
+    }
+
+    if (email.isNotEmpty && !AppValidators.isValidGmail(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid Gmail address ending with @gmail.com.')),
       );
       return;
     }
@@ -180,6 +195,7 @@ class _InviteMedfriendScreenState extends State<InviteMedfriendScreen> {
                     TextField(
                       controller: phoneController,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: AppValidators.phoneInputFormatters,
                       decoration: const InputDecoration(
                         labelText: 'Phone Number',
                         prefixIcon: Icon(Icons.phone),

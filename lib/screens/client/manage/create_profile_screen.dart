@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../../core/validators.dart';
 import '../../../models/user_profile.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
@@ -292,14 +293,16 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                             TextFormField(
                               controller: mobileController,
                               keyboardType: TextInputType.phone,
+                              inputFormatters: AppValidators.phoneInputFormatters,
                               decoration: InputDecoration(
                                 labelText: 'Mobile Number',
                                 prefixIcon: const Icon(Icons.phone_outlined),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               ),
-                              validator: (value) => value == null || value.trim().isEmpty
-                                  ? 'Please enter mobile number'
-                                  : null,
+                              validator: (value) => AppValidators.validatePhone(
+                                value,
+                                requiredMessage: 'Please enter mobile number',
+                              ),
                             ),
                             const SizedBox(height: 16),
 
@@ -431,14 +434,16 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                       TextFormField(
                                         controller: emergencyController,
                                         keyboardType: TextInputType.phone,
+                                        inputFormatters: AppValidators.phoneInputFormatters,
                                         decoration: InputDecoration(
                                           labelText: 'Emergency Contact',
                                           prefixIcon: const Icon(Icons.contact_phone_outlined),
                                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                         ),
-                                        validator: (value) => value == null || value.trim().isEmpty
-                                            ? 'Please enter emergency contact'
-                                            : null,
+                                        validator: (value) => AppValidators.validatePhone(
+                                          value,
+                                          requiredMessage: 'Please enter emergency contact',
+                                        ),
                                       ),
                                       const SizedBox(height: 16),
 

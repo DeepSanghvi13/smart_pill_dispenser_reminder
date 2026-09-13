@@ -260,6 +260,34 @@ class _ManageScreenState extends State<ManageScreen> {
               },
             ),
 
+            if (!auth.isDoctor) ...[
+              _settingsCardTile(
+                icon: Icons.person_search_outlined,
+                title: 'Find a Doctor',
+                subtitle: 'Search and connect with specialists',
+                onTap: () {
+                  Navigator.pushNamed(context, AppRoutes.findDoctor);
+                },
+              ),
+              _settingsCardTile(
+                icon: Icons.medical_services_outlined,
+                title: 'My Doctors',
+                subtitle: 'View your connected doctors and clinics',
+                onTap: () {
+                  Navigator.pushNamed(context, AppRoutes.myDoctors);
+                },
+              ),
+            ] else ...[
+              _settingsCardTile(
+                icon: Icons.dashboard_outlined,
+                title: 'Doctor Dashboard',
+                subtitle: 'Manage connection requests and patients',
+                onTap: () {
+                  Navigator.pushNamed(context, AppRoutes.doctorHome);
+                },
+              ),
+            ],
+
             // Theme Switcher Tile
             Card(
               elevation: 1,

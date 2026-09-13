@@ -12,6 +12,7 @@ import '../../../services/hive_service.dart';
 import '../../../widgets/bottom_nav.dart';
 import '../../../widgets/app_drawer.dart';
 import '../../../widgets/photo_picker_bottom_sheet.dart';
+import '../../../core/image_helper.dart';
 import '../../../core/validators.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
 
@@ -1158,10 +1159,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                             child: CircleAvatar(
                               radius: 27,
                               backgroundColor: Colors.white,
-                              backgroundImage: patient.profilePicture != null && patient.profilePicture!.isNotEmpty
-                                  ? FileImage(File(patient.profilePicture!))
-                                  : null,
-                              child: patient.profilePicture == null
+                              backgroundImage: AppImageHelper.getImageProvider(patient.profilePicture),
+                              child: AppImageHelper.getImageProvider(patient.profilePicture) == null
                                   ? Icon(Icons.person, color: theme.colorScheme.primary)
                                   : null,
                             ),
@@ -1196,10 +1195,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                   children: [
                     CircleAvatar(
                       radius: 28,
-                      backgroundImage: activePatient.profilePicture != null && activePatient.profilePicture!.isNotEmpty
-                          ? FileImage(File(activePatient.profilePicture!))
-                          : null,
-                      child: activePatient.profilePicture == null ? const Icon(Icons.person) : null,
+                      backgroundImage: AppImageHelper.getImageProvider(activePatient.profilePicture),
+                      child: AppImageHelper.getImageProvider(activePatient.profilePicture) == null ? const Icon(Icons.person) : null,
                     ),
                     const SizedBox(width: 16),
                     Expanded(

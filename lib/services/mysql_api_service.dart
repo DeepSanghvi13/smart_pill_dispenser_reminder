@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
@@ -411,6 +411,71 @@ class MySQLApiService {
 
   // ---- User Profile ----
 
+  Future<Map<String, dynamic>> uploadProfilePhoto(File imageFile) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/user-profile/photo');
+      final request = http.MultipartRequest('POST', uri);
+
+      final token = _token;
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      final stream = http.ByteStream(imageFile.openRead());
+      final length = await imageFile.length();
+      final multipartFile = http.MultipartFile(
+        'photo',
+        stream,
+        length,
+        filename: imageFile.path.split(Platform.pathSeparator).last,
+      );
+
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 15));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        return {
+          'ok': true,
+          'profilePicture': body['profilePicture'] as String?,
+          'photoUrl': body['photoUrl'] as String?,
+          'message': body['message'] as String? ?? 'Photo uploaded successfully',
+        };
+      } else {
+        try {
+          final body = jsonDecode(response.body) as Map<String, dynamic>;
+          return {
+            'ok': false,
+            'message': body['message'] as String? ?? 'Upload failed (${response.statusCode})',
+          };
+        } catch (_) {
+          return {
+            'ok': false,
+            'message': 'Upload failed (${response.statusCode})',
+          };
+        }
+      }
+    } catch (e) {
+      return {
+        'ok': false,
+        'message': 'Unable to upload photo. Please try again ($e)',
+      };
+    }
+  }
+
+  Future<bool> deleteProfilePhoto() async {
+    try {
+      final res = await http
+          .delete(Uri.parse('$baseUrl/api/user-profile/photo'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> saveUserProfileToServer(UserProfile profile) async {
     try {
       final userEmail = profile.email.trim().isNotEmpty ? profile.email.trim() : _currentUserId;
@@ -426,6 +491,7 @@ class MySQLApiService {
               'email': profile.email,
               'gender': profile.gender,
               'phoneNumber': profile.mobileNumber,
+              'profilePicture': profile.profilePicture,
             }),
           )
           .timeout(const Duration(seconds: 10));
@@ -451,6 +517,7 @@ class MySQLApiService {
           fullName: '${d['firstName'] ?? ''} ${d['lastName'] ?? ''}'.trim(),
           mobileNumber: d['phoneNumber']?.toString(),
           gender: d['gender']?.toString(),
+          profilePicture: d['profilePicture']?.toString(),
         );
       }
       return null;
@@ -725,6 +792,209 @@ class MySQLApiService {
       return null;
     } catch (_) {
       return null;
+    }
+  }
+
+  // ---- Doctor & Connection APIs ----
+
+  Future<List<Map<String, dynamic>>> searchDoctors({
+    String? name,
+    String? specialization,
+    String? hospital,
+    String? location,
+    String? search,
+  }) async {
+    try {
+      final queryParams = <String, String>{};
+      if (name != null && name.isNotEmpty) queryParams['name'] = name;
+      if (specialization != null && specialization.isNotEmpty) queryParams['specialization'] = specialization;
+      if (hospital != null && hospital.isNotEmpty) queryParams['hospital'] = hospital;
+      if (location != null && location.isNotEmpty) queryParams['location'] = location;
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
+
+      final uri = Uri.parse('$baseUrl/api/doctors').replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        final list = body['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> sendDoctorConnectionRequest(int doctorId) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/doctor-connections'),
+            headers: _headers,
+            body: jsonEncode({'doctorId': doctorId}),
+          )
+          .timeout(const Duration(seconds: 6));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return {
+        'ok': body['ok'] == true,
+        'message': body['message'] as String? ?? (res.statusCode == 200 ? 'Request sent' : 'Request failed'),
+        'data': body['data'],
+      };
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDoctorRequests({String status = 'pending'}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/doctor-connections/requests?status=$status');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        final list = body['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> acceptDoctorRequest(int connectionId) async {
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/api/doctor-connections/$connectionId/accept'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 6));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return {
+        'ok': body['ok'] == true,
+        'message': body['message'] as String? ?? 'Accepted',
+      };
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> rejectDoctorRequest(int connectionId) async {
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/api/doctor-connections/$connectionId/reject'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 6));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return {
+        'ok': body['ok'] == true,
+        'message': body['message'] as String? ?? 'Rejected',
+      };
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMyDoctors() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/doctor-connections/my-doctors'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        final list = body['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDoctorPatients() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/doctor-connections/my-patients'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        final list = body['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDoctorCaretakers() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/doctor-connections/my-caretakers'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        final list = body['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getDoctorConnections() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/doctor-connections/my-connections'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> saveDoctorProfile(Map<String, dynamic> doctorData) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/doctor/profile'),
+            headers: _headers,
+            body: jsonEncode(doctorData),
+          )
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getDoctorProfile(dynamic userId) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/doctor/profile/$userId'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> removeDoctorConnection(int connectionId) async {
+    try {
+      final res = await http
+          .delete(Uri.parse('$baseUrl/api/doctor-connections/$connectionId'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
     }
   }
 

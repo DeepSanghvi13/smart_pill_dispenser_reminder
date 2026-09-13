@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email` VARCHAR(255) UNIQUE NOT NULL,
   `phoneNumber` VARCHAR(50) DEFAULT NULL,
   `passwordHash` VARCHAR(255) NOT NULL,
-  `role` ENUM('patient', 'caretaker', 'admin') NOT NULL DEFAULT 'patient',
+  `role` ENUM('patient', 'caretaker', 'doctor', 'admin') NOT NULL DEFAULT 'patient',
   `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   `lastLoginAt` DATETIME DEFAULT NULL,
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -216,7 +216,36 @@ CREATE TABLE IF NOT EXISTS `userProfiles` (
   `zipCode` VARCHAR(100) DEFAULT NULL,
   `phoneNumber` VARCHAR(100) DEFAULT NULL,
   `email` VARCHAR(255) DEFAULT NULL,
+  `profilePicture` VARCHAR(500) DEFAULT NULL,
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `fk_profiles_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 16: doctors (doctor-specific professional details)
+CREATE TABLE IF NOT EXISTS `doctors` (
+  `userId` INT PRIMARY KEY,
+  `specialization` VARCHAR(255) DEFAULT NULL,
+  `licenseNumber` VARCHAR(100) DEFAULT NULL,
+  `hospitalName` VARCHAR(255) DEFAULT NULL,
+  `experience` VARCHAR(50) DEFAULT NULL,
+  `location` VARCHAR(255) DEFAULT NULL,
+  CONSTRAINT `fk_doctors_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 17: doctor_connections (doctor-patient and doctor-caretaker connection requests)
+CREATE TABLE IF NOT EXISTS `doctor_connections` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `doctorId` INT NOT NULL,
+  `requesterId` INT NOT NULL,
+  `requesterRole` ENUM('patient', 'caretaker') NOT NULL,
+  `status` ENUM('pending', 'accepted', 'rejected') NOT NULL DEFAULT 'pending',
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_doc_conn_doctorId` FOREIGN KEY (`doctorId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_doc_conn_requesterId` FOREIGN KEY (`requesterId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  UNIQUE KEY `unique_doc_connection` (`doctorId`, `requesterId`),
+  INDEX `idx_doc_status` (`doctorId`, `status`),
+  INDEX `idx_req_status` (`requesterId`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

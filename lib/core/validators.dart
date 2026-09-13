@@ -7,6 +7,7 @@ class AppValidators {
   );
 
   static final RegExp _phoneRegex = RegExp(r'^[0-9]{10}$');
+  static final RegExp _licenseRegex = RegExp(r'^[0-9]{5}$');
 
   /// Known admin emails that bypass the Gmail-only restriction
   static const List<String> adminEmails = [
@@ -18,6 +19,12 @@ class AppValidators {
   static List<TextInputFormatter> get phoneInputFormatters => [
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(10),
+      ];
+
+  /// Common input formatters for exactly 5-digit numeric doctor license fields
+  static List<TextInputFormatter> get licenseInputFormatters => [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(5),
       ];
 
   /// Checks whether an email address is a valid Gmail address ending with @gmail.com
@@ -66,6 +73,14 @@ class AppValidators {
     return null;
   }
 
+  /// Checks whether a medical license number contains exactly 5 numeric digits
+  static bool isValidLicense(String? license) {
+    if (license == null) return false;
+    final trimmed = license.trim();
+    if (trimmed.isEmpty) return false;
+    return _licenseRegex.hasMatch(trimmed);
+  }
+
   /// Form validator for 10-digit phone fields
   static String? validatePhone(
     String? value, {
@@ -80,6 +95,24 @@ class AppValidators {
 
     if (!_phoneRegex.hasMatch(trimmed)) {
       return 'Phone number must be exactly 10 digits.';
+    }
+
+    return null;
+  }
+
+  /// Form validator for 5-digit doctor license fields
+  static String? validateLicense(
+    String? value, {
+    bool isRequired = true,
+  }) {
+    if (value == null || value.trim().isEmpty) {
+      return isRequired ? 'Medical license/registration number must be exactly 5 digits.' : null;
+    }
+
+    final trimmed = value.trim();
+
+    if (!_licenseRegex.hasMatch(trimmed)) {
+      return 'Medical license/registration number must be exactly 5 digits.';
     }
 
     return null;

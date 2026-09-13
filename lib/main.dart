@@ -5,6 +5,7 @@ import 'services/notification_service.dart';
 import 'services/database_service.dart';
 import 'services/alarm_service.dart';
 import 'services/auth_service.dart';
+import 'services/doctor_service.dart';
 import 'services/hive_service.dart';
 import 'providers/sync_provider.dart';
 import 'providers/medicine_provider.dart';
@@ -96,6 +97,7 @@ class MyApp extends StatelessWidget {
             ChangeNotifierProvider(create: (_) => AuthService()),
             ChangeNotifierProvider(create: (_) => MedicineProvider()),
             ChangeNotifierProvider(create: (_) => PhotoProvider()),
+            ChangeNotifierProvider(create: (_) => DoctorService()),
             ChangeNotifierProvider(
               create: (_) {
                 final provider = SyncProvider();

@@ -2,11 +2,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../../core/image_helper.dart';
 import '../../../core/validators.dart';
 import '../../../models/user_profile.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
+import '../../../services/mysql_api_service.dart';
 
 class CreateProfileScreen extends StatefulWidget {
   final bool isEditing; // If true, acts as Edit Profile screen from settings
@@ -28,9 +30,17 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   late TextEditingController heightController;
   late TextEditingController conditionsController;
 
+  // Doctor controllers
+  late TextEditingController specializationController;
+  late TextEditingController licenseController;
+  late TextEditingController hospitalController;
+  late TextEditingController experienceController;
+  late TextEditingController locationController;
+
   String? _selectedGender;
   String? _selectedBloodGroup;
   String? _selectedRelationship;
+  String? _selectedSpecialization;
   String? _imagePath;
   bool _isLoading = false;
 
@@ -48,6 +58,21 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     'Doctor',
     'Other'
   ];
+  final List<String> _specializations = [
+    'General Physician',
+    'Cardiologist',
+    'Neurologist',
+    'Dermatologist',
+    'Orthopedic',
+    'Pediatrician',
+    'Gynecologist',
+    'Oncologist',
+    'Psychiatrist',
+    'ENT Specialist',
+    'Ophthalmologist',
+    'Dentist',
+    'Other'
+  ];
 
   @override
   void initState() {
@@ -59,6 +84,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     weightController = TextEditingController();
     heightController = TextEditingController();
     conditionsController = TextEditingController();
+
+    specializationController = TextEditingController();
+    licenseController = TextEditingController();
+    hospitalController = TextEditingController();
+    experienceController = TextEditingController();
+    locationController = TextEditingController();
 
     _loadExistingProfile();
   }
@@ -78,9 +109,17 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         weightController.text = profile.weight ?? '';
         heightController.text = profile.height ?? '';
         conditionsController.text = profile.medicalConditions ?? '';
+
+        specializationController.text = profile.specialization ?? '';
+        licenseController.text = profile.licenseNumber ?? '';
+        hospitalController.text = profile.hospitalName ?? '';
+        experienceController.text = profile.experience ?? '';
+        locationController.text = profile.location ?? '';
+
         _selectedGender = _genders.contains(profile.gender) ? profile.gender : null;
         _selectedBloodGroup = _bloodGroups.contains(profile.bloodGroup) ? profile.bloodGroup : null;
         _selectedRelationship = _relationships.contains(profile.relationship) ? profile.relationship : null;
+        _selectedSpecialization = _specializations.contains(profile.specialization) ? profile.specialization : null;
         _imagePath = profile.profilePicture;
       });
     }
@@ -95,6 +134,11 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     weightController.dispose();
     heightController.dispose();
     conditionsController.dispose();
+    specializationController.dispose();
+    licenseController.dispose();
+    hospitalController.dispose();
+    experienceController.dispose();
+    locationController.dispose();
     super.dispose();
   }
 
@@ -130,34 +174,77 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       final auth = context.read<AuthService>();
       final email = auth.currentUser ?? 'guest';
       final isCare = auth.isCaretaker;
+      final isDoc = auth.isDoctor;
 
       // Handle Connection Code logic for Patient profile
       String? connCode;
-      if (!isCare) {
+      if (!isCare && !isDoc) {
         final existing = await DatabaseService().getUserProfileData();
         connCode = existing?.connectionCode ??
             'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
       }
 
+      // If image is a newly picked local file, upload it to MySQL server first
+      if (_imagePath != null &&
+          _imagePath!.trim().isNotEmpty &&
+          !_imagePath!.startsWith('http://') &&
+          !_imagePath!.startsWith('https://') &&
+          !_imagePath!.startsWith('/uploads') &&
+          !_imagePath!.startsWith('uploads')) {
+        try {
+          final file = File(_imagePath!);
+          if (file.existsSync()) {
+            final uploadRes = await MySQLApiService().uploadProfilePhoto(file);
+            if (uploadRes['ok'] == true && uploadRes['profilePicture'] != null) {
+              _imagePath = uploadRes['profilePicture'] as String;
+            }
+          }
+        } catch (_) {}
+      }
+
+      final specValue = _selectedSpecialization ??
+          (specializationController.text.trim().isNotEmpty
+              ? specializationController.text.trim()
+              : (isDoc ? 'General Physician' : null));
+
       final profile = UserProfile(
         email: email,
         fullName: nameController.text.trim(),
         profilePicture: _imagePath,
-        age: isCare ? null : int.tryParse(ageController.text.trim()),
-        gender: isCare ? null : _selectedGender,
+        age: (isCare || isDoc) ? null : int.tryParse(ageController.text.trim()),
+        gender: (isCare || isDoc) ? null : _selectedGender,
         mobileNumber: mobileController.text.trim(),
-        emergencyContact: isCare ? null : emergencyController.text.trim(),
-        bloodGroup: isCare ? null : _selectedBloodGroup,
-        weight: isCare ? null : weightController.text.trim(),
-        height: isCare ? null : heightController.text.trim(),
-        medicalConditions: isCare
+        emergencyContact: (isCare || isDoc) ? null : emergencyController.text.trim(),
+        bloodGroup: (isCare || isDoc) ? null : _selectedBloodGroup,
+        weight: (isCare || isDoc) ? null : weightController.text.trim(),
+        height: (isCare || isDoc) ? null : heightController.text.trim(),
+        medicalConditions: (isCare || isDoc)
             ? null
             : (conditionsController.text.trim().isEmpty ? null : conditionsController.text.trim()),
         relationship: isCare ? _selectedRelationship : null,
         connectionCode: connCode,
+        specialization: isDoc ? specValue : null,
+        licenseNumber: isDoc ? licenseController.text.trim() : null,
+        hospitalName: isDoc ? hospitalController.text.trim() : null,
+        experience: isDoc ? experienceController.text.trim() : null,
+        location: isDoc ? locationController.text.trim() : null,
       );
 
       await DatabaseService().saveUserProfile(profile);
+
+      // If Doctor, also sync to MySQL doctor profile endpoint
+      if (isDoc) {
+        MySQLApiService().saveDoctorProfile({
+          'fullName': nameController.text.trim(),
+          'phoneNumber': mobileController.text.trim(),
+          'specialization': specValue ?? 'General Physician',
+          'licenseNumber': licenseController.text.trim(),
+          'hospitalName': hospitalController.text.trim(),
+          'experience': experienceController.text.trim(),
+          'location': locationController.text.trim(),
+        }).catchError((_) => false);
+      }
+
       await auth.markProfileAsCompleted();
 
       if (!mounted) return;
@@ -174,7 +261,11 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       if (widget.isEditing || Navigator.canPop(context)) {
         Navigator.pop(context, true); // go back if editing
       } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.userHome); // go to home
+        if (isDoc) {
+          Navigator.pushReplacementNamed(context, AppRoutes.doctorHome);
+        } else {
+          Navigator.pushReplacementNamed(context, AppRoutes.userHome);
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -190,7 +281,18 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     final theme = Theme.of(context);
     final auth = context.read<AuthService>();
     final isCare = auth.isCaretaker;
+    final isDoc = auth.isDoctor;
     final isFirstTime = !widget.isEditing;
+
+    String headerTitle = 'Set Up Your Profile';
+    String headerSub = 'Fill out your medical details to configure personalization.';
+    if (isCare) {
+      headerTitle = 'Set Up Caretaker Profile';
+      headerSub = 'Configure your credentials to monitor your patients.';
+    } else if (isDoc) {
+      headerTitle = 'Set Up Doctor Profile';
+      headerSub = 'Fill out your medical credentials and clinic information.';
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -211,7 +313,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                   children: [
                     if (isFirstTime) ...[
                       Text(
-                        isCare ? 'Set Up Caretaker Profile' : 'Set Up Your Profile',
+                        headerTitle,
                         textAlign: TextAlign.center,
                         style: theme.textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.bold,
@@ -220,9 +322,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        isCare
-                            ? 'Configure your credentials to monitor your patients.'
-                            : 'Fill out your medical details to configure personalization.',
+                        headerSub,
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade600,
@@ -238,12 +338,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                           CircleAvatar(
                             radius: 64,
                             backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                            backgroundImage: _imagePath != null && _imagePath!.isNotEmpty
-                                ? FileImage(File(_imagePath!))
-                                : null,
-                            child: _imagePath == null
+                            backgroundImage: AppImageHelper.getImageProvider(_imagePath),
+                            child: AppImageHelper.getImageProvider(_imagePath) == null
                                 ? Icon(
-                                    isCare ? Icons.medical_services_outlined : Icons.person,
+                                    isDoc
+                                        ? Icons.medical_information
+                                        : (isCare ? Icons.people : Icons.person),
                                     size: 64,
                                     color: theme.colorScheme.primary,
                                   )
@@ -306,8 +406,93 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Dynamic fields: Patient vs Caretaker
-                            if (isCare) ...[
+                            // Dynamic fields: Doctor vs Caretaker vs Patient
+                            if (isDoc) ...[
+                              // Specialization Field
+                              DropdownButtonFormField<String>(
+                                initialValue: _selectedSpecialization,
+                                decoration: InputDecoration(
+                                  labelText: 'Specialization',
+                                  prefixIcon: const Icon(Icons.local_hospital_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                items: _specializations
+                                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                                    .toList(),
+                                onChanged: (val) => setState(() => _selectedSpecialization = val),
+                                validator: (value) => value == null ? 'Please select specialization' : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Medical License / Registration Number
+                              TextFormField(
+                                controller: licenseController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: AppValidators.licenseInputFormatters,
+                                decoration: InputDecoration(
+                                  labelText: 'Medical License / Registration No. (5 digits)',
+                                  prefixIcon: const Icon(Icons.badge_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                validator: (value) => AppValidators.validateLicense(value),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Hospital / Clinic Name
+                              TextFormField(
+                                controller: hospitalController,
+                                decoration: InputDecoration(
+                                  labelText: 'Hospital / Clinic Name',
+                                  prefixIcon: const Icon(Icons.domain_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                validator: (value) => value == null || value.trim().isEmpty
+                                    ? 'Please enter hospital or clinic name'
+                                    : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Experience
+                              TextFormField(
+                                controller: experienceController,
+                                decoration: InputDecoration(
+                                  labelText: 'Experience (e.g. 10 Years)',
+                                  prefixIcon: const Icon(Icons.work_outline),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                validator: (value) => value == null || value.trim().isEmpty
+                                    ? 'Please enter your experience'
+                                    : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Location / City
+                              TextFormField(
+                                controller: locationController,
+                                decoration: InputDecoration(
+                                  labelText: 'Location / City',
+                                  prefixIcon: const Icon(Icons.location_on_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                validator: (value) => value == null || value.trim().isEmpty
+                                    ? 'Please enter your location/city'
+                                    : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Doctor Email (Read Only Display)
+                              TextFormField(
+                                initialValue: auth.currentUser,
+                                readOnly: true,
+                                decoration: InputDecoration(
+                                  labelText: 'Registered Email',
+                                  prefixIcon: const Icon(Icons.email_outlined),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade100,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ] else if (isCare) ...[
                               // Relationship Field
                               DropdownButtonFormField<String>(
                                 initialValue: _selectedRelationship,
@@ -490,7 +675,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
                     // Save Button
                     ElevatedButton(
-                       style: ElevatedButton.styleFrom(
+                      style: ElevatedButton.styleFrom(
                         backgroundColor: theme.colorScheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),

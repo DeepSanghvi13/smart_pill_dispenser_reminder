@@ -50,11 +50,18 @@ import '../screens/photos/add_photo_screen.dart';
 import '../screens/photos/my_photos_screen.dart';
 import '../screens/photos/photo_details_screen.dart';
 import '../widgets/photo_picker_bottom_sheet.dart';
+import '../screens/client/doctor/find_doctor_screen.dart';
+import '../screens/client/doctor/my_doctors_screen.dart';
+import '../screens/client/doctor/doctor_home_screen.dart';
 
 class AppRoutes {
   static const String myPhotos = '/photos/my-photos';
   static const String addPhoto = '/photos/add';
   static const String photoDetails = '/photos/details';
+
+  static const String findDoctor = '/doctor/find';
+  static const String myDoctors = '/doctor/my-doctors';
+  static const String doctorHome = '/doctor/home';
 
   static const String adminDashboard = '/admin/dashboard';
   static const String adminUserList = '/admin/users';
@@ -101,6 +108,12 @@ class AppRoutes {
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case findDoctor:
+        return MaterialPageRoute(builder: (_) => const FindDoctorScreen());
+      case myDoctors:
+        return MaterialPageRoute(builder: (_) => const MyDoctorsScreen());
+      case doctorHome:
+        return MaterialPageRoute(builder: (_) => const DoctorHomeScreen());
       case myPhotos:
         return MaterialPageRoute(builder: (_) => const MyPhotosScreen());
       case addPhoto:

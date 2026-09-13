@@ -141,9 +141,19 @@ class AuthService extends ChangeNotifier {
           notifyListeners();
 
           // Sync JWT token with backend asynchronously in background
-          MySQLApiService().loginUser(normalizedEmail, password).then((sessionData) {
+          MySQLApiService().loginUser(normalizedEmail, password).then((sessionData) async {
             if (sessionData != null && sessionData['token'] != null) {
               settings.put('jwt_token', sessionData['token']);
+              try {
+                final serverProf = await MySQLApiService().getUserProfileFromServer(normalizedEmail);
+                if (serverProf?.profilePicture != null && serverProf!.profilePicture!.isNotEmpty) {
+                  final profBox = HiveService().profilesBox;
+                  final existing = profBox.get(normalizedEmail);
+                  if (existing != null && existing.profilePicture != serverProf.profilePicture) {
+                    await profBox.put(normalizedEmail, existing.copyWith(profilePicture: serverProf.profilePicture));
+                  }
+                }
+              } catch (_) {}
             }
           }).catchError((_) => null);
 
@@ -171,12 +181,25 @@ class AuthService extends ChangeNotifier {
         await box.put(normalizedEmail, localUser);
 
         final profileBox = HiveService().profilesBox;
-        if (!profileBox.containsKey(normalizedEmail)) {
-          final defaultProfile = UserProfile(
-            email: normalizedEmail,
-            fullName: fullName,
-          );
-          await profileBox.put(normalizedEmail, defaultProfile);
+        try {
+          final serverProf = await MySQLApiService().getUserProfileFromServer(normalizedEmail);
+          if (serverProf != null) {
+            await profileBox.put(normalizedEmail, serverProf);
+          } else if (!profileBox.containsKey(normalizedEmail)) {
+            final defaultProfile = UserProfile(
+              email: normalizedEmail,
+              fullName: fullName,
+            );
+            await profileBox.put(normalizedEmail, defaultProfile);
+          }
+        } catch (_) {
+          if (!profileBox.containsKey(normalizedEmail)) {
+            final defaultProfile = UserProfile(
+              email: normalizedEmail,
+              fullName: fullName,
+            );
+            await profileBox.put(normalizedEmail, defaultProfile);
+          }
         }
 
         _currentUser = normalizedEmail;
@@ -205,7 +228,8 @@ class AuthService extends ChangeNotifier {
       final hasMobile = profile.mobileNumber != null && profile.mobileNumber!.trim().isNotEmpty;
       final hasAge = profile.age != null;
       final hasRelationship = profile.relationship != null && profile.relationship!.trim().isNotEmpty;
-      if (hasMobile && (hasAge || hasRelationship)) {
+      final hasDoctorInfo = profile.specialization != null && profile.specialization!.trim().isNotEmpty;
+      if (hasMobile && (hasAge || hasRelationship || hasDoctorInfo)) {
         return true;
       }
     }
@@ -294,11 +318,17 @@ class AuthService extends ChangeNotifier {
     await logout();
   }
 
-  // Caretaker connections helpers
+  // User role helpers
   bool get isCaretaker {
     if (_currentUser == null) return false;
     final user = HiveService().usersBox.get(_currentUser);
     return user?.role == 'caretaker';
+  }
+
+  bool get isDoctor {
+    if (_currentUser == null) return false;
+    final user = HiveService().usersBox.get(_currentUser);
+    return user?.role == 'doctor';
   }
 
   bool get isAdmin {

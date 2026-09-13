@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:smart_pill_reminder/core/image_helper.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
 import 'package:smart_pill_reminder/services/database_service.dart';
@@ -37,10 +37,8 @@ class AppDrawer extends StatelessWidget {
                     CircleAvatar(
                       radius: 30,
                       backgroundColor: Colors.white,
-                      backgroundImage: picPath != null && picPath.isNotEmpty
-                          ? FileImage(File(picPath))
-                          : null,
-                      child: picPath == null
+                      backgroundImage: AppImageHelper.getImageProvider(picPath),
+                      child: AppImageHelper.getImageProvider(picPath) == null
                           ? Icon(Icons.person, size: 30, color: theme.colorScheme.primary)
                           : null,
                     ),
@@ -67,6 +65,33 @@ class AppDrawer extends StatelessWidget {
           ),
 
           // Drawer Menu Tiles
+          if (context.watch<AuthService>().isDoctor) ...[
+            ListTile(
+              leading: const Icon(Icons.dashboard_outlined),
+              title: const Text('Doctor Dashboard'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.doctorHome);
+              },
+            ),
+          ] else ...[
+            ListTile(
+              leading: const Icon(Icons.person_search_outlined),
+              title: const Text('Find a Doctor'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.findDoctor);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.medical_services_outlined),
+              title: const Text('My Doctors'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.myDoctors);
+              },
+            ),
+          ],
           ListTile(
             leading: const Icon(Icons.person_outline),
             title: const Text('My Profile'),
@@ -88,7 +113,6 @@ class AppDrawer extends StatelessWidget {
             title: const Text('Settings'),
             onTap: () {
               Navigator.pop(context);
-              // Pushes Settings Screen (index 3 of HomeScreen bottom nav or navigates to manage route)
               Navigator.pushNamed(context, AppRoutes.manage);
             },
           ),

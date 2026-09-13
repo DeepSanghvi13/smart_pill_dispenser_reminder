@@ -15,10 +15,54 @@ const {
 
 const { parseUserAgent } = require('./ua_parser');
 const { authenticateToken, requireRole, JWT_SECRET } = require('./auth_middleware');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '4mb' }));
+
+// Ensure uploads directories exist
+const uploadDir = path.join(__dirname, '..', 'uploads');
+const profileUploadDir = path.join(uploadDir, 'profiles');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+if (!fs.existsSync(profileUploadDir)) {
+  fs.mkdirSync(profileUploadDir, { recursive: true });
+}
+
+// Serve static uploads
+app.use('/uploads', express.static(uploadDir));
+
+// Multer Storage Configuration
+const profileStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, profileUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const userId = req.user ? req.user.id : 'anon';
+    const uniqueSuffix = `${Date.now()}_${Math.round(Math.random() * 1e9)}`;
+    cb(null, `user_${userId}_${uniqueSuffix}${ext}`);
+  }
+});
+
+const profileUpload = multer({
+  storage: profileStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+  fileFilter: function (req, file, cb) {
+    const allowedMime = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedMime.includes(file.mimetype) || allowedExt.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Please select a valid image file (.jpg, .jpeg, .png, .webp).'));
+    }
+  }
+});
 
 const port = Number(process.env.PORT || 3000);
 const adminEmail = (process.env.ADMIN_EMAIL || 'admin@medisafe.com')
@@ -59,6 +103,7 @@ function normalizeEmail(value) {
 
 const GMAIL_REGEX = /^[A-Za-z0-9._%+-]+@gmail\.com$/;
 const PHONE_REGEX = /^[0-9]{10}$/;
+const LICENSE_REGEX = /^[0-9]{5}$/;
 
 function isValidGmail(email) {
   if (!email || typeof email !== 'string') return false;
@@ -68,6 +113,11 @@ function isValidGmail(email) {
 function isValidPhone(phone) {
   if (!phone || typeof phone !== 'string') return false;
   return PHONE_REGEX.test(phone.trim());
+}
+
+function isValidLicense(license) {
+  if (!license || typeof license !== 'string') return false;
+  return LICENSE_REGEX.test(license.trim());
 }
 
 function isAdminEmail(email) {
@@ -537,12 +587,13 @@ async function upsertUserProfile(userId, profile) {
   if (!profile) return;
   
   await query(
-    `INSERT INTO userProfiles (userId, firstName, lastName, gender, birthDate, zipCode, phoneNumber, email)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO userProfiles (userId, firstName, lastName, gender, birthDate, zipCode, phoneNumber, email, profilePicture)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE 
      firstName=VALUES(firstName), lastName=VALUES(lastName), gender=VALUES(gender), 
      birthDate=VALUES(birthDate), zipCode=VALUES(zipCode), phoneNumber=VALUES(phoneNumber), 
-     email=VALUES(email)`,
+     email=VALUES(email),
+     profilePicture=COALESCE(VALUES(profilePicture), profilePicture)`,
     [
       userId,
       profile.firstName || '',
@@ -551,13 +602,33 @@ async function upsertUserProfile(userId, profile) {
       profile.birthDate || null,
       profile.zipCode || null,
       profile.phoneNumber || null,
-      profile.email || null
+      profile.email || null,
+      profile.profilePicture || null
     ]
   );
 
   if (profile.phoneNumber && String(profile.phoneNumber).trim().length > 0) {
     await query('UPDATE users SET phoneNumber = ? WHERE id = ?', [String(profile.phoneNumber).trim(), userId]);
   }
+}
+
+async function upsertDoctor(userId, doctor) {
+  if (!doctor) return;
+  await query(
+    `INSERT INTO doctors (userId, specialization, licenseNumber, hospitalName, experience, location)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE 
+     specialization=VALUES(specialization), licenseNumber=VALUES(licenseNumber), 
+     hospitalName=VALUES(hospitalName), experience=VALUES(experience), location=VALUES(location)`,
+    [
+      userId,
+      doctor.specialization || 'General Physician',
+      doctor.licenseNumber || '',
+      doctor.hospitalName || '',
+      doctor.experience || '',
+      doctor.location || ''
+    ]
+  );
 }
 
 // ----------------- API ENDPOINTS -----------------
@@ -573,7 +644,12 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
     gender = null,
     birthDate = null,
     zipCode = null,
-    relationship = null
+    relationship = null,
+    specialization = null,
+    licenseNumber = null,
+    hospitalName = null,
+    experience = null,
+    location = null
   } = req.body || {};
 
   const normEmail = normalizeEmail(email);
@@ -592,10 +668,25 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
     return res.status(400).json({ ok: false, message: errorMsg });
   }
 
-  const validRoles = ['patient', 'caretaker', 'admin'];
+  const validRoles = ['patient', 'caretaker', 'doctor', 'admin'];
   const userRole = validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'patient';
 
-  // Gmail and Phone Validation for Patient and Caretaker accounts
+  // Medical License 5-digit validation for Doctor
+  if (userRole === 'doctor' && (licenseNumber !== undefined && licenseNumber !== null)) {
+    if (!isValidLicense(String(licenseNumber).trim())) {
+      const errorMsg = 'Medical license/registration number must be exactly 5 digits.';
+      await logActivity({
+        activityType: 'REGISTER_FAILED',
+        userEmail: normEmail || 'unknown',
+        description: errorMsg,
+        status: 'FAILED',
+        req
+      });
+      return res.status(400).json({ ok: false, message: errorMsg });
+    }
+  }
+
+  // Gmail and Phone Validation for Patient, Caretaker, and Doctor accounts
   if (userRole !== 'admin') {
     if (!isValidGmail(normEmail)) {
       const errorMsg = 'Please enter a valid Gmail address ending with @gmail.com.';
@@ -660,6 +751,12 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
       await query(
         'INSERT INTO caretakers (userId, relationship) VALUES (?, ?)',
         [userId, relationship]
+      );
+    } else if (userRole === 'doctor') {
+      await query(
+        `INSERT INTO doctors (userId, specialization, licenseNumber, hospitalName, experience, location)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, specialization || 'General Physician', licenseNumber || '', hospitalName || '', experience || '', location || '']
       );
     } else if (userRole === 'admin') {
       await query('INSERT INTO admins (userId) VALUES (?)', [userId]);
@@ -1298,10 +1395,110 @@ app.get('/api/user-profile/:userId', authenticateTokenOrFallback, async (req, re
         zipCode: profile.zipCode,
         phoneNumber: profile.phoneNumber,
         email: profile.userEmail,
+        profilePicture: profile.profilePicture || null,
         createdAt: profile.createdAt,
         updatedAt: profile.updatedAt,
       },
     });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Multipart Profile Photo Upload (Patient, Caretaker, Doctor, Admin)
+app.post(['/api/user-profile/photo', '/api/profile/photo'], authenticateToken, (req, res) => {
+  profileUpload.single('photo')(req, res, async (err) => {
+    if (err) {
+      const isSize = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        ok: false,
+        message: isSize
+          ? 'Image size is too large. Maximum size allowed is 5MB.'
+          : (err.message || 'Please select a valid image file (.jpg, .jpeg, .png, .webp).')
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        ok: false,
+        message: 'No photo file provided. Please select an image.'
+      });
+    }
+
+    const userId = req.user.id;
+    const relativePath = `/uploads/profiles/${req.file.filename}`;
+
+    try {
+      // Find old photo to delete safely if it exists in local storage
+      const oldRows = await query('SELECT profilePicture FROM userProfiles WHERE userId = ? LIMIT 1', [userId]);
+      if (oldRows.length > 0 && oldRows[0].profilePicture) {
+        const oldPath = oldRows[0].profilePicture;
+        if (oldPath.startsWith('/uploads/profiles/')) {
+          const oldFull = path.join(__dirname, '..', oldPath.replace(/^\//, ''));
+          fs.unlink(oldFull, () => {}); // Non-blocking cleanup
+        }
+      }
+
+      // Update userProfiles with new photo path
+      await query(
+        `INSERT INTO userProfiles (userId, profilePicture)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE profilePicture = VALUES(profilePicture)`,
+        [userId, relativePath]
+      );
+
+      await logActivity({
+        userId,
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        activityType: 'UPDATE_PROFILE_PHOTO',
+        description: 'Uploaded and updated profile photo',
+        status: 'SUCCESS',
+        req
+      });
+
+      const protocol = req.protocol || 'http';
+      const host = req.get('host') || `localhost:${port}`;
+      const fullUrl = `${protocol}://${host}${relativePath}`;
+
+      return res.status(200).json({
+        ok: true,
+        message: 'Profile photo uploaded successfully.',
+        profilePicture: relativePath,
+        photoUrl: fullUrl
+      });
+    } catch (dbError) {
+      return res.status(500).json({ ok: false, error: dbError.message });
+    }
+  });
+});
+
+// Remove Profile Photo
+app.delete(['/api/user-profile/photo', '/api/profile/photo'], authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const oldRows = await query('SELECT profilePicture FROM userProfiles WHERE userId = ? LIMIT 1', [userId]);
+    if (oldRows.length > 0 && oldRows[0].profilePicture) {
+      const oldPath = oldRows[0].profilePicture;
+      if (oldPath.startsWith('/uploads/profiles/')) {
+        const oldFull = path.join(__dirname, '..', oldPath.replace(/^\//, ''));
+        fs.unlink(oldFull, () => {});
+      }
+    }
+
+    await query('UPDATE userProfiles SET profilePicture = NULL WHERE userId = ?', [userId]);
+
+    await logActivity({
+      userId,
+      userEmail: req.user.email,
+      userRole: req.user.role,
+      activityType: 'REMOVE_PROFILE_PHOTO',
+      description: 'Removed profile photo',
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.status(200).json({ ok: true, message: 'Profile photo removed successfully.' });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
   }
@@ -1431,6 +1628,522 @@ async function lookupDrugByBarcode(barcodeDigits) {
   return null;
 }
 
+// ----------------- DOCTOR & CONNECTION APIs -----------------
+
+// Doctor Search API (for Patients and Caretakers, or public lookup)
+app.get('/api/doctors', authenticateTokenOrFallback, async (req, res) => {
+  const { name = '', specialization = '', hospital = '', location = '', search = '' } = req.query;
+  const currentUserId = req.user ? req.user.id : null;
+
+  let sql = `
+    SELECT 
+      u.id, 
+      u.fullName, 
+      u.email, 
+      u.phoneNumber, 
+      COALESCE(d.specialization, 'General Physician') AS specialization, 
+      COALESCE(d.licenseNumber, '') AS licenseNumber, 
+      COALESCE(d.hospitalName, '') AS hospitalName, 
+      COALESCE(d.experience, '') AS experience, 
+      COALESCE(d.location, '') AS location
+    FROM users u
+    LEFT JOIN doctors d ON u.id = d.userId
+    WHERE u.role = 'doctor' AND u.status = 'active'
+  `;
+  const params = [];
+
+  if (search && search.trim()) {
+    const term = `%${search.trim()}%`;
+    sql += ` AND (u.fullName LIKE ? OR d.specialization LIKE ? OR d.hospitalName LIKE ? OR d.location LIKE ?)`;
+    params.push(term, term, term, term);
+  }
+  if (name && name.trim()) {
+    sql += ` AND u.fullName LIKE ?`;
+    params.push(`%${name.trim()}%`);
+  }
+  if (specialization && specialization.trim() && specialization.toLowerCase() !== 'all') {
+    sql += ` AND d.specialization LIKE ?`;
+    params.push(`%${specialization.trim()}%`);
+  }
+  if (hospital && hospital.trim()) {
+    sql += ` AND d.hospitalName LIKE ?`;
+    params.push(`%${hospital.trim()}%`);
+  }
+  if (location && location.trim()) {
+    sql += ` AND d.location LIKE ?`;
+    params.push(`%${location.trim()}%`);
+  }
+
+  sql += ' ORDER BY u.fullName ASC';
+
+  try {
+    const doctors = await query(sql, params);
+
+    // If requester is logged in, attach connectionStatus & connectionId
+    if (currentUserId) {
+      const connRows = await query(
+        `SELECT id, doctorId, status FROM doctor_connections WHERE requesterId = ?`,
+        [currentUserId]
+      );
+      const connMap = new Map();
+      for (const c of connRows) {
+        connMap.set(c.doctorId, { id: c.id, status: c.status });
+      }
+
+      const result = doctors.map(doc => {
+        const conn = connMap.get(doc.id);
+        return {
+          ...doc,
+          connectionStatus: conn ? conn.status : 'none',
+          connectionId: conn ? conn.id : null,
+        };
+      });
+      return res.json({ ok: true, data: result });
+    }
+
+    return res.json({
+      ok: true,
+      data: doctors.map(doc => ({
+        ...doc,
+        connectionStatus: 'none',
+        connectionId: null,
+      }))
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Send Doctor Connection Request (Patient or Caretaker -> Doctor)
+app.post('/api/doctor-connections', authenticateToken, requireRole(['patient', 'caretaker']), async (req, res) => {
+  const doctorId = Number(req.body?.doctorId);
+  const requesterId = req.user.id;
+  const requesterRole = req.user.role;
+
+  if (!doctorId || Number.isNaN(doctorId)) {
+    return res.status(400).json({ ok: false, message: 'Valid doctorId is required' });
+  }
+
+  if (doctorId === requesterId) {
+    return res.status(400).json({ ok: false, message: 'You cannot connect with yourself.' });
+  }
+
+  try {
+    // Verify doctor exists and has role 'doctor'
+    const docRows = await query('SELECT id, fullName, email, role FROM users WHERE id = ? LIMIT 1', [doctorId]);
+    if (docRows.length === 0 || docRows[0].role !== 'doctor') {
+      return res.status(404).json({ ok: false, message: 'Doctor not found or invalid doctor account.' });
+    }
+
+    // Check existing connection
+    const existing = await query(
+      'SELECT id, status FROM doctor_connections WHERE doctorId = ? AND requesterId = ? LIMIT 1',
+      [doctorId, requesterId]
+    );
+
+    if (existing.length > 0) {
+      const currentStatus = existing[0].status;
+      if (currentStatus === 'pending') {
+        return res.status(400).json({
+          ok: false,
+          message: 'You have already sent a connection request to this doctor.'
+        });
+      }
+      if (currentStatus === 'accepted') {
+        return res.status(400).json({
+          ok: false,
+          message: 'You are already connected with this doctor.'
+        });
+      }
+      if (currentStatus === 'rejected') {
+        // Re-request: update back to pending
+        await query(
+          'UPDATE doctor_connections SET status = "pending", requesterRole = ?, updatedAt = NOW() WHERE id = ?',
+          [requesterRole, existing[0].id]
+        );
+        await logActivity({
+          userId: requesterId,
+          userRole: requesterRole,
+          userEmail: req.user.email,
+          activityType: 'DOCTOR_CONNECT_REQUEST',
+          description: `Re-sent doctor connection request to Dr. ${docRows[0].fullName}`,
+          status: 'SUCCESS',
+          req
+        });
+        return res.status(200).json({
+          ok: true,
+          message: 'Doctor connection request sent successfully.',
+          data: { id: existing[0].id, status: 'pending' }
+        });
+      }
+    }
+
+    // Insert new pending connection
+    const insertRes = await query(
+      `INSERT INTO doctor_connections (doctorId, requesterId, requesterRole, status)
+       VALUES (?, ?, ?, 'pending')`,
+      [doctorId, requesterId, requesterRole]
+    );
+
+    await logActivity({
+      userId: requesterId,
+      userRole: requesterRole,
+      userEmail: req.user.email,
+      activityType: 'DOCTOR_CONNECT_REQUEST',
+      description: `Sent doctor connection request to Dr. ${docRows[0].fullName}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Doctor connection request sent successfully.',
+      data: { id: insertRes.insertId, status: 'pending' }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Failed to send connection request', error: error.message });
+  }
+});
+
+// View Doctor's Incoming Requests (Doctor only)
+app.get('/api/doctor-connections/requests', authenticateToken, requireRole(['doctor']), async (req, res) => {
+  const doctorId = req.user.id;
+  const { status = 'pending' } = req.query;
+
+  try {
+    let sql = `
+      SELECT 
+        dc.id, 
+        dc.doctorId, 
+        dc.requesterId, 
+        dc.requesterRole, 
+        dc.status, 
+        dc.createdAt, 
+        dc.updatedAt,
+        u.fullName as requesterName,
+        u.email as requesterEmail,
+        u.phoneNumber as requesterPhone,
+        up.gender as requesterGender,
+        up.birthDate as requesterBirthDate
+      FROM doctor_connections dc
+      JOIN users u ON dc.requesterId = u.id
+      LEFT JOIN userProfiles up ON u.id = up.userId
+      WHERE dc.doctorId = ?
+    `;
+    const params = [doctorId];
+
+    if (status && status !== 'all') {
+      sql += ' AND dc.status = ?';
+      params.push(status);
+    }
+
+    sql += ' ORDER BY dc.id DESC';
+
+    const rows = await query(sql, params);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Accept Doctor Connection Request (Doctor only)
+app.put('/api/doctor-connections/:id/accept', authenticateToken, requireRole(['doctor']), async (req, res) => {
+  const id = Number(req.params.id);
+  const doctorId = req.user.id;
+
+  try {
+    const rows = await query('SELECT * FROM doctor_connections WHERE id = ? AND doctorId = ? LIMIT 1', [id, doctorId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Connection request not found or unauthorized.' });
+    }
+
+    await query('UPDATE doctor_connections SET status = "accepted", updatedAt = NOW() WHERE id = ?', [id]);
+
+    await logActivity({
+      userId: doctorId,
+      userRole: 'doctor',
+      userEmail: req.user.email,
+      activityType: 'ACCEPT_DOCTOR_REQUEST',
+      description: `Doctor accepted connection request ID: ${id}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({ ok: true, message: 'Doctor connection request accepted.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Reject Doctor Connection Request (Doctor only)
+app.put('/api/doctor-connections/:id/reject', authenticateToken, requireRole(['doctor']), async (req, res) => {
+  const id = Number(req.params.id);
+  const doctorId = req.user.id;
+
+  try {
+    const rows = await query('SELECT * FROM doctor_connections WHERE id = ? AND doctorId = ? LIMIT 1', [id, doctorId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Connection request not found or unauthorized.' });
+    }
+
+    await query('UPDATE doctor_connections SET status = "rejected", updatedAt = NOW() WHERE id = ?', [id]);
+
+    await logActivity({
+      userId: doctorId,
+      userRole: 'doctor',
+      userEmail: req.user.email,
+      activityType: 'REJECT_DOCTOR_REQUEST',
+      description: `Doctor rejected connection request ID: ${id}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({ ok: true, message: 'Doctor connection request rejected.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Get Connected Doctors for logged-in Patient/Caretaker
+app.get('/api/doctor-connections/my-doctors', authenticateToken, requireRole(['patient', 'caretaker']), async (req, res) => {
+  const requesterId = req.user.id;
+
+  try {
+    const sql = `
+      SELECT 
+        dc.id as connectionId,
+        dc.status as connectionStatus,
+        dc.createdAt as connectedAt,
+        u.id as doctorId,
+        u.fullName,
+        u.email,
+        u.phoneNumber,
+        COALESCE(d.specialization, 'General Physician') as specialization,
+        COALESCE(d.licenseNumber, '') as licenseNumber,
+        COALESCE(d.hospitalName, '') as hospitalName,
+        COALESCE(d.experience, '') as experience,
+        COALESCE(d.location, '') as location
+      FROM doctor_connections dc
+      JOIN users u ON dc.doctorId = u.id
+      LEFT JOIN doctors d ON u.id = d.userId
+      WHERE dc.requesterId = ? AND dc.status = 'accepted'
+      ORDER BY dc.updatedAt DESC
+    `;
+    const rows = await query(sql, [requesterId]);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Get Connected Patients for logged-in Doctor
+app.get('/api/doctor-connections/my-patients', authenticateToken, requireRole(['doctor']), async (req, res) => {
+  const doctorId = req.user.id;
+
+  try {
+    const sql = `
+      SELECT 
+        dc.id as connectionId,
+        dc.createdAt as connectedAt,
+        u.id as patientId,
+        u.fullName,
+        u.email,
+        u.phoneNumber,
+        up.gender,
+        up.birthDate,
+        up.zipCode
+      FROM doctor_connections dc
+      JOIN users u ON dc.requesterId = u.id
+      LEFT JOIN userProfiles up ON u.id = up.userId
+      WHERE dc.doctorId = ? AND dc.requesterRole = 'patient' AND dc.status = 'accepted'
+      ORDER BY dc.updatedAt DESC
+    `;
+    const rows = await query(sql, [doctorId]);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Get Connected Caretakers for logged-in Doctor
+app.get('/api/doctor-connections/my-caretakers', authenticateToken, requireRole(['doctor']), async (req, res) => {
+  const doctorId = req.user.id;
+
+  try {
+    const sql = `
+      SELECT 
+        dc.id as connectionId,
+        dc.createdAt as connectedAt,
+        u.id as caretakerId,
+        u.fullName,
+        u.email,
+        u.phoneNumber,
+        c.relationship
+      FROM doctor_connections dc
+      JOIN users u ON dc.requesterId = u.id
+      LEFT JOIN caretakers c ON u.id = c.userId
+      WHERE dc.doctorId = ? AND dc.requesterRole = 'caretaker' AND dc.status = 'accepted'
+      ORDER BY dc.updatedAt DESC
+    `;
+    const rows = await query(sql, [doctorId]);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Get All Connected Users (Patients & Caretakers) for logged-in Doctor
+app.get('/api/doctor-connections/my-connections', authenticateToken, requireRole(['doctor']), async (req, res) => {
+  const doctorId = req.user.id;
+
+  try {
+    const [patients, caretakers] = await Promise.all([
+      query(
+        `SELECT 
+          dc.id as connectionId,
+          dc.createdAt as connectedAt,
+          u.id as patientId,
+          u.fullName,
+          u.email,
+          u.phoneNumber,
+          up.gender,
+          up.birthDate,
+          up.zipCode
+        FROM doctor_connections dc
+        JOIN users u ON dc.requesterId = u.id
+        LEFT JOIN userProfiles up ON u.id = up.userId
+        WHERE dc.doctorId = ? AND dc.requesterRole = 'patient' AND dc.status = 'accepted'
+        ORDER BY dc.updatedAt DESC`,
+        [doctorId]
+      ),
+      query(
+        `SELECT 
+          dc.id as connectionId,
+          dc.createdAt as connectedAt,
+          u.id as caretakerId,
+          u.fullName,
+          u.email,
+          u.phoneNumber,
+          c.relationship
+        FROM doctor_connections dc
+        JOIN users u ON dc.requesterId = u.id
+        LEFT JOIN caretakers c ON u.id = c.userId
+        WHERE dc.doctorId = ? AND dc.requesterRole = 'caretaker' AND dc.status = 'accepted'
+        ORDER BY dc.updatedAt DESC`,
+        [doctorId]
+      )
+    ]);
+
+    return res.json({ ok: true, data: { patients, caretakers } });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Delete or cancel doctor connection (by Patient, Caretaker, or Doctor)
+app.delete('/api/doctor-connections/:id', authenticateToken, async (req, res) => {
+  const id = Number(req.params.id);
+  const userId = req.user.id;
+
+  try {
+    const rows = await query('SELECT * FROM doctor_connections WHERE id = ? LIMIT 1', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Connection not found.' });
+    }
+    const conn = rows[0];
+    if (conn.doctorId !== userId && conn.requesterId !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({ ok: false, message: 'Unauthorized to delete this connection.' });
+    }
+
+    await query('DELETE FROM doctor_connections WHERE id = ?', [id]);
+    return res.json({ ok: true, message: 'Connection removed successfully.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Doctor Profile Upsert (Doctor or Admin)
+app.post('/api/doctor/profile', authenticateToken, requireRole(['doctor', 'admin']), async (req, res) => {
+  const targetUserId = req.user.role === 'admin' && req.body?.userId ? Number(req.body.userId) : req.user.id;
+  const {
+    specialization = '',
+    licenseNumber = '',
+    hospitalName = '',
+    experience = '',
+    location = '',
+    fullName = '',
+    phoneNumber = ''
+  } = req.body || {};
+
+  if (phoneNumber && String(phoneNumber).trim().length > 0) {
+    if (!isValidPhone(String(phoneNumber).trim())) {
+      return res.status(400).json({ ok: false, message: 'Phone number must be exactly 10 digits.' });
+    }
+  }
+
+  if (licenseNumber !== undefined && licenseNumber !== null) {
+    if (!isValidLicense(String(licenseNumber).trim())) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Medical license/registration number must be exactly 5 digits.'
+      });
+    }
+  }
+
+  try {
+    await upsertDoctor(targetUserId, { specialization, licenseNumber, hospitalName, experience, location });
+    if (fullName && fullName.trim()) {
+      await query('UPDATE users SET fullName = ? WHERE id = ?', [fullName.trim(), targetUserId]);
+    }
+    if (phoneNumber && String(phoneNumber).trim().length > 0) {
+      await query('UPDATE users SET phoneNumber = ? WHERE id = ?', [String(phoneNumber).trim(), targetUserId]);
+      await query('UPDATE userProfiles SET phoneNumber = ? WHERE userId = ?', [String(phoneNumber).trim(), targetUserId]);
+    }
+
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'UPDATE_DOCTOR_PROFILE',
+      description: `Updated doctor profile details for user ID ${targetUserId}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({ ok: true, message: 'Doctor profile updated successfully.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Doctor Profile Fetch by userId
+app.get('/api/doctor/profile/:userId', authenticateTokenOrFallback, async (req, res) => {
+  const inputUserId = req.params.userId;
+  const userId = req.user ? req.user.id : await resolveUserId(inputUserId);
+  if (!userId) return res.status(400).json({ ok: false, message: 'User mapping failed' });
+
+  try {
+    const rows = await query(
+      `SELECT u.id, u.fullName, u.email, u.phoneNumber, u.role,
+              COALESCE(d.specialization, 'General Physician') as specialization, 
+              COALESCE(d.licenseNumber, '') as licenseNumber, 
+              COALESCE(d.hospitalName, '') as hospitalName, 
+              COALESCE(d.experience, '') as experience, 
+              COALESCE(d.location, '') as location
+       FROM users u
+       LEFT JOIN doctors d ON u.id = d.userId
+       WHERE u.id = ? LIMIT 1`,
+      [userId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Doctor not found' });
+    }
+    return res.json({ ok: true, data: rows[0] });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 // ----------------- ADMINISTRATIVE CONTROL APIs -----------------
 
 // Admin Dashboard stats
@@ -1440,6 +2153,7 @@ app.get('/api/admin/stats', authenticateToken, requireRole(['admin']), async (re
       usersCount,
       patientsCount,
       caretakersCount,
+      doctorsCount,
       adminsCount,
       todayRegistrationsCount,
       todayLoginsCount,
@@ -1450,6 +2164,7 @@ app.get('/api/admin/stats', authenticateToken, requireRole(['admin']), async (re
       query("SELECT COUNT(*) as count FROM users"),
       query("SELECT COUNT(*) as count FROM users WHERE role = 'patient'"),
       query("SELECT COUNT(*) as count FROM users WHERE role = 'caretaker'"),
+      query("SELECT COUNT(*) as count FROM users WHERE role = 'doctor'"),
       query("SELECT COUNT(*) as count FROM users WHERE role = 'admin'"),
       query("SELECT COUNT(*) as count FROM users WHERE createdAt >= CURDATE()"),
       query("SELECT COUNT(*) as count FROM user_sessions WHERE loginAt >= CURDATE()"),
@@ -1475,6 +2190,7 @@ app.get('/api/admin/stats', authenticateToken, requireRole(['admin']), async (re
         totalRegisteredUsers: Number(usersCount[0].count || 0),
         totalPatients: Number(patientsCount[0].count || 0),
         totalCaretakers: Number(caretakersCount[0].count || 0),
+        totalDoctors: Number(doctorsCount[0].count || 0),
         totalAdmins: Number(adminsCount[0].count || 0),
         todayRegistrations: Number(todayRegistrationsCount[0].count || 0),
         todayLogins: Number(todayLoginsCount[0].count || 0),

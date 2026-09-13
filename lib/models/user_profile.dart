@@ -13,6 +13,13 @@ class UserProfile {
   final String? relationship; // Caretaker field
   final String? connectionCode; // Patient field
   
+  // Doctor fields
+  final String? specialization;
+  final String? licenseNumber;
+  final String? hospitalName;
+  final String? experience;
+  final String? location;
+
   // Audit metadata fields
   final String createdBy;
   final String updatedBy;
@@ -33,6 +40,11 @@ class UserProfile {
     this.medicalConditions,
     this.relationship,
     this.connectionCode,
+    this.specialization,
+    this.licenseNumber,
+    this.hospitalName,
+    this.experience,
+    this.location,
     String? createdBy,
     String? updatedBy,
     DateTime? createdAt,
@@ -56,6 +68,11 @@ class UserProfile {
     String? medicalConditions,
     String? relationship,
     String? connectionCode,
+    String? specialization,
+    String? licenseNumber,
+    String? hospitalName,
+    String? experience,
+    String? location,
     String? createdBy,
     String? updatedBy,
     DateTime? createdAt,
@@ -75,6 +92,11 @@ class UserProfile {
       medicalConditions: medicalConditions ?? this.medicalConditions,
       relationship: relationship ?? this.relationship,
       connectionCode: connectionCode ?? this.connectionCode,
+      specialization: specialization ?? this.specialization,
+      licenseNumber: licenseNumber ?? this.licenseNumber,
+      hospitalName: hospitalName ?? this.hospitalName,
+      experience: experience ?? this.experience,
+      location: location ?? this.location,
       createdBy: createdBy ?? this.createdBy,
       updatedBy: updatedBy ?? this.updatedBy,
       createdAt: createdAt ?? this.createdAt,
@@ -97,6 +119,11 @@ class UserProfile {
       'medicalConditions': medicalConditions,
       'relationship': relationship,
       'connectionCode': connectionCode,
+      'specialization': specialization,
+      'licenseNumber': licenseNumber,
+      'hospitalName': hospitalName,
+      'experience': experience,
+      'location': location,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
       'createdAt': createdAt.toIso8601String(),
@@ -120,6 +147,11 @@ class UserProfile {
       medicalConditions: map['medicalConditions'] as String?,
       relationship: map['relationship'] as String?,
       connectionCode: map['connectionCode'] as String?,
+      specialization: map['specialization'] as String?,
+      licenseNumber: map['licenseNumber'] as String?,
+      hospitalName: map['hospitalName'] as String?,
+      experience: map['experience'] as String?,
+      location: map['location'] as String?,
       createdBy: map['createdBy'] as String? ?? emailVal,
       updatedBy: map['updatedBy'] as String? ?? emailVal,
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
@@ -127,3 +159,4 @@ class UserProfile {
     );
   }
 }
+

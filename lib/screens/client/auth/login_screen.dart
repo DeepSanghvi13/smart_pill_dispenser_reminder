@@ -66,6 +66,18 @@ class _LoginScreenState extends State<LoginScreen> {
           AppRoutes.adminDashboard,
           (route) => false,
         );
+      } else if (auth.isDoctor) {
+        if (auth.hasCompletedProfile()) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.doctorHome,
+            (route) => false,
+          );
+        } else {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.createProfile,
+            (route) => false,
+          );
+        }
       } else if (auth.hasCompletedProfile()) {
         Navigator.of(context).pushNamedAndRemoveUntil(
           AppRoutes.userHome,

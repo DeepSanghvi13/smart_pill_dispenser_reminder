@@ -37,6 +37,8 @@ class HiveService {
     await Hive.openBox<UserPhoto>('user_photos');
     await Hive.openBox('settings');
     await Hive.openBox('connections');
+    await Hive.openBox('doctor_connections');
+    await Hive.openBox('doctors');
     await Hive.openBox('notifications');
     await Hive.openBox('caretakers');
     await Hive.openBox('patients');
@@ -49,6 +51,8 @@ class HiveService {
   Box<UserPhoto> get userPhotosBox => Hive.box<UserPhoto>('user_photos');
   Box get settingsBox => Hive.box('settings');
   Box get connectionsBox => Hive.box('connections');
+  Box get doctorConnectionsBox => Hive.box('doctor_connections');
+  Box get doctorsBox => Hive.box('doctors');
   Box get notificationsBox => Hive.box('notifications');
   Box get caretakersBox => Hive.box('caretakers');
   Box get patientsBox => Hive.box('patients');

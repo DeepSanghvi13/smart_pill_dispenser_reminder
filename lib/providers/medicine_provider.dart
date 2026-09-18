@@ -472,6 +472,39 @@ class MedicineProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> checkExpiringMedicinesAndNotify() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+    final notificationsBox = HiveService().notificationsBox;
+
+    for (final med in _medicines) {
+      final exp = med.resolvedExpiryDate;
+      final expDay = DateTime(exp.year, exp.month, exp.day);
+      final diffDays = expDay.difference(today).inDays;
+
+      if (diffDays <= 30) {
+        final notifKey = 'expiry_${med.id}_$todayStr';
+        if (!notificationsBox.containsKey(notifKey)) {
+          await notificationsBox.put(notifKey, {
+            'type': 'expiry',
+            'medicineId': med.id,
+            'medicineName': med.name,
+            'expiryDate': med.formattedExpiryDate,
+            'daysLeft': diffDays,
+            'createdAt': DateTime.now().toIso8601String(),
+          });
+
+          await NotificationService.showExpiryWarningAlert(
+            medicineName: med.name,
+            expiryDate: med.formattedExpiryDate,
+            daysLeft: diffDays,
+          );
+        }
+      }
+    }
+  }
+
   Future<void> reloadAll() async {
     await Future.wait([
       loadMedicines(),
@@ -480,5 +513,6 @@ class MedicineProvider extends ChangeNotifier {
       loadMissedAlarms(),
     ]);
     await checkMissedMedicinesAndNotifyCaretakers();
+    await checkExpiringMedicinesAndNotify();
   }
 }

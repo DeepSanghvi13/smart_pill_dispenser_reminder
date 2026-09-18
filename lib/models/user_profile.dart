@@ -12,6 +12,7 @@ class UserProfile {
   final String? medicalConditions;
   final String? relationship; // Caretaker field
   final String? connectionCode; // Patient field
+  final String? address; // Patient / general address
   
   // Doctor fields
   final String? specialization;
@@ -40,6 +41,7 @@ class UserProfile {
     this.medicalConditions,
     this.relationship,
     this.connectionCode,
+    this.address,
     this.specialization,
     this.licenseNumber,
     this.hospitalName,
@@ -68,6 +70,7 @@ class UserProfile {
     String? medicalConditions,
     String? relationship,
     String? connectionCode,
+    String? address,
     String? specialization,
     String? licenseNumber,
     String? hospitalName,
@@ -92,6 +95,7 @@ class UserProfile {
       medicalConditions: medicalConditions ?? this.medicalConditions,
       relationship: relationship ?? this.relationship,
       connectionCode: connectionCode ?? this.connectionCode,
+      address: address ?? this.address,
       specialization: specialization ?? this.specialization,
       licenseNumber: licenseNumber ?? this.licenseNumber,
       hospitalName: hospitalName ?? this.hospitalName,
@@ -119,11 +123,12 @@ class UserProfile {
       'medicalConditions': medicalConditions,
       'relationship': relationship,
       'connectionCode': connectionCode,
+      'address': address ?? location,
       'specialization': specialization,
       'licenseNumber': licenseNumber,
       'hospitalName': hospitalName,
       'experience': experience,
-      'location': location,
+      'location': location ?? address,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
       'createdAt': createdAt.toIso8601String(),
@@ -133,6 +138,8 @@ class UserProfile {
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     final emailVal = map['email'] as String? ?? '';
+    final rawAddr = map['address'] as String?;
+    final rawLoc = map['location'] as String?;
     return UserProfile(
       email: emailVal,
       fullName: map['fullName'] as String? ?? '',
@@ -147,11 +154,12 @@ class UserProfile {
       medicalConditions: map['medicalConditions'] as String?,
       relationship: map['relationship'] as String?,
       connectionCode: map['connectionCode'] as String?,
+      address: rawAddr ?? rawLoc,
       specialization: map['specialization'] as String?,
       licenseNumber: map['licenseNumber'] as String?,
       hospitalName: map['hospitalName'] as String?,
       experience: map['experience'] as String?,
-      location: map['location'] as String?,
+      location: rawLoc ?? rawAddr,
       createdBy: map['createdBy'] as String? ?? emailVal,
       updatedBy: map['updatedBy'] as String? ?? emailVal,
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
@@ -159,4 +167,3 @@ class UserProfile {
     );
   }
 }
-

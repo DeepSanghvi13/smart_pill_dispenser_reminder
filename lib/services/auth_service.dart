@@ -331,6 +331,12 @@ class AuthService extends ChangeNotifier {
     return user?.role == 'doctor';
   }
 
+  bool get isPharmacy {
+    if (_currentUser == null) return false;
+    final user = HiveService().usersBox.get(_currentUser);
+    return user?.role == 'pharmacy';
+  }
+
   bool get isAdmin {
     if (_currentUser == null) return false;
     final user = HiveService().usersBox.get(_currentUser);

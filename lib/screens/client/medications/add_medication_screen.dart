@@ -30,11 +30,13 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   late TextEditingController notesController;
   late TextEditingController startDateController;
   late TextEditingController endDateController;
+  late TextEditingController expiryDateController;
 
   late MedicineCategory selectedCategory;
   String selectedFrequency = 'Daily';
   DateTime? _startDate;
   DateTime? _endDate;
+  DateTime? _expiryDate;
 
   String? _scannedText;
   String? _imagePath;
@@ -65,9 +67,11 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         
     _startDate = widget.medicine?.startDate ?? DateTime.now();
     _endDate = widget.medicine?.endDate ?? DateTime.now().add(const Duration(days: 30));
+    _expiryDate = widget.medicine?.resolvedExpiryDate ?? DateTime.now().add(const Duration(days: 180));
 
     startDateController = TextEditingController(text: DateFormat.yMMMd().format(_startDate!));
     endDateController = TextEditingController(text: DateFormat.yMMMd().format(_endDate!));
+    expiryDateController = TextEditingController(text: DateFormat('dd/MM/yyyy').format(_expiryDate!));
 
     _scannedText = widget.medicine?.scannedText;
     _imagePath = widget.medicine?.imagePath;
@@ -91,7 +95,23 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     notesController.dispose();
     startDateController.dispose();
     endDateController.dispose();
+    expiryDateController.dispose();
     super.dispose();
+  }
+
+  MedicineExpiryStatus _calculateExpiryStatus(DateTime? date) {
+    if (date == null) return MedicineExpiryStatus.active;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final expDay = DateTime(date.year, date.month, date.day);
+
+    if (expDay.isBefore(today)) {
+      return MedicineExpiryStatus.expired;
+    }
+    if (expDay.difference(today).inDays <= 30) {
+      return MedicineExpiryStatus.expiringSoon;
+    }
+    return MedicineExpiryStatus.active;
   }
 
   Future<void> _pickTime() async {
@@ -139,6 +159,27 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     }
   }
 
+  Future<void> _pickExpiryDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final initial = (_expiryDate != null && !_expiryDate!.isBefore(today)) ? _expiryDate! : today.add(const Duration(days: 90));
+
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: today, // Do not allow selecting past expired date
+      lastDate: DateTime(2100),
+      helpText: 'Select Medicine Expiry Date',
+    );
+
+    if (selected != null) {
+      setState(() {
+        _expiryDate = selected;
+        expiryDateController.text = DateFormat('dd/MM/yyyy').format(selected);
+      });
+    }
+  }
+
   Future<void> _scanMedicine() async {
     setState(() => _isScanning = true);
     try {
@@ -153,8 +194,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           dosageController.text = result.dosage!.trim();
         }
         if (result.expiryDate != null) {
-          _endDate = result.expiryDate;
-          endDateController.text = DateFormat.yMMMd().format(_endDate!);
+          _expiryDate = result.expiryDate;
+          expiryDateController.text = DateFormat('dd/MM/yyyy').format(_expiryDate!);
         }
         if ((result.healthCondition ?? '').trim().isNotEmpty) {
           conditionController.text = result.healthCondition!.trim();
@@ -226,8 +267,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             dosageController.text = resolved.dosage;
             selectedCategory = resolved.category;
             if (resolved.expiryDate != null) {
-              _endDate = resolved.expiryDate;
-              endDateController.text = DateFormat.yMMMd().format(_endDate!);
+              _expiryDate = resolved.expiryDate;
+              expiryDateController.text = DateFormat('dd/MM/yyyy').format(_expiryDate!);
             }
             if ((resolved.healthCondition ?? '').trim().isNotEmpty) {
               conditionController.text = resolved.healthCondition!.trim();
@@ -240,6 +281,22 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
   void _onSave() {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validate Expiry Date is not in past
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (_expiryDate != null) {
+      final expDay = DateTime(_expiryDate!.year, _expiryDate!.month, _expiryDate!.day);
+      if (expDay.isBefore(today)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Validation Error: Expiry date cannot be in the past.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
 
     final auth = context.read<AuthService>();
     final userId = auth.currentUser ?? 'guest';
@@ -255,6 +312,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       time: timeController.text.trim(),
       startDate: _startDate ?? DateTime.now(),
       endDate: _endDate ?? DateTime.now().add(const Duration(days: 30)),
+      expiryDate: _expiryDate ?? _endDate ?? DateTime.now().add(const Duration(days: 180)),
       notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
       isScanned: _isScanned,
       scannedText: _scannedText,
@@ -270,7 +328,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         name: nameController.text.trim(),
         dosage: dosageController.text.trim(),
         category: selectedCategory.name,
-        expiryDate: _endDate,
+        expiryDate: _expiryDate ?? _endDate,
         healthCondition: conditionController.text.trim().isEmpty ? null : conditionController.text.trim(),
       );
     }
@@ -281,6 +339,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final expiryStatus = _calculateExpiryStatus(_expiryDate);
 
     return Scaffold(
       appBar: AppBar(
@@ -338,10 +397,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                       TextFormField(
                         controller: nameController,
                         decoration: const InputDecoration(
-                          labelText: 'Medicine Name',
+                          labelText: 'Medicine Name *',
                           prefixIcon: Icon(Icons.medication),
                         ),
-                        validator: (v) => v!.isEmpty ? 'Please enter a name' : null,
+                        validator: (v) => v!.trim().isEmpty ? 'Please enter medicine name' : null,
                       ),
                       const SizedBox(height: 16),
 
@@ -352,10 +411,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                             child: TextFormField(
                               controller: dosageController,
                               decoration: const InputDecoration(
-                                labelText: 'Dosage (e.g. 500mg)',
+                                labelText: 'Dosage (e.g. 500mg) *',
                                 prefixIcon: Icon(Icons.scale),
                               ),
-                              validator: (v) => v!.isEmpty ? 'Required' : null,
+                              validator: (v) => v!.trim().isEmpty ? 'Required' : null,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -363,10 +422,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                             child: TextFormField(
                               controller: quantityController,
                               decoration: const InputDecoration(
-                                labelText: 'Quantity (e.g. 1 pill)',
+                                labelText: 'Quantity (e.g. 1 pill) *',
                                 prefixIcon: Icon(Icons.numbers),
                               ),
-                              validator: (v) => v!.isEmpty ? 'Required' : null,
+                              validator: (v) => v!.trim().isEmpty ? 'Required' : null,
                             ),
                           ),
                         ],
@@ -425,10 +484,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                         readOnly: true,
                         onTap: _pickTime,
                         decoration: const InputDecoration(
-                          labelText: 'Reminder Time',
+                          labelText: 'Reminder Time *',
                           prefixIcon: Icon(Icons.access_time),
                         ),
-                        validator: (v) => v!.isEmpty ? 'Please pick a time' : null,
+                        validator: (v) => v!.trim().isEmpty ? 'Please pick a time' : null,
                       ),
                       const SizedBox(height: 16),
 
@@ -459,6 +518,110 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // REQUIRED EXPIRY DATE FIELD WITH STATUS BADGE
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: expiryStatus == MedicineExpiryStatus.expired
+                              ? Colors.red.shade50
+                              : expiryStatus == MedicineExpiryStatus.expiringSoon
+                                  ? Colors.orange.shade50
+                                  : theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: expiryStatus == MedicineExpiryStatus.expired
+                                ? Colors.red.shade400
+                                : expiryStatus == MedicineExpiryStatus.expiringSoon
+                                    ? Colors.orange.shade400
+                                    : theme.colorScheme.primary.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.event_busy,
+                                      size: 18,
+                                      color: expiryStatus == MedicineExpiryStatus.expired
+                                          ? Colors.red.shade800
+                                          : expiryStatus == MedicineExpiryStatus.expiringSoon
+                                              ? Colors.orange.shade800
+                                              : theme.colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'Expiry Date * (DD/MM/YYYY)',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: expiryStatus == MedicineExpiryStatus.expired
+                                        ? Colors.red.shade100
+                                        : expiryStatus == MedicineExpiryStatus.expiringSoon
+                                            ? Colors.orange.shade100
+                                            : Colors.green.shade100,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    expiryStatus.label,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: expiryStatus == MedicineExpiryStatus.expired
+                                          ? Colors.red.shade800
+                                          : expiryStatus == MedicineExpiryStatus.expiringSoon
+                                              ? Colors.orange.shade800
+                                              : Colors.green.shade800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: expiryDateController,
+                              readOnly: true,
+                              onTap: _pickExpiryDate,
+                              decoration: InputDecoration(
+                                hintText: 'Tap to pick expiry date (DD/MM/YYYY)',
+                                prefixIcon: const Icon(Icons.calendar_today_outlined),
+                                suffixIcon: IconButton(
+                                  icon: const Icon(Icons.date_range),
+                                  onPressed: _pickExpiryDate,
+                                ),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Expiry Date is required';
+                                }
+                                if (_expiryDate == null) {
+                                  return 'Please pick a valid expiry date';
+                                }
+                                final now = DateTime.now();
+                                final today = DateTime(now.year, now.month, now.day);
+                                final expDay = DateTime(_expiryDate!.year, _expiryDate!.month, _expiryDate!.day);
+                                if (expDay.isBefore(today)) {
+                                  return 'Expiry date cannot be in the past';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -526,3 +689,4 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     );
   }
 }
+

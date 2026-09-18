@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email` VARCHAR(255) UNIQUE NOT NULL,
   `phoneNumber` VARCHAR(50) DEFAULT NULL,
   `passwordHash` VARCHAR(255) NOT NULL,
-  `role` ENUM('patient', 'caretaker', 'doctor', 'admin') NOT NULL DEFAULT 'patient',
+  `role` ENUM('patient', 'caretaker', 'doctor', 'pharmacy', 'admin') NOT NULL DEFAULT 'patient',
   `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   `lastLoginAt` DATETIME DEFAULT NULL,
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS `medicines` (
   `time` VARCHAR(255) NOT NULL,
   `startDate` DATE NOT NULL,
   `endDate` DATE NOT NULL,
+  `expiryDate` DATE DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
   `status` VARCHAR(50) DEFAULT 'pending',
   `lastActionDate` DATE DEFAULT NULL,
@@ -247,5 +248,105 @@ CREATE TABLE IF NOT EXISTS `doctor_connections` (
   UNIQUE KEY `unique_doc_connection` (`doctorId`, `requesterId`),
   INDEX `idx_doc_status` (`doctorId`, `status`),
   INDEX `idx_req_status` (`requesterId`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 18: medical_shops (pharmacy profiles)
+CREATE TABLE IF NOT EXISTS `medical_shops` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `userId` INT UNIQUE NOT NULL,
+  `shopName` VARCHAR(255) NOT NULL,
+  `ownerName` VARCHAR(255) NOT NULL,
+  `phoneNumber` VARCHAR(50) DEFAULT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `address` TEXT DEFAULT NULL,
+  `licenseNumber` VARCHAR(100) DEFAULT NULL,
+  `imageUrl` VARCHAR(500) DEFAULT NULL,
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_shops_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  INDEX `idx_shop_name` (`shopName`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 19: shop_medicines (pharmacy inventory catalogue)
+CREATE TABLE IF NOT EXISTS `shop_medicines` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `shopId` INT NOT NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `category` VARCHAR(100) NOT NULL DEFAULT 'Tablets',
+  `manufacturer` VARCHAR(255) DEFAULT NULL,
+  `batchNumber` VARCHAR(100) DEFAULT NULL,
+  `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `stockQuantity` INT NOT NULL DEFAULT 0,
+  `expiryDate` DATE NOT NULL,
+  `imageUrl` VARCHAR(500) DEFAULT NULL,
+  `description` TEXT DEFAULT NULL,
+  `prescriptionRequired` BOOLEAN DEFAULT FALSE,
+  `isAvailable` BOOLEAN DEFAULT TRUE,
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_shop_meds_shopId` FOREIGN KEY (`shopId`) REFERENCES `medical_shops` (`id`) ON DELETE CASCADE,
+  INDEX `idx_shop_med_name` (`name`),
+  INDEX `idx_shop_med_category` (`category`),
+  INDEX `idx_shop_med_expiry` (`expiryDate`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 20: prescriptions (doctor prescribed medication orders)
+CREATE TABLE IF NOT EXISTS `prescriptions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `doctorId` INT NOT NULL,
+  `patientId` INT NOT NULL,
+  `medicineName` VARCHAR(255) NOT NULL,
+  `dosage` VARCHAR(100) NOT NULL,
+  `frequency` VARCHAR(100) NOT NULL,
+  `duration` VARCHAR(100) NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `instructions` TEXT DEFAULT NULL,
+  `shopMedicineId` INT DEFAULT NULL,
+  `status` VARCHAR(50) DEFAULT 'active',
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_presc_doctorId` FOREIGN KEY (`doctorId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_presc_patientId` FOREIGN KEY (`patientId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_presc_shopMedicineId` FOREIGN KEY (`shopMedicineId`) REFERENCES `shop_medicines` (`id`) ON DELETE SET NULL,
+  INDEX `idx_presc_patient` (`patientId`),
+  INDEX `idx_presc_doctor` (`doctorId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 21: medicine_orders (patient/caretaker orders from medical shops)
+CREATE TABLE IF NOT EXISTS `medicine_orders` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `orderNumber` VARCHAR(100) UNIQUE NOT NULL,
+  `patientId` INT NOT NULL,
+  `caretakerId` INT DEFAULT NULL,
+  `shopId` INT NOT NULL,
+  `prescriptionId` INT DEFAULT NULL,
+  `totalAmount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `status` ENUM('pending', 'accepted', 'packed', 'ready', 'delivered', 'rejected') NOT NULL DEFAULT 'pending',
+  `deliveryAddress` TEXT DEFAULT NULL,
+  `paymentMethod` VARCHAR(50) DEFAULT 'Cash on Delivery',
+  `notes` TEXT DEFAULT NULL,
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_orders_patientId` FOREIGN KEY (`patientId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_orders_caretakerId` FOREIGN KEY (`caretakerId`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_orders_shopId` FOREIGN KEY (`shopId`) REFERENCES `medical_shops` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_orders_prescriptionId` FOREIGN KEY (`prescriptionId`) REFERENCES `prescriptions` (`id`) ON DELETE SET NULL,
+  INDEX `idx_orders_patient` (`patientId`),
+  INDEX `idx_orders_shop` (`shopId`),
+  INDEX `idx_orders_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 22: medicine_order_items (itemized breakdown of each medicine order)
+CREATE TABLE IF NOT EXISTS `medicine_order_items` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `orderId` INT NOT NULL,
+  `shopMedicineId` INT NOT NULL,
+  `medicineName` VARCHAR(255) NOT NULL,
+  `price` DECIMAL(10,2) NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `subtotal` DECIMAL(10,2) NOT NULL,
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_items_orderId` FOREIGN KEY (`orderId`) REFERENCES `medicine_orders` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_items_shopMedicineId` FOREIGN KEY (`shopMedicineId`) REFERENCES `shop_medicines` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

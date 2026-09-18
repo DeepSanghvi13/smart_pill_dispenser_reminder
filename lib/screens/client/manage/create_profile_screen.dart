@@ -175,10 +175,11 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       final email = auth.currentUser ?? 'guest';
       final isCare = auth.isCaretaker;
       final isDoc = auth.isDoctor;
+      final isPharm = auth.isPharmacy;
 
       // Handle Connection Code logic for Patient profile
       String? connCode;
-      if (!isCare && !isDoc) {
+      if (!isCare && !isDoc && !isPharm) {
         final existing = await DatabaseService().getUserProfileData();
         connCode = existing?.connectionCode ??
             'SPD-${100000 + (DateTime.now().millisecondsSinceEpoch % 900000)}';
@@ -211,23 +212,24 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         email: email,
         fullName: nameController.text.trim(),
         profilePicture: _imagePath,
-        age: (isCare || isDoc) ? null : int.tryParse(ageController.text.trim()),
-        gender: (isCare || isDoc) ? null : _selectedGender,
+        age: (isCare || isDoc || isPharm) ? null : int.tryParse(ageController.text.trim()),
+        gender: (isCare || isDoc || isPharm) ? null : _selectedGender,
         mobileNumber: mobileController.text.trim(),
-        emergencyContact: (isCare || isDoc) ? null : emergencyController.text.trim(),
-        bloodGroup: (isCare || isDoc) ? null : _selectedBloodGroup,
-        weight: (isCare || isDoc) ? null : weightController.text.trim(),
-        height: (isCare || isDoc) ? null : heightController.text.trim(),
-        medicalConditions: (isCare || isDoc)
+        emergencyContact: (isCare || isDoc || isPharm) ? null : emergencyController.text.trim(),
+        bloodGroup: (isCare || isDoc || isPharm) ? null : _selectedBloodGroup,
+        weight: (isCare || isDoc || isPharm) ? null : weightController.text.trim(),
+        height: (isCare || isDoc || isPharm) ? null : heightController.text.trim(),
+        medicalConditions: (isCare || isDoc || isPharm)
             ? null
             : (conditionsController.text.trim().isEmpty ? null : conditionsController.text.trim()),
         relationship: isCare ? _selectedRelationship : null,
         connectionCode: connCode,
         specialization: isDoc ? specValue : null,
-        licenseNumber: isDoc ? licenseController.text.trim() : null,
+        licenseNumber: (isDoc || isPharm) ? licenseController.text.trim() : null,
         hospitalName: isDoc ? hospitalController.text.trim() : null,
         experience: isDoc ? experienceController.text.trim() : null,
-        location: isDoc ? locationController.text.trim() : null,
+        location: (isDoc || isPharm) ? locationController.text.trim() : null,
+        address: isPharm ? locationController.text.trim() : null,
       );
 
       await DatabaseService().saveUserProfile(profile);
@@ -242,6 +244,17 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
           'hospitalName': hospitalController.text.trim(),
           'experience': experienceController.text.trim(),
           'location': locationController.text.trim(),
+        }).catchError((_) => false);
+      }
+
+      // If Pharmacy, sync to pharmacy profile endpoint
+      if (isPharm) {
+        MySQLApiService().savePharmacyProfile({
+          'shopName': nameController.text.trim(),
+          'ownerName': nameController.text.trim(),
+          'phoneNumber': mobileController.text.trim(),
+          'address': locationController.text.trim(),
+          'licenseNumber': licenseController.text.trim(),
         }).catchError((_) => false);
       }
 
@@ -263,6 +276,8 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       } else {
         if (isDoc) {
           Navigator.pushReplacementNamed(context, AppRoutes.doctorHome);
+        } else if (isPharm) {
+          Navigator.pushReplacementNamed(context, AppRoutes.pharmacyHome);
         } else {
           Navigator.pushReplacementNamed(context, AppRoutes.userHome);
         }
@@ -282,6 +297,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     final auth = context.read<AuthService>();
     final isCare = auth.isCaretaker;
     final isDoc = auth.isDoctor;
+    final isPharm = auth.isPharmacy;
     final isFirstTime = !widget.isEditing;
 
     String headerTitle = 'Set Up Your Profile';
@@ -292,6 +308,9 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     } else if (isDoc) {
       headerTitle = 'Set Up Doctor Profile';
       headerSub = 'Fill out your medical credentials and clinic information.';
+    } else if (isPharm) {
+      headerTitle = 'Set Up Pharmacy Profile';
+      headerSub = 'Enter your pharmacy store name, license, and address.';
     }
 
     return Scaffold(
@@ -481,6 +500,62 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                               const SizedBox(height: 16),
 
                               // Doctor Email (Read Only Display)
+                              TextFormField(
+                                initialValue: auth.currentUser,
+                                readOnly: true,
+                                decoration: InputDecoration(
+                                  labelText: 'Registered Email',
+                                  prefixIcon: const Icon(Icons.email_outlined),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade100,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ] else if (isPharm) ...[
+                              // Pharmacy Store Name
+                              TextFormField(
+                                controller: hospitalController,
+                                decoration: InputDecoration(
+                                  labelText: 'Pharmacy / Store Name',
+                                  prefixIcon: const Icon(Icons.storefront_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                validator: (value) => value == null || value.trim().isEmpty
+                                    ? 'Please enter pharmacy / shop name'
+                                    : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Drug License Number
+                              TextFormField(
+                                controller: licenseController,
+                                decoration: InputDecoration(
+                                  labelText: 'Drug License / Registration No.',
+                                  prefixIcon: const Icon(Icons.badge_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                validator: (value) => value == null || value.trim().isEmpty
+                                    ? 'Please enter drug license number'
+                                    : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Shop Address
+                              TextFormField(
+                                controller: locationController,
+                                maxLines: 2,
+                                decoration: InputDecoration(
+                                  labelText: 'Pharmacy Address / City',
+                                  prefixIcon: const Icon(Icons.location_on_outlined),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                validator: (value) => value == null || value.trim().isEmpty
+                                    ? 'Please enter pharmacy address'
+                                    : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Registered Email (Read Only Display)
                               TextFormField(
                                 initialValue: auth.currentUser,
                                 readOnly: true,

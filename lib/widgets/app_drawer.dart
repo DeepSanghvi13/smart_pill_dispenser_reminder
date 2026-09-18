@@ -65,7 +65,16 @@ class AppDrawer extends StatelessWidget {
           ),
 
           // Drawer Menu Tiles
-          if (context.watch<AuthService>().isDoctor) ...[
+          if (context.watch<AuthService>().isPharmacy) ...[
+            ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: const Text('Pharmacy Dashboard'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.pharmacyHome);
+              },
+            ),
+          ] else if (context.watch<AuthService>().isDoctor) ...[
             ListTile(
               leading: const Icon(Icons.dashboard_outlined),
               title: const Text('Doctor Dashboard'),
@@ -75,6 +84,14 @@ class AppDrawer extends StatelessWidget {
               },
             ),
           ] else ...[
+            ListTile(
+              leading: const Icon(Icons.local_pharmacy_outlined),
+              title: const Text('Medical Shop'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.medicalShop);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.person_search_outlined),
               title: const Text('Find a Doctor'),

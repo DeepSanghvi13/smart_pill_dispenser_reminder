@@ -197,107 +197,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               const SizedBox(height: 8),
                               LayoutBuilder(
                                 builder: (context, constraints) {
-                                  final patientBtn = OutlinedButton.icon(
-                                    icon: const Icon(Icons.healing_outlined, size: 18),
-                                    label: const Text('Patient', style: TextStyle(fontSize: 12)),
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: selectedRole == 'patient'
-                                          ? theme.colorScheme.primaryContainer
-                                          : Colors.transparent,
-                                      foregroundColor: selectedRole == 'patient'
-                                          ? theme.colorScheme.primary
-                                          : Colors.grey.shade700,
-                                      side: BorderSide(
-                                        color: selectedRole == 'patient'
-                                            ? theme.colorScheme.primary
-                                            : Colors.grey.shade300,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        selectedRole = 'patient';
-                                      });
-                                    },
+                                  final patientBtn = _buildRoleButton(
+                                    context,
+                                    role: 'patient',
+                                    label: 'Patient',
+                                    icon: Icons.healing_outlined,
                                   );
 
-                                  final caretakerBtn = OutlinedButton.icon(
-                                    icon: const Icon(Icons.people_outline, size: 18),
-                                    label: const Text('Caretaker', style: TextStyle(fontSize: 12)),
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: selectedRole == 'caretaker'
-                                          ? theme.colorScheme.primaryContainer
-                                          : Colors.transparent,
-                                      foregroundColor: selectedRole == 'caretaker'
-                                          ? theme.colorScheme.primary
-                                          : Colors.grey.shade700,
-                                      side: BorderSide(
-                                        color: selectedRole == 'caretaker'
-                                            ? theme.colorScheme.primary
-                                            : Colors.grey.shade300,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        selectedRole = 'caretaker';
-                                      });
-                                    },
+                                  final caretakerBtn = _buildRoleButton(
+                                    context,
+                                    role: 'caretaker',
+                                    label: 'Caretaker',
+                                    icon: Icons.people_outline,
                                   );
 
-                                  final doctorBtn = OutlinedButton.icon(
-                                    icon: const Icon(Icons.medical_services_outlined, size: 18),
-                                    label: const Text('Doctor', style: TextStyle(fontSize: 12)),
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: selectedRole == 'doctor'
-                                          ? theme.colorScheme.primaryContainer
-                                          : Colors.transparent,
-                                      foregroundColor: selectedRole == 'doctor'
-                                          ? theme.colorScheme.primary
-                                          : Colors.grey.shade700,
-                                      side: BorderSide(
-                                        color: selectedRole == 'doctor'
-                                            ? theme.colorScheme.primary
-                                            : Colors.grey.shade300,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        selectedRole = 'doctor';
-                                      });
-                                    },
+                                  final doctorBtn = _buildRoleButton(
+                                    context,
+                                    role: 'doctor',
+                                    label: 'Doctor',
+                                    icon: Icons.medical_services_outlined,
                                   );
 
-                                  if (constraints.maxWidth < 360) {
-                                    return Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      children: [
-                                        patientBtn,
-                                        const SizedBox(height: 8),
-                                        caretakerBtn,
-                                        const SizedBox(height: 8),
-                                        doctorBtn,
-                                      ],
-                                    );
-                                  }
+                                  final pharmacyBtn = _buildRoleButton(
+                                    context,
+                                    role: 'pharmacy',
+                                    label: 'Pharmacy',
+                                    icon: Icons.storefront_outlined,
+                                  );
 
-                                  return Row(
+                                  return Column(
                                     children: [
-                                      Expanded(child: patientBtn),
-                                      const SizedBox(width: 8),
-                                      Expanded(child: caretakerBtn),
-                                      const SizedBox(width: 8),
-                                      Expanded(child: doctorBtn),
+                                      Row(
+                                        children: [
+                                          Expanded(child: patientBtn),
+                                          const SizedBox(width: 8),
+                                          Expanded(child: caretakerBtn),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(child: doctorBtn),
+                                          const SizedBox(width: 8),
+                                          Expanded(child: pharmacyBtn),
+                                        ],
+                                      ),
                                     ],
                                   );
                                 },
@@ -448,6 +392,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRoleButton(
+    BuildContext context, {
+    required String role,
+    required String label,
+    required IconData icon,
+  }) {
+    final theme = Theme.of(context);
+    final isSelected = selectedRole == role;
+
+    return OutlinedButton.icon(
+      icon: Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: isSelected
+            ? theme.colorScheme.primaryContainer
+            : Colors.transparent,
+        foregroundColor: isSelected
+            ? theme.colorScheme.primary
+            : Colors.grey.shade700,
+        side: BorderSide(
+          color: isSelected
+              ? theme.colorScheme.primary
+              : Colors.grey.shade300,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      ),
+      onPressed: () {
+        setState(() {
+          selectedRole = role;
+        });
+      },
     );
   }
 }

@@ -45,6 +45,7 @@ import '../screens/admin/admin_profile_screen.dart';
 import '../screens/admin/admin_settings_screen.dart';
 
 import 'dart:io';
+import '../models/medicine_order.dart';
 import '../models/user_photo.dart';
 import '../screens/photos/add_photo_screen.dart';
 import '../screens/photos/my_photos_screen.dart';
@@ -53,6 +54,10 @@ import '../widgets/photo_picker_bottom_sheet.dart';
 import '../screens/client/doctor/find_doctor_screen.dart';
 import '../screens/client/doctor/my_doctors_screen.dart';
 import '../screens/client/doctor/doctor_home_screen.dart';
+import '../screens/client/shop/medical_shop_screen.dart';
+import '../screens/client/shop/cart_screen.dart';
+import '../screens/client/shop/order_details_screen.dart';
+import '../screens/client/pharmacy/pharmacy_home_screen.dart';
 
 class AppRoutes {
   static const String myPhotos = '/photos/my-photos';
@@ -62,6 +67,11 @@ class AppRoutes {
   static const String findDoctor = '/doctor/find';
   static const String myDoctors = '/doctor/my-doctors';
   static const String doctorHome = '/doctor/home';
+
+  static const String medicalShop = '/shop';
+  static const String cart = '/shop/cart';
+  static const String orderDetails = '/shop/order-details';
+  static const String pharmacyHome = '/pharmacy/home';
 
   static const String adminDashboard = '/admin/dashboard';
   static const String adminUserList = '/admin/users';
@@ -114,6 +124,20 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const MyDoctorsScreen());
       case doctorHome:
         return MaterialPageRoute(builder: (_) => const DoctorHomeScreen());
+      case medicalShop:
+        return MaterialPageRoute(builder: (_) => const MedicalShopScreen());
+      case cart:
+        final args = settings.arguments;
+        final patientEmail = args is String ? args : null;
+        return MaterialPageRoute(builder: (_) => CartScreen(patientEmail: patientEmail));
+      case orderDetails:
+        final args = settings.arguments;
+        if (args is MedicineOrder) {
+          return MaterialPageRoute(builder: (_) => OrderDetailsScreen(order: args));
+        }
+        return _unknownRoute();
+      case pharmacyHome:
+        return MaterialPageRoute(builder: (_) => const PharmacyHomeScreen());
       case myPhotos:
         return MaterialPageRoute(builder: (_) => const MyPhotosScreen());
       case addPhoto:

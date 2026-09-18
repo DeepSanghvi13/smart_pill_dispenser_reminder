@@ -19,6 +19,15 @@ enum MedicineCategory {
   }
 }
 
+enum MedicineExpiryStatus {
+  active('Active'),
+  expiringSoon('Expiring Soon'),
+  expired('Expired');
+
+  final String label;
+  const MedicineExpiryStatus(this.label);
+}
+
 class Medicine {
   final int? id; // Numeric ID for notifications and unique identification
   final String userId; // Belongs to user email
@@ -30,6 +39,7 @@ class Medicine {
   final String time; // Scheduled time (e.g. 08:00 AM)
   final DateTime startDate;
   final DateTime endDate;
+  final DateTime? expiryDate; // Explicit required medicine expiry date
   final String? notes;
   final String status; // 'pending', 'taken', 'skipped'
   final String? lastActionDate; // YYYY-MM-DD for daily progress
@@ -58,6 +68,7 @@ class Medicine {
     required this.time,
     required this.startDate,
     required this.endDate,
+    DateTime? expiryDate,
     this.notes,
     this.status = 'pending',
     this.lastActionDate,
@@ -70,7 +81,8 @@ class Medicine {
     this.scannedText,
     this.imagePath,
     this.healthCondition,
-  })  : patientId = patientId ?? userId,
+  })  : expiryDate = expiryDate ?? endDate,
+        patientId = patientId ?? userId,
         createdBy = createdBy ?? userId,
         updatedBy = updatedBy ?? userId,
         createdAt = createdAt ?? DateTime.now(),
@@ -79,8 +91,31 @@ class Medicine {
   /// Compatibility getter for category
   MedicineCategory get category => MedicineCategory.fromString(type);
 
-  /// Compatibility getter for expiryDate
-  DateTime get expiryDate => endDate;
+  /// Resolved non-null expiry date
+  DateTime get resolvedExpiryDate => expiryDate ?? endDate;
+
+  /// Medicine expiry status: Active, Expiring Soon, Expired
+  MedicineExpiryStatus get expiryStatus {
+    final exp = resolvedExpiryDate;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final expDay = DateTime(exp.year, exp.month, exp.day);
+
+    if (expDay.isBefore(today)) {
+      return MedicineExpiryStatus.expired;
+    }
+    final diffDays = expDay.difference(today).inDays;
+    if (diffDays <= 30) {
+      return MedicineExpiryStatus.expiringSoon;
+    }
+    return MedicineExpiryStatus.active;
+  }
+
+  bool get isExpired => expiryStatus == MedicineExpiryStatus.expired;
+  bool get isExpiringSoon => expiryStatus == MedicineExpiryStatus.expiringSoon;
+
+  /// Display date as DD/MM/YYYY
+  String get formattedExpiryDate => DateFormat('dd/MM/yyyy').format(resolvedExpiryDate);
 
   /// Compatibility getter for medicineId
   int? get medicineId => id;
@@ -96,6 +131,7 @@ class Medicine {
     String? time,
     DateTime? startDate,
     DateTime? endDate,
+    DateTime? expiryDate,
     String? notes,
     String? status,
     String? lastActionDate,
@@ -120,6 +156,7 @@ class Medicine {
       time: time ?? this.time,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
+      expiryDate: expiryDate ?? this.expiryDate,
       notes: notes ?? this.notes,
       status: status ?? this.status,
       lastActionDate: lastActionDate ?? this.lastActionDate,
@@ -147,6 +184,7 @@ class Medicine {
       'time': time,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
+      'expiryDate': (expiryDate ?? endDate).toIso8601String(),
       'notes': notes,
       'status': status,
       'lastActionDate': lastActionDate,
@@ -164,6 +202,13 @@ class Medicine {
 
   factory Medicine.fromMap(Map<String, dynamic> map) {
     final userIdVal = map['userId'] as String? ?? '';
+    final parsedEnd = map['endDate'] != null
+        ? DateTime.parse(map['endDate'] as String)
+        : DateTime.now().add(const Duration(days: 30));
+    final parsedExpiry = map['expiryDate'] != null
+        ? DateTime.parse(map['expiryDate'] as String)
+        : parsedEnd;
+
     return Medicine(
       id: map['id'] as int?,
       userId: userIdVal,
@@ -176,9 +221,8 @@ class Medicine {
       startDate: map['startDate'] != null
           ? DateTime.parse(map['startDate'] as String)
           : DateTime.now(),
-      endDate: map['endDate'] != null
-          ? DateTime.parse(map['endDate'] as String)
-          : DateTime.now().add(const Duration(days: 30)),
+      endDate: parsedEnd,
+      expiryDate: parsedExpiry,
       notes: map['notes'] as String?,
       status: map['status'] as String? ?? 'pending',
       lastActionDate: map['lastActionDate'] as String?,

@@ -301,6 +301,7 @@ function medicineToDto(doc) {
     category: doc.type,
     startDate: doc.startDate,
     endDate: doc.endDate,
+    expiryDate: doc.expiryDate || doc.endDate,
     notes: doc.notes,
     status: doc.status,
     lastActionDate: doc.lastActionDate,
@@ -364,15 +365,16 @@ function dependentToDto(doc) {
 async function upsertMedicine(userId, medicine, creatorId) {
   const id = medicine.id && Number.isInteger(Number(medicine.id)) ? Number(medicine.id) : null;
   const updater = creatorId || userId;
+  const expiry = parseDate(medicine.expiryDate) || parseDate(medicine.endDate) || new Date();
 
   if (id) {
     await query(
       `INSERT INTO medicines 
-       (id, userId, name, type, dosage, quantity, frequency, time, startDate, endDate, notes, status, lastActionDate, isScanned, scannedText, imagePath, healthCondition, createdBy, updatedBy)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (id, userId, name, type, dosage, quantity, frequency, time, startDate, endDate, expiryDate, notes, status, lastActionDate, isScanned, scannedText, imagePath, healthCondition, createdBy, updatedBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE 
        name=VALUES(name), type=VALUES(type), dosage=VALUES(dosage), quantity=VALUES(quantity), frequency=VALUES(frequency),
-       time=VALUES(time), startDate=VALUES(startDate), endDate=VALUES(endDate), notes=VALUES(notes), status=VALUES(status),
+       time=VALUES(time), startDate=VALUES(startDate), endDate=VALUES(endDate), expiryDate=VALUES(expiryDate), notes=VALUES(notes), status=VALUES(status),
        lastActionDate=VALUES(lastActionDate), isScanned=VALUES(isScanned), scannedText=VALUES(scannedText), imagePath=VALUES(imagePath),
        healthCondition=VALUES(healthCondition), updatedBy=VALUES(updatedBy)`,
       [
@@ -386,6 +388,7 @@ async function upsertMedicine(userId, medicine, creatorId) {
         medicine.time || '',
         parseDate(medicine.startDate) || new Date(),
         parseDate(medicine.endDate) || new Date(),
+        expiry,
         medicine.notes || null,
         medicine.status || 'pending',
         parseDate(medicine.lastActionDate),
@@ -401,8 +404,8 @@ async function upsertMedicine(userId, medicine, creatorId) {
   } else {
     const result = await query(
       `INSERT INTO medicines 
-       (userId, name, type, dosage, quantity, frequency, time, startDate, endDate, notes, status, lastActionDate, isScanned, scannedText, imagePath, healthCondition, createdBy, updatedBy)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (userId, name, type, dosage, quantity, frequency, time, startDate, endDate, expiryDate, notes, status, lastActionDate, isScanned, scannedText, imagePath, healthCondition, createdBy, updatedBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         medicine.name || '',
@@ -413,6 +416,7 @@ async function upsertMedicine(userId, medicine, creatorId) {
         medicine.time || '',
         parseDate(medicine.startDate) || new Date(),
         parseDate(medicine.endDate) || new Date(),
+        expiry,
         medicine.notes || null,
         medicine.status || 'pending',
         parseDate(medicine.lastActionDate),
@@ -668,7 +672,7 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
     return res.status(400).json({ ok: false, message: errorMsg });
   }
 
-  const validRoles = ['patient', 'caretaker', 'doctor', 'admin'];
+  const validRoles = ['patient', 'caretaker', 'doctor', 'pharmacy', 'admin'];
   const userRole = validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'patient';
 
   // Medical License 5-digit validation for Doctor
@@ -686,7 +690,7 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
     }
   }
 
-  // Gmail and Phone Validation for Patient, Caretaker, and Doctor accounts
+  // Gmail and Phone Validation for Patient, Caretaker, Doctor, and Pharmacy accounts
   if (userRole !== 'admin') {
     if (!isValidGmail(normEmail)) {
       const errorMsg = 'Please enter a valid Gmail address ending with @gmail.com.';
@@ -757,6 +761,21 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
         `INSERT INTO doctors (userId, specialization, licenseNumber, hospitalName, experience, location)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [userId, specialization || 'General Physician', licenseNumber || '', hospitalName || '', experience || '', location || '']
+      );
+    } else if (userRole === 'pharmacy') {
+      await query(
+        `INSERT INTO medical_shops (userId, shopName, ownerName, phoneNumber, email, address, licenseNumber, imageUrl)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          userId,
+          req.body?.shopName || `${fullName.trim()}'s Pharmacy`,
+          fullName.trim(),
+          phoneNumber || null,
+          normEmail,
+          req.body?.address || null,
+          req.body?.licenseNumber || licenseNumber || null,
+          req.body?.imageUrl || null
+        ]
       );
     } else if (userRole === 'admin') {
       await query('INSERT INTO admins (userId) VALUES (?)', [userId]);
@@ -2530,6 +2549,933 @@ app.get('/api/admin/sql-entries', authenticateToken, requireRole(['admin']), asy
       message: 'Failed to fetch admin entries',
       error: error.message,
     });
+  }
+});
+
+// ----------------- MEDICAL SHOP & PHARMACY APIS -----------------
+
+// Helper to get or create shop for user
+async function resolveShopForUser(userId, fallbackUser = null) {
+  const rows = await query('SELECT * FROM medical_shops WHERE userId = ? LIMIT 1', [userId]);
+  if (rows.length > 0) return rows[0];
+
+  const userRows = await query('SELECT fullName, email, phoneNumber FROM users WHERE id = ? LIMIT 1', [userId]);
+  const user = userRows[0] || fallbackUser || {};
+  const shopName = `${user.fullName || 'Medical'}'s Pharmacy`;
+
+  const res = await query(
+    `INSERT INTO medical_shops (userId, shopName, ownerName, phoneNumber, email, address)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE shopName=VALUES(shopName), ownerName=VALUES(ownerName)`,
+    [userId, shopName, user.fullName || 'Shop Owner', user.phoneNumber || null, user.email || 'shop@smartpill.com', '']
+  );
+
+  const newRows = await query('SELECT * FROM medical_shops WHERE id = ? LIMIT 1', [res.insertId]);
+  return newRows[0];
+}
+
+// 1. Pharmacy Profile
+app.get('/api/pharmacy/profile', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  try {
+    const targetUserId = req.user.role === 'admin' && req.query.userId ? Number(req.query.userId) : req.user.id;
+    const shop = await resolveShopForUser(targetUserId, req.user);
+    return res.json({ ok: true, data: shop });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/pharmacy/profile', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  const targetUserId = req.user.role === 'admin' && req.body.userId ? Number(req.body.userId) : req.user.id;
+  const {
+    shopName = '',
+    ownerName = '',
+    phoneNumber = '',
+    email = '',
+    address = '',
+    licenseNumber = '',
+    imageUrl = null
+  } = req.body || {};
+
+  if (phoneNumber && String(phoneNumber).trim().length > 0) {
+    if (!isValidPhone(String(phoneNumber).trim())) {
+      return res.status(400).json({ ok: false, message: 'Phone number must be exactly 10 digits.' });
+    }
+  }
+
+  try {
+    await query(
+      `INSERT INTO medical_shops (userId, shopName, ownerName, phoneNumber, email, address, licenseNumber, imageUrl)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+       shopName=VALUES(shopName), ownerName=VALUES(ownerName), phoneNumber=VALUES(phoneNumber),
+       email=VALUES(email), address=VALUES(address), licenseNumber=VALUES(licenseNumber), imageUrl=VALUES(imageUrl)`,
+      [
+        targetUserId,
+        shopName.trim() || 'Medical Shop',
+        ownerName.trim() || req.user.email,
+        phoneNumber ? String(phoneNumber).trim() : null,
+        email ? normalizeEmail(email) : req.user.email,
+        address ? address.trim() : '',
+        licenseNumber ? licenseNumber.trim() : null,
+        imageUrl || null
+      ]
+    );
+
+    if (ownerName.trim()) {
+      await query('UPDATE users SET fullName = ? WHERE id = ?', [ownerName.trim(), targetUserId]);
+    }
+
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'UPDATE_PHARMACY_PROFILE',
+      description: `Updated pharmacy profile for user ID ${targetUserId}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    const updated = await resolveShopForUser(targetUserId);
+    return res.json({ ok: true, message: 'Pharmacy profile updated successfully.', data: updated });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/pharmacy/profile/:id', authenticateTokenOrFallback, async (req, res) => {
+  const shopId = Number(req.params.id);
+  try {
+    const rows = await query('SELECT * FROM medical_shops WHERE id = ? LIMIT 1', [shopId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Medical shop not found.' });
+    }
+    return res.json({ ok: true, data: rows[0] });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// 2. Pharmacy Dashboard Stats
+app.get('/api/pharmacy/dashboard-stats', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  try {
+    const targetUserId = req.user.role === 'admin' && req.query.userId ? Number(req.query.userId) : req.user.id;
+    const shop = await resolveShopForUser(targetUserId, req.user);
+    const shopId = shop.id;
+
+    const [
+      totalProductsRows,
+      availableStockRows,
+      lowStockRows,
+      expiredRows,
+      pendingOrdersRows,
+      completedOrdersRows
+    ] = await Promise.all([
+      query('SELECT COUNT(*) as count FROM shop_medicines WHERE shopId = ?', [shopId]),
+      query('SELECT COALESCE(SUM(stockQuantity), 0) as totalStock FROM shop_medicines WHERE shopId = ? AND isAvailable = 1 AND expiryDate >= CURDATE()', [shopId]),
+      query('SELECT COUNT(*) as count FROM shop_medicines WHERE shopId = ? AND stockQuantity <= 5 AND stockQuantity > 0', [shopId]),
+      query('SELECT COUNT(*) as count FROM shop_medicines WHERE shopId = ? AND expiryDate < CURDATE()', [shopId]),
+      query("SELECT COUNT(*) as count FROM medicine_orders WHERE shopId = ? AND status = 'pending'", [shopId]),
+      query("SELECT COUNT(*) as count FROM medicine_orders WHERE shopId = ? AND status = 'delivered'", [shopId])
+    ]);
+
+    return res.json({
+      ok: true,
+      data: {
+        totalProducts: Number(totalProductsRows[0]?.count || 0),
+        availableStock: Number(availableStockRows[0]?.totalStock || 0),
+        lowStockMedicines: Number(lowStockRows[0]?.count || 0),
+        expiredMedicines: Number(expiredRows[0]?.count || 0),
+        pendingOrders: Number(pendingOrdersRows[0]?.count || 0),
+        completedOrders: Number(completedOrdersRows[0]?.count || 0),
+        shop
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// 3. Pharmacy Inventory CRUD
+app.get('/api/pharmacy/inventory', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  try {
+    const targetUserId = req.user.role === 'admin' && req.query.userId ? Number(req.query.userId) : req.user.id;
+    const shop = await resolveShopForUser(targetUserId, req.user);
+    const shopId = shop.id;
+
+    const rows = await query('SELECT * FROM shop_medicines WHERE shopId = ? ORDER BY id DESC', [shopId]);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/pharmacy/inventory', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  try {
+    const targetUserId = req.user.role === 'admin' && req.body.userId ? Number(req.body.userId) : req.user.id;
+    const shop = await resolveShopForUser(targetUserId, req.user);
+    const shopId = shop.id;
+
+    const {
+      name,
+      category = 'Tablets',
+      manufacturer = '',
+      batchNumber = '',
+      price = 0,
+      stockQuantity = 0,
+      expiryDate,
+      imageUrl = null,
+      description = '',
+      prescriptionRequired = false,
+      isAvailable = true
+    } = req.body || {};
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ ok: false, message: 'Medicine name is required.' });
+    }
+    if (!expiryDate) {
+      return res.status(400).json({ ok: false, message: 'Expiry date is required.' });
+    }
+
+    const parsedExpiry = parseDate(expiryDate);
+    if (!parsedExpiry) {
+      return res.status(400).json({ ok: false, message: 'Invalid expiry date format.' });
+    }
+
+    const result = await query(
+      `INSERT INTO shop_medicines 
+       (shopId, name, category, manufacturer, batchNumber, price, stockQuantity, expiryDate, imageUrl, description, prescriptionRequired, isAvailable)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        shopId,
+        name.trim(),
+        category.trim(),
+        manufacturer.trim(),
+        batchNumber.trim(),
+        Math.max(0, Number(price) || 0),
+        Math.max(0, parseInt(stockQuantity, 10) || 0),
+        parsedExpiry,
+        imageUrl,
+        description.trim(),
+        prescriptionRequired === true || prescriptionRequired === 1 ? 1 : 0,
+        isAvailable === false || isAvailable === 0 ? 0 : 1
+      ]
+    );
+
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'ADD_SHOP_MEDICINE',
+      description: `Added medicine ${name.trim()} to pharmacy inventory`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({ ok: true, message: 'Medicine added to inventory successfully.', id: result.insertId });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.put('/api/pharmacy/inventory/:id', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  const medicineId = Number(req.params.id);
+  try {
+    const targetUserId = req.user.role === 'admin' && req.body.userId ? Number(req.body.userId) : req.user.id;
+    const shop = await resolveShopForUser(targetUserId, req.user);
+    const shopId = shop.id;
+
+    const existing = await query('SELECT * FROM shop_medicines WHERE id = ? AND shopId = ? LIMIT 1', [medicineId, shopId]);
+    if (existing.length === 0 && req.user.role !== 'admin') {
+      return res.status(404).json({ ok: false, message: 'Medicine not found in your inventory.' });
+    }
+
+    const {
+      name,
+      category,
+      manufacturer,
+      batchNumber,
+      price,
+      stockQuantity,
+      expiryDate,
+      imageUrl,
+      description,
+      prescriptionRequired,
+      isAvailable
+    } = req.body || {};
+
+    const prev = existing[0] || {};
+    const updatedExpiry = expiryDate ? parseDate(expiryDate) : prev.expiryDate;
+
+    await query(
+      `UPDATE shop_medicines SET 
+       name = ?, category = ?, manufacturer = ?, batchNumber = ?, price = ?,
+       stockQuantity = ?, expiryDate = ?, imageUrl = ?, description = ?,
+       prescriptionRequired = ?, isAvailable = ?, updatedAt = NOW()
+       WHERE id = ? AND shopId = ?`,
+      [
+        name !== undefined ? name.trim() : prev.name,
+        category !== undefined ? category.trim() : prev.category,
+        manufacturer !== undefined ? manufacturer.trim() : prev.manufacturer,
+        batchNumber !== undefined ? batchNumber.trim() : prev.batchNumber,
+        price !== undefined ? Math.max(0, Number(price)) : prev.price,
+        stockQuantity !== undefined ? Math.max(0, parseInt(stockQuantity, 10)) : prev.stockQuantity,
+        updatedExpiry,
+        imageUrl !== undefined ? imageUrl : prev.imageUrl,
+        description !== undefined ? description.trim() : prev.description,
+        prescriptionRequired !== undefined ? (prescriptionRequired ? 1 : 0) : prev.prescriptionRequired,
+        isAvailable !== undefined ? (isAvailable ? 1 : 0) : prev.isAvailable,
+        medicineId,
+        shopId
+      ]
+    );
+
+    return res.json({ ok: true, message: 'Medicine updated successfully.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.delete('/api/pharmacy/inventory/:id', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  const medicineId = Number(req.params.id);
+  try {
+    const targetUserId = req.user.role === 'admin' && req.query.userId ? Number(req.query.userId) : req.user.id;
+    const shop = await resolveShopForUser(targetUserId, req.user);
+    const shopId = shop.id;
+
+    const del = await query('DELETE FROM shop_medicines WHERE id = ? AND shopId = ?', [medicineId, shopId]);
+    if (del.affectedRows === 0 && req.user.role !== 'admin') {
+      return res.status(404).json({ ok: false, message: 'Medicine not found in your inventory.' });
+    }
+
+    return res.json({ ok: true, message: 'Medicine deleted from inventory.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// 4. Public / Patient / Caretaker Medical Shop Catalog Search
+app.get('/api/shop/catalog', authenticateTokenOrFallback, async (req, res) => {
+  const { search = '', category = '', shopId = '', includePrescriptionOnly = 'true' } = req.query;
+
+  try {
+    let sql = `
+      SELECT 
+        sm.id, sm.shopId, sm.name, sm.category, sm.manufacturer, sm.batchNumber,
+        sm.price, sm.stockQuantity, sm.expiryDate, sm.imageUrl, sm.description,
+        sm.prescriptionRequired, sm.isAvailable, sm.createdAt,
+        ms.shopName, ms.ownerName, ms.phoneNumber as shopPhone, ms.address as shopAddress, ms.imageUrl as shopLogo
+      FROM shop_medicines sm
+      JOIN medical_shops ms ON sm.shopId = ms.id
+      WHERE sm.isAvailable = 1 AND sm.stockQuantity > 0 AND sm.expiryDate >= CURDATE()
+    `;
+    const params = [];
+
+    if (search && search.trim().length > 0) {
+      sql += ' AND (sm.name LIKE ? OR sm.manufacturer LIKE ? OR sm.description LIKE ?)';
+      params.push(`%${search.trim()}%`, `%${search.trim()}%`, `%${search.trim()}%`);
+    }
+
+    if (category && category.trim().length > 0 && category.toLowerCase() !== 'all') {
+      sql += ' AND sm.category = ?';
+      params.push(category.trim());
+    }
+
+    if (shopId && Number(shopId) > 0) {
+      sql += ' AND sm.shopId = ?';
+      params.push(Number(shopId));
+    }
+
+    sql += ' ORDER BY sm.name ASC';
+
+    const rows = await query(sql, params);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// 5. Doctor Prescriptions
+app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin']), async (req, res) => {
+  const doctorId = req.user.id;
+  const {
+    patientId,
+    medicineName,
+    dosage,
+    frequency,
+    duration,
+    quantity = 1,
+    instructions = '',
+    shopMedicineId = null
+  } = req.body || {};
+
+  if (!patientId || !medicineName || !dosage || !frequency || !duration) {
+    return res.status(400).json({
+      ok: false,
+      message: 'patientId, medicineName, dosage, frequency, and duration are required.'
+    });
+  }
+
+  try {
+    // Verify connection if not admin
+    if (req.user.role !== 'admin') {
+      const conn = await query(
+        `SELECT 1 FROM doctor_connections 
+         WHERE doctorId = ? AND requesterId = ? AND status = 'accepted' LIMIT 1`,
+        [doctorId, Number(patientId)]
+      );
+      if (conn.length === 0) {
+        return res.status(403).json({
+          ok: false,
+          message: 'You can only prescribe to patients who are actively connected with you.'
+        });
+      }
+    }
+
+    const result = await query(
+      `INSERT INTO prescriptions 
+       (doctorId, patientId, medicineName, dosage, frequency, duration, quantity, instructions, shopMedicineId, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+      [
+        doctorId,
+        Number(patientId),
+        medicineName.trim(),
+        dosage.trim(),
+        frequency.trim(),
+        duration.trim(),
+        Math.max(1, parseInt(quantity, 10) || 1),
+        instructions ? instructions.trim() : null,
+        shopMedicineId ? Number(shopMedicineId) : null
+      ]
+    );
+
+    await logActivity({
+      userId: doctorId,
+      userRole: 'doctor',
+      userEmail: req.user.email,
+      activityType: 'CREATE_PRESCRIPTION',
+      description: `Doctor prescribed ${medicineName.trim()} to patient ID ${patientId}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({ ok: true, message: 'Prescription created successfully.', prescriptionId: result.insertId });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Patient / Caretaker get active prescriptions
+app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req, res) => {
+  const patientId = Number(req.params.patientId);
+  const userId = req.user.id;
+
+  try {
+    // Security check
+    if (req.user.role === 'patient' && userId !== patientId) {
+      return res.status(403).json({ ok: false, message: 'Access denied to other patient prescriptions.' });
+    }
+    if (req.user.role === 'caretaker') {
+      const conn = await query(
+        `SELECT 1 FROM caretaker_connections WHERE caretakerId = ? AND patientId = ? AND status = 'connected' LIMIT 1`,
+        [userId, patientId]
+      );
+      if (conn.length === 0) {
+        return res.status(403).json({ ok: false, message: 'Access denied: Unconnected patient.' });
+      }
+    }
+
+    const sql = `
+      SELECT 
+        p.*,
+        uDoc.fullName as doctorName,
+        uDoc.email as doctorEmail,
+        uDoc.phoneNumber as doctorPhone,
+        d.specialization as doctorSpecialization,
+        d.hospitalName as doctorHospital,
+        sm.price as shopMedicinePrice,
+        sm.stockQuantity as shopMedicineStock,
+        sm.isAvailable as shopMedicineAvailable
+      FROM prescriptions p
+      JOIN users uDoc ON p.doctorId = uDoc.id
+      LEFT JOIN doctors d ON uDoc.id = d.userId
+      LEFT JOIN shop_medicines sm ON p.shopMedicineId = sm.id
+      WHERE p.patientId = ? AND p.status = 'active'
+      ORDER BY p.id DESC
+    `;
+    const rows = await query(sql, [patientId]);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Get prescriptions for currently logged-in user
+app.get('/api/prescriptions/my-prescriptions', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const { patientId } = req.query;
+
+  try {
+    let targetPatientId = userId;
+    if (req.user.role === 'caretaker') {
+      if (patientId) {
+        targetPatientId = Number(patientId);
+      } else {
+        const conns = await query(
+          `SELECT patientId FROM caretaker_connections WHERE caretakerId = ? AND status = 'connected' LIMIT 1`,
+          [userId]
+        );
+        if (conns.length > 0) targetPatientId = conns[0].patientId;
+      }
+    }
+
+    const sql = `
+      SELECT 
+        p.*,
+        uDoc.fullName as doctorName,
+        uDoc.email as doctorEmail,
+        uDoc.phoneNumber as doctorPhone,
+        d.specialization as doctorSpecialization,
+        d.hospitalName as doctorHospital,
+        sm.price as shopMedicinePrice,
+        sm.stockQuantity as shopMedicineStock,
+        sm.isAvailable as shopMedicineAvailable
+      FROM prescriptions p
+      JOIN users uDoc ON p.doctorId = uDoc.id
+      LEFT JOIN doctors d ON uDoc.id = d.userId
+      LEFT JOIN shop_medicines sm ON p.shopMedicineId = sm.id
+      WHERE p.patientId = ? AND p.status = 'active'
+      ORDER BY p.id DESC
+    `;
+    const rows = await query(sql, [targetPatientId]);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Doctor get their prescribed prescriptions
+app.get('/api/prescriptions/doctor', authenticateToken, requireRole(['doctor', 'admin']), async (req, res) => {
+  const doctorId = req.user.id;
+  try {
+    const sql = `
+      SELECT 
+        p.*,
+        uPat.fullName as patientName,
+        uPat.email as patientEmail,
+        uPat.phoneNumber as patientPhone
+      FROM prescriptions p
+      JOIN users uPat ON p.patientId = uPat.id
+      WHERE p.doctorId = ?
+      ORDER BY p.id DESC
+    `;
+    const rows = await query(sql, [doctorId]);
+    return res.json({ ok: true, data: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// 6. Orders (Patient & Caretaker create order, Pharmacy manages)
+app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 'admin']), async (req, res) => {
+  const requesterId = req.user.id;
+  const isCaretaker = req.user.role === 'caretaker';
+
+  const {
+    patientId,
+    shopId,
+    prescriptionId = null,
+    deliveryAddress = '',
+    paymentMethod = 'Cash on Delivery',
+    notes = '',
+    items = []
+  } = req.body || {};
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ ok: false, message: 'Cart items cannot be empty.' });
+  }
+  if (!shopId) {
+    return res.status(400).json({ ok: false, message: 'shopId is required.' });
+  }
+
+  // Resolve target patient ID
+  let targetPatientId = requesterId;
+  let caretakerId = null;
+
+  if (isCaretaker) {
+    if (!patientId) {
+      return res.status(400).json({ ok: false, message: 'patientId is required when ordering as caretaker.' });
+    }
+    targetPatientId = Number(patientId);
+    caretakerId = requesterId;
+
+    // Verify caretaker connection
+    const conn = await query(
+      `SELECT 1 FROM caretaker_connections WHERE caretakerId = ? AND patientId = ? AND status = 'connected' LIMIT 1`,
+      [caretakerId, targetPatientId]
+    );
+    if (conn.length === 0 && req.user.role !== 'admin') {
+      return res.status(403).json({ ok: false, message: 'You are not connected to this patient.' });
+    }
+  }
+
+  try {
+    // Verify shop exists
+    const shopRows = await query('SELECT id, shopName FROM medical_shops WHERE id = ? LIMIT 1', [Number(shopId)]);
+    if (shopRows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Selected medical shop not found.' });
+    }
+
+    // Verify each item in inventory
+    let totalAmount = 0.0;
+    const validatedItems = [];
+
+    for (const item of items) {
+      const medId = Number(item.shopMedicineId || item.id);
+      const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
+
+      const medRows = await query(
+        'SELECT * FROM shop_medicines WHERE id = ? AND shopId = ? LIMIT 1',
+        [medId, Number(shopId)]
+      );
+      if (medRows.length === 0) {
+        return res.status(400).json({
+          ok: false,
+          message: `Medicine ID ${medId} is not available at this medical shop.`
+        });
+      }
+
+      const med = medRows[0];
+
+      // Check availability and stock
+      if (med.isAvailable !== 1 || med.stockQuantity < qty) {
+        return res.status(400).json({
+          ok: false,
+          message: `Insufficient stock for ${med.name}. Available: ${med.stockQuantity}, requested: ${qty}.`
+        });
+      }
+
+      // Check expiry date
+      const expiry = new Date(med.expiryDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (expiry < today) {
+        return res.status(400).json({
+          ok: false,
+          message: `Medicine ${med.name} has expired and cannot be ordered.`
+        });
+      }
+
+      // Check prescription required
+      if (med.prescriptionRequired === 1 && !prescriptionId) {
+        return res.status(400).json({
+          ok: false,
+          message: `${med.name} requires a doctor prescription. Please select an active prescription.`
+        });
+      }
+
+      const unitPrice = Number(med.price) || 0.0;
+      const subtotal = unitPrice * qty;
+      totalAmount += subtotal;
+
+      validatedItems.push({
+        shopMedicineId: med.id,
+        medicineName: med.name,
+        price: unitPrice,
+        quantity: qty,
+        subtotal
+      });
+    }
+
+    // Generate unique order number
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const orderRes = await query(
+      `INSERT INTO medicine_orders 
+       (orderNumber, patientId, caretakerId, shopId, prescriptionId, totalAmount, status, deliveryAddress, paymentMethod, notes)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+      [
+        orderNumber,
+        targetPatientId,
+        caretakerId,
+        Number(shopId),
+        prescriptionId ? Number(prescriptionId) : null,
+        totalAmount,
+        deliveryAddress ? deliveryAddress.trim() : null,
+        paymentMethod || 'Cash on Delivery',
+        notes ? notes.trim() : null
+      ]
+    );
+
+    const orderId = orderRes.insertId;
+
+    // Insert order items
+    for (const vItem of validatedItems) {
+      await query(
+        `INSERT INTO medicine_order_items 
+         (orderId, shopMedicineId, medicineName, price, quantity, subtotal)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [orderId, vItem.shopMedicineId, vItem.medicineName, vItem.price, vItem.quantity, vItem.subtotal]
+      );
+    }
+
+    await logActivity({
+      userId: requesterId,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'PLACE_MEDICINE_ORDER',
+      description: `Placed order ${orderNumber} totaling ₹${totalAmount.toFixed(2)} with ${validatedItems.length} items`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({
+      ok: true,
+      message: 'Order placed successfully.',
+      orderId,
+      orderNumber,
+      totalAmount
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Patient / Caretaker get order history
+app.get('/api/orders/my-orders', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const isCaretaker = req.user.role === 'caretaker';
+
+  try {
+    let sql = `
+      SELECT 
+        mo.*,
+        ms.shopName,
+        ms.phoneNumber as shopPhone,
+        ms.address as shopAddress,
+        uPat.fullName as patientName,
+        uPat.email as patientEmail,
+        uCare.fullName as caretakerName,
+        pr.medicineName as prescribedMedicineName,
+        pr.dosage as prescribedDosage,
+        uDoc.fullName as prescribedDoctorName
+      FROM medicine_orders mo
+      JOIN medical_shops ms ON mo.shopId = ms.id
+      JOIN users uPat ON mo.patientId = uPat.id
+      LEFT JOIN users uCare ON mo.caretakerId = uCare.id
+      LEFT JOIN prescriptions pr ON mo.prescriptionId = pr.id
+      LEFT JOIN users uDoc ON pr.doctorId = uDoc.id
+    `;
+    const params = [];
+
+    if (isCaretaker) {
+      sql += ` WHERE (mo.caretakerId = ? OR mo.patientId IN (SELECT patientId FROM caretaker_connections WHERE caretakerId = ? AND status = 'connected'))`;
+      params.push(userId, userId);
+    } else {
+      sql += ' WHERE mo.patientId = ?';
+      params.push(userId);
+    }
+
+    sql += ' ORDER BY mo.id DESC';
+
+    const orders = await query(sql, params);
+
+    // Fetch items for each order
+    for (const order of orders) {
+      const items = await query(
+        `SELECT moi.*, sm.imageUrl, sm.category 
+         FROM medicine_order_items moi
+         LEFT JOIN shop_medicines sm ON moi.shopMedicineId = sm.id
+         WHERE moi.orderId = ?`,
+        [order.id]
+      );
+      order.items = items;
+    }
+
+    return res.json({ ok: true, data: orders });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Pharmacy get orders for their shop
+app.get('/api/orders/shop', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  try {
+    const targetUserId = req.user.role === 'admin' && req.query.userId ? Number(req.query.userId) : req.user.id;
+    const shop = await resolveShopForUser(targetUserId, req.user);
+    const shopId = shop.id;
+
+    const sql = `
+      SELECT 
+        mo.*,
+        uPat.fullName as patientName,
+        uPat.email as patientEmail,
+        uPat.phoneNumber as patientPhone,
+        uCare.fullName as caretakerName,
+        uCare.phoneNumber as caretakerPhone,
+        pr.medicineName as prescribedMedicineName,
+        pr.dosage as prescribedDosage,
+        pr.frequency as prescribedFrequency,
+        pr.duration as prescribedDuration,
+        uDoc.fullName as prescribedDoctorName,
+        uDoc.phoneNumber as prescribedDoctorPhone
+      FROM medicine_orders mo
+      JOIN users uPat ON mo.patientId = uPat.id
+      LEFT JOIN users uCare ON mo.caretakerId = uCare.id
+      LEFT JOIN prescriptions pr ON mo.prescriptionId = pr.id
+      LEFT JOIN users uDoc ON pr.doctorId = uDoc.id
+      WHERE mo.shopId = ?
+      ORDER BY mo.id DESC
+    `;
+    const orders = await query(sql, [shopId]);
+
+    for (const order of orders) {
+      const items = await query(
+        `SELECT moi.*, sm.stockQuantity as currentStock, sm.expiryDate 
+         FROM medicine_order_items moi
+         LEFT JOIN shop_medicines sm ON moi.shopMedicineId = sm.id
+         WHERE moi.orderId = ?`,
+        [order.id]
+      );
+      order.items = items;
+    }
+
+    return res.json({ ok: true, data: orders });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Update order status (by Pharmacy owner or Admin)
+app.put('/api/orders/:id/status', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+  const orderId = Number(req.params.id);
+  const { status } = req.body || {};
+
+  const validStatuses = ['pending', 'accepted', 'packed', 'ready', 'delivered', 'rejected'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ ok: false, message: 'Invalid order status.' });
+  }
+
+  try {
+    const targetUserId = req.user.role === 'admin' && req.body.userId ? Number(req.body.userId) : req.user.id;
+    const shop = await resolveShopForUser(targetUserId, req.user);
+    const shopId = shop.id;
+
+    const orderRows = await query('SELECT * FROM medicine_orders WHERE id = ? LIMIT 1', [orderId]);
+    if (orderRows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Order not found.' });
+    }
+
+    const order = orderRows[0];
+    if (order.shopId !== shopId && req.user.role !== 'admin') {
+      return res.status(403).json({ ok: false, message: 'Unauthorized to update this order.' });
+    }
+
+    const prevStatus = order.status;
+
+    // If accepting order, verify inventory and deduct stock automatically
+    if (status === 'accepted' && prevStatus === 'pending') {
+      const items = await query('SELECT * FROM medicine_order_items WHERE orderId = ?', [orderId]);
+      for (const item of items) {
+        const medRows = await query('SELECT * FROM shop_medicines WHERE id = ? LIMIT 1', [item.shopMedicineId]);
+        if (medRows.length > 0) {
+          const med = medRows[0];
+          if (med.stockQuantity < item.quantity) {
+            return res.status(400).json({
+              ok: false,
+              message: `Cannot accept order: Insufficient stock for ${med.name}. Available: ${med.stockQuantity}, required: ${item.quantity}.`
+            });
+          }
+          // Reduce inventory
+          await query(
+            'UPDATE shop_medicines SET stockQuantity = GREATEST(0, stockQuantity - ?) WHERE id = ?',
+            [item.quantity, item.shopMedicineId]
+          );
+        }
+      }
+    }
+
+    // If rejecting an order that was already accepted, restore inventory
+    if (status === 'rejected' && prevStatus === 'accepted') {
+      const items = await query('SELECT * FROM medicine_order_items WHERE orderId = ?', [orderId]);
+      for (const item of items) {
+        await query(
+          'UPDATE shop_medicines SET stockQuantity = stockQuantity + ? WHERE id = ?',
+          [item.quantity, item.shopMedicineId]
+        );
+      }
+    }
+
+    await query('UPDATE medicine_orders SET status = ?, updatedAt = NOW() WHERE id = ?', [status, orderId]);
+
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'UPDATE_ORDER_STATUS',
+      description: `Updated order ${order.orderNumber} status from ${prevStatus} to ${status}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({ ok: true, message: `Order status updated to ${status}.` });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Single Order Details
+app.get('/api/orders/:id', authenticateToken, async (req, res) => {
+  const orderId = Number(req.params.id);
+  const userId = req.user.id;
+
+  try {
+    const sql = `
+      SELECT 
+        mo.*,
+        ms.shopName,
+        ms.phoneNumber as shopPhone,
+        ms.address as shopAddress,
+        uPat.fullName as patientName,
+        uPat.email as patientEmail,
+        uPat.phoneNumber as patientPhone,
+        uCare.fullName as caretakerName,
+        uCare.phoneNumber as caretakerPhone,
+        pr.medicineName as prescribedMedicineName,
+        pr.dosage as prescribedDosage,
+        uDoc.fullName as prescribedDoctorName
+      FROM medicine_orders mo
+      JOIN medical_shops ms ON mo.shopId = ms.id
+      JOIN users uPat ON mo.patientId = uPat.id
+      LEFT JOIN users uCare ON mo.caretakerId = uCare.id
+      LEFT JOIN prescriptions pr ON mo.prescriptionId = pr.id
+      LEFT JOIN users uDoc ON pr.doctorId = uDoc.id
+      WHERE mo.id = ? LIMIT 1
+    `;
+    const rows = await query(sql, [orderId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Order not found.' });
+    }
+
+    const order = rows[0];
+
+    // Security check
+    if (req.user.role === 'patient' && order.patientId !== userId) {
+      return res.status(403).json({ ok: false, message: 'Unauthorized to view this order.' });
+    }
+
+    const items = await query(
+      `SELECT moi.*, sm.imageUrl, sm.category 
+       FROM medicine_order_items moi
+       LEFT JOIN shop_medicines sm ON moi.shopMedicineId = sm.id
+       WHERE moi.orderId = ?`,
+      [orderId]
+    );
+    order.items = items;
+
+    return res.json({ ok: true, data: order });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
   }
 });
 

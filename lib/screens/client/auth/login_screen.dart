@@ -78,6 +78,18 @@ class _LoginScreenState extends State<LoginScreen> {
             (route) => false,
           );
         }
+      } else if (auth.isPharmacy) {
+        if (auth.hasCompletedProfile()) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.pharmacyHome,
+            (route) => false,
+          );
+        } else {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.createProfile,
+            (route) => false,
+          );
+        }
       } else if (auth.hasCompletedProfile()) {
         Navigator.of(context).pushNamedAndRemoveUntil(
           AppRoutes.userHome,

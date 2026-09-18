@@ -398,7 +398,46 @@ class HomeBody extends StatelessWidget {
           const SizedBox(height: 20),
 
           _buildPatientQuickActions(context),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // Expired Medicines Warning Banner
+          if (medicines.any((m) => m.isExpired)) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.red.shade300),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Expired Medications Detected',
+                          style: TextStyle(
+                            color: Colors.red.shade900,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Some medicines have passed their expiry date. Check the Medications tab.',
+                          style: TextStyle(color: Colors.red.shade800, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           _buildQuickSummary(context, upcoming.length, completed.length, missed.length),
           const SizedBox(height: 24),
@@ -491,45 +530,56 @@ class HomeBody extends StatelessWidget {
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            _quickActionButton(
-              context: context,
-              icon: Icons.add_circle_outline,
-              label: 'Add Medicine',
-              color: Colors.blue,
-              onTap: onAddMed,
-            ),
-            const SizedBox(width: 8),
-            _quickActionButton(
-              context: context,
-              icon: Icons.camera_alt_outlined,
-              label: 'Add Photo',
-              color: Colors.purple,
-              onTap: () => PhotoPickerBottomSheet.show(context),
-            ),
-            const SizedBox(width: 8),
-            _quickActionButton(
-              context: context,
-              icon: Icons.photo_library_outlined,
-              label: 'My Photos',
-              color: Colors.teal,
-              onTap: () {
-                final auth = context.read<AuthService>();
-                final photoProvider = context.read<PhotoProvider>();
-                photoProvider.loadPhotos(auth.currentUser);
-                Navigator.pushNamed(context, AppRoutes.myPhotos);
-              },
-            ),
-            const SizedBox(width: 8),
-            _quickActionButton(
-              context: context,
-              icon: Icons.people_outline,
-              label: 'My Caretaker',
-              color: Colors.orange,
-              onTap: () => _showCaretakerDialog(context),
-            ),
-          ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _quickActionButton(
+                context: context,
+                icon: Icons.add_circle_outline,
+                label: 'Add Medicine',
+                color: Colors.blue,
+                onTap: onAddMed,
+              ),
+              const SizedBox(width: 8),
+              _quickActionButton(
+                context: context,
+                icon: Icons.local_pharmacy_outlined,
+                label: 'Medical Shop',
+                color: Colors.indigo,
+                onTap: () => Navigator.pushNamed(context, AppRoutes.medicalShop),
+              ),
+              const SizedBox(width: 8),
+              _quickActionButton(
+                context: context,
+                icon: Icons.camera_alt_outlined,
+                label: 'Add Photo',
+                color: Colors.purple,
+                onTap: () => PhotoPickerBottomSheet.show(context),
+              ),
+              const SizedBox(width: 8),
+              _quickActionButton(
+                context: context,
+                icon: Icons.photo_library_outlined,
+                label: 'My Photos',
+                color: Colors.teal,
+                onTap: () {
+                  final auth = context.read<AuthService>();
+                  final photoProvider = context.read<PhotoProvider>();
+                  photoProvider.loadPhotos(auth.currentUser);
+                  Navigator.pushNamed(context, AppRoutes.myPhotos);
+                },
+              ),
+              const SizedBox(width: 8),
+              _quickActionButton(
+                context: context,
+                icon: Icons.people_outline,
+                label: 'My Caretaker',
+                color: Colors.orange,
+                onTap: () => _showCaretakerDialog(context),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -542,37 +592,36 @@ class HomeBody extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Expanded(
-      child: Material(
-        color: color.withValues(alpha: 0.08),
+    return Material(
+      color: color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.2)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: color, size: 24),
-                const SizedBox(height: 6),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+        child: Container(
+          width: 90,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: color,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -702,10 +751,20 @@ class HomeBody extends StatelessWidget {
 
   Widget _buildMedicineActionCard(BuildContext context, Medicine m, ThemeData theme) {
     final status = m.getDailyStatus();
+    final isExp = m.isExpired;
+    final isExpSoon = m.isExpiringSoon;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: isExp
+            ? BorderSide(color: Colors.red.shade300, width: 1.5)
+            : (isExpSoon
+                ? BorderSide(color: Colors.orange.shade300, width: 1.0)
+                : BorderSide.none),
+      ),
+      color: isExp ? Colors.red.withValues(alpha: 0.03) : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -713,7 +772,7 @@ class HomeBody extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                color: (isExp ? Colors.red : theme.colorScheme.primary).withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: _categoryIcon(m.category),
@@ -724,14 +783,40 @@ class HomeBody extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    m.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          m.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: isExp ? Colors.red.shade900 : null,
+                          ),
+                        ),
+                      ),
+                      if (isExp || isExpSoon)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: (isExp ? Colors.red : Colors.orange).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isExp ? 'Expired' : 'Expiring Soon',
+                            style: TextStyle(
+                              color: isExp ? Colors.red : Colors.orange.shade800,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${m.dosage} • ${m.quantity} • ${m.time}',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                    '${m.dosage} • ${m.quantity} • ${m.time} • Expiry: ${m.formattedExpiryDate}',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                   ),
                   if (m.notes != null && m.notes!.isNotEmpty) ...[
                     const SizedBox(height: 4),
@@ -1412,48 +1497,59 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            _quickActionButton(
-              context: context,
-              icon: Icons.people_alt_outlined,
-              label: 'My Patients',
-              color: Colors.blue,
-              onTap: () => _showAddPatientDialog(context, auth, provider),
-            ),
-            const SizedBox(width: 8),
-            _quickActionButton(
-              context: context,
-              icon: Icons.camera_alt_outlined,
-              label: 'Add Photo',
-              color: Colors.purple,
-              onTap: () => PhotoPickerBottomSheet.show(context),
-            ),
-            const SizedBox(width: 8),
-            _quickActionButton(
-              context: context,
-              icon: Icons.photo_library_outlined,
-              label: 'My Photos',
-              color: Colors.teal,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.myPhotos),
-            ),
-            const SizedBox(width: 8),
-            _quickActionButton(
-              context: context,
-              icon: Icons.notifications_outlined,
-              label: 'Notifications',
-              color: Colors.orange,
-              onTap: () {
-                final count = HiveService().notificationsBox.length;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Caregiver Alerts: $count notifications in log.'),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
-            ),
-          ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _quickActionButton(
+                context: context,
+                icon: Icons.people_alt_outlined,
+                label: 'My Patients',
+                color: Colors.blue,
+                onTap: () => _showAddPatientDialog(context, auth, provider),
+              ),
+              const SizedBox(width: 8),
+              _quickActionButton(
+                context: context,
+                icon: Icons.local_pharmacy_outlined,
+                label: 'Medical Shop',
+                color: Colors.indigo,
+                onTap: () => Navigator.pushNamed(context, AppRoutes.medicalShop),
+              ),
+              const SizedBox(width: 8),
+              _quickActionButton(
+                context: context,
+                icon: Icons.camera_alt_outlined,
+                label: 'Add Photo',
+                color: Colors.purple,
+                onTap: () => PhotoPickerBottomSheet.show(context),
+              ),
+              const SizedBox(width: 8),
+              _quickActionButton(
+                context: context,
+                icon: Icons.photo_library_outlined,
+                label: 'My Photos',
+                color: Colors.teal,
+                onTap: () => Navigator.pushNamed(context, AppRoutes.myPhotos),
+              ),
+              const SizedBox(width: 8),
+              _quickActionButton(
+                context: context,
+                icon: Icons.notifications_outlined,
+                label: 'Notifications',
+                color: Colors.orange,
+                onTap: () {
+                  final count = HiveService().notificationsBox.length;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Caregiver Alerts: $count notifications in log.'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -1466,37 +1562,36 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Expanded(
-      child: Material(
-        color: color.withValues(alpha: 0.08),
+    return Material(
+      color: color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.2)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: color, size: 24),
-                const SizedBox(height: 6),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+        child: Container(
+          width: 90,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: color,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

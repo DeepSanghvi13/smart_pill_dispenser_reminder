@@ -44,13 +44,16 @@ async function connectMySQL() {
     keepAliveInitialDelay: 0
   });
 
-  // Verify pool works and run non-breaking role enum and profilePicture migrations
+  // Verify pool works and run non-breaking role enum and schema migrations
   const conn = await pool.getConnection();
   try {
-    await conn.query(`ALTER TABLE users MODIFY COLUMN role ENUM('patient', 'caretaker', 'doctor', 'admin') NOT NULL DEFAULT 'patient'`);
+    await conn.query(`ALTER TABLE users MODIFY COLUMN role ENUM('patient', 'caretaker', 'doctor', 'pharmacy', 'admin') NOT NULL DEFAULT 'patient'`);
   } catch (_) {}
   try {
     await conn.query(`ALTER TABLE userProfiles ADD COLUMN profilePicture VARCHAR(500) DEFAULT NULL`);
+  } catch (_) {}
+  try {
+    await conn.query(`ALTER TABLE medicines ADD COLUMN expiryDate DATE DEFAULT NULL`);
   } catch (_) {}
   conn.release();
 }

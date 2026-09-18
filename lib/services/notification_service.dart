@@ -11,6 +11,10 @@ class NotificationService {
   static const int _maxInt32 = 2147483647;
   static void Function(String payload)? _payloadHandler;
 
+  static int _safeNowNotificationId() {
+    return DateTime.now().millisecondsSinceEpoch & _maxInt32;
+  }
+
   // Vibration pattern for alarms
   static final Int64List _vibrationPattern =
       Int64List.fromList([0, 500, 250, 500]);
@@ -347,8 +351,38 @@ class NotificationService {
     );
   }
 
-  static int _safeNowNotificationId() {
-    return DateTime.now().millisecondsSinceEpoch % _maxInt32;
+  /// Show expiry warning notification for medicines expiring soon or expired
+  static Future<void> showExpiryWarningAlert({
+    required String medicineName,
+    required String expiryDate,
+    required int daysLeft,
+  }) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+
+    final String title = daysLeft < 0
+        ? '⚠️ Medicine Expired: $medicineName'
+        : '⚠️ Expiry Warning: $medicineName';
+    final String body = daysLeft < 0
+        ? '$medicineName expired on $expiryDate. Please do not consume and safely replace it.'
+        : '$medicineName will expire in $daysLeft day${daysLeft == 1 ? '' : 's'} (on $expiryDate).';
+
+    final androidDetails = AndroidNotificationDetails(
+      'default_channel',
+      'Default Notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      styleInformation: BigTextStyleInformation(body),
+    );
+
+    await _notifications.show(
+      _safeNowNotificationId(),
+      title,
+      body,
+      NotificationDetails(android: androidDetails),
+      payload: 'expiry:$medicineName:$expiryDate',
+    );
   }
 
   /// Cancel all notifications

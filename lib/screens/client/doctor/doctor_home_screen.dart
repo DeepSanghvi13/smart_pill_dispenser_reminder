@@ -1,14 +1,15 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/image_helper.dart';
+import '../../../models/prescription.dart';
 import '../../../models/user_profile.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/doctor_service.dart';
+import '../../../services/medical_shop_service.dart';
 import '../../../widgets/app_drawer.dart';
 
 class DoctorHomeScreen extends StatefulWidget {
@@ -19,8 +20,11 @@ class DoctorHomeScreen extends StatefulWidget {
 }
 
 class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
-  int _selectedTabIndex = 0; // 0: Requests, 1: Patients, 2: Caretakers
+  int _selectedTabIndex = 0; // 0: Requests, 1: Patients, 2: Caretakers, 3: Prescriptions
   int? _processingId;
+  final MedicalShopService _shopService = MedicalShopService();
+  List<Prescription> _doctorPrescriptions = [];
+  bool _isLoadingPrescriptions = false;
 
   @override
   void initState() {
@@ -32,6 +36,24 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
 
   Future<void> _refreshAll() async {
     await doctorService.loadAllDoctorData();
+    await _loadDoctorPrescriptions();
+  }
+
+  Future<void> _loadDoctorPrescriptions() async {
+    setState(() => _isLoadingPrescriptions = true);
+    try {
+      final list = await _shopService.getDoctorPrescriptions();
+      if (mounted) {
+        setState(() {
+          _doctorPrescriptions = list;
+          _isLoadingPrescriptions = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingPrescriptions = false);
+      }
+    }
   }
 
   Future<void> _handleAccept(int connectionId) async {
@@ -224,6 +246,226 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
     }
   }
 
+  void _showCreatePrescriptionDialog([String? defaultPatientEmail]) {
+    final patients = doctorService.myPatients;
+    if (patients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You do not have any connected patients yet to issue prescriptions for.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    String selectedPatient = defaultPatientEmail ?? patients.first['email'].toString();
+    final medNameCtrl = TextEditingController();
+    final dosageCtrl = TextEditingController(text: '500 mg');
+    final freqCtrl = TextEditingController(text: 'Twice daily after meals');
+    final durCtrl = TextEditingController(text: '7 days');
+    final qtyCtrl = TextEditingController(text: '14');
+    final diagCtrl = TextEditingController();
+    final instCtrl = TextEditingController();
+    DateTime validUntil = DateTime.now().add(const Duration(days: 30));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.medical_services_outlined, color: Colors.deepPurple),
+              SizedBox(width: 8),
+              Text('Issue Prescription'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: selectedPatient,
+                  decoration: const InputDecoration(
+                    labelText: 'Select Patient *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: patients.map((p) {
+                    final pEmail = p['email'].toString();
+                    final pName = p['fullName']?.toString() ?? pEmail;
+                    return DropdownMenuItem(
+                      value: pEmail,
+                      child: Text('$pName ($pEmail)', overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setDialogState(() => selectedPatient = val);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: medNameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Medicine Name *',
+                    hintText: 'e.g. Paracetamol / Amoxicillin',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.medication),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: dosageCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Dosage *',
+                          hintText: 'e.g. 500mg',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: qtyCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Quantity *',
+                          hintText: 'e.g. 14',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: freqCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Frequency *',
+                    hintText: 'e.g. Twice daily after meals',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: durCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Duration *',
+                    hintText: 'e.g. 7 days',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: diagCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Diagnosis / Condition',
+                    hintText: 'e.g. Acute Bronchitis',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: instCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Instructions / Dietary Advice',
+                    hintText: 'e.g. Drink plenty of warm water. Avoid dairy.',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: validUntil,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => validUntil = picked);
+                    }
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Valid Until (DD/MM/YYYY) *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.calendar_month),
+                    ),
+                    child: Text(DateFormat('dd/MM/yyyy').format(validUntil)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final medName = medNameCtrl.text.trim();
+                final dosage = dosageCtrl.text.trim();
+                final freq = freqCtrl.text.trim();
+                final dur = durCtrl.text.trim();
+                final qty = int.tryParse(qtyCtrl.text.trim()) ?? 1;
+
+                if (medName.isEmpty || dosage.isEmpty || freq.isEmpty || dur.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please fill all required prescription fields.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(ctx);
+                final res = await _shopService.createPrescription(
+                  patientId: selectedPatient,
+                  medicineName: medName,
+                  dosage: dosage,
+                  frequency: freq,
+                  duration: dur,
+                  quantity: qty,
+                  diagnosis: diagCtrl.text.trim().isEmpty ? null : diagCtrl.text.trim(),
+                  instructions: instCtrl.text.trim().isEmpty ? null : instCtrl.text.trim(),
+                  validUntil: validUntil,
+                );
+
+                if (!mounted) return;
+                if (res != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Prescription for $medName issued successfully!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _loadDoctorPrescriptions();
+                  setState(() => _selectedTabIndex = 3);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to issue prescription. Please try again.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Issue'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -335,72 +577,103 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                         final pendingCount = doctorService.incomingRequests.length;
                         final patientsCount = doctorService.myPatients.length;
                         final caretakersCount = doctorService.myCaretakers.length;
+                        final prescriptionsCount = _doctorPrescriptions.length;
 
-                        return Row(
-                          children: [
-                            _buildStatCard(
-                              context: context,
-                              label: 'Requests',
-                              value: '$pendingCount',
-                              color: Colors.orange.shade800,
-                              icon: Icons.pending_actions,
-                              tabIndex: 0,
-                              isSelected: _selectedTabIndex == 0,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildStatCard(
-                              context: context,
-                              label: 'Patients',
-                              value: '$patientsCount',
-                              color: Colors.blue.shade700,
-                              icon: Icons.healing,
-                              tabIndex: 1,
-                              isSelected: _selectedTabIndex == 1,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildStatCard(
-                              context: context,
-                              label: 'Caretakers',
-                              value: '$caretakersCount',
-                              color: Colors.teal.shade700,
-                              icon: Icons.people,
-                              tabIndex: 2,
-                              isSelected: _selectedTabIndex == 2,
-                            ),
-                          ],
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildStatCard(
+                                context: context,
+                                label: 'Requests',
+                                value: '$pendingCount',
+                                color: Colors.orange.shade800,
+                                icon: Icons.pending_actions,
+                                tabIndex: 0,
+                                isSelected: _selectedTabIndex == 0,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildStatCard(
+                                context: context,
+                                label: 'Patients',
+                                value: '$patientsCount',
+                                color: Colors.blue.shade700,
+                                icon: Icons.healing,
+                                tabIndex: 1,
+                                isSelected: _selectedTabIndex == 1,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildStatCard(
+                                context: context,
+                                label: 'Caretakers',
+                                value: '$caretakersCount',
+                                color: Colors.teal.shade700,
+                                icon: Icons.people,
+                                tabIndex: 2,
+                                isSelected: _selectedTabIndex == 2,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildStatCard(
+                                context: context,
+                                label: 'Prescriptions',
+                                value: '$prescriptionsCount',
+                                color: Colors.deepPurple.shade700,
+                                icon: Icons.description,
+                                tabIndex: 3,
+                                isSelected: _selectedTabIndex == 3,
+                              ),
+                            ],
+                          ),
                         );
                       },
                     ),
                     const SizedBox(height: 14),
 
-                    // Section Heading
+                    // Section Heading + Create Prescription Button
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          _selectedTabIndex == 0
-                              ? Icons.pending_actions
-                              : _selectedTabIndex == 1
-                                  ? Icons.healing
-                                  : Icons.people,
-                          size: 18,
-                          color: _selectedTabIndex == 0
-                              ? Colors.orange.shade800
-                              : _selectedTabIndex == 1
-                                  ? Colors.blue.shade700
-                                  : Colors.teal.shade700,
+                        Row(
+                          children: [
+                            Icon(
+                              _selectedTabIndex == 0
+                                  ? Icons.pending_actions
+                                  : _selectedTabIndex == 1
+                                      ? Icons.healing
+                                      : _selectedTabIndex == 2
+                                          ? Icons.people
+                                          : Icons.description,
+                              size: 18,
+                              color: _selectedTabIndex == 0
+                                  ? Colors.orange.shade800
+                                  : _selectedTabIndex == 1
+                                      ? Colors.blue.shade700
+                                      : _selectedTabIndex == 2
+                                          ? Colors.teal.shade700
+                                          : Colors.deepPurple.shade700,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _selectedTabIndex == 0
+                                  ? 'Pending Connection Requests'
+                                  : _selectedTabIndex == 1
+                                      ? 'Connected Patients'
+                                      : _selectedTabIndex == 2
+                                          ? 'Connected Caretakers'
+                                          : 'Issued Prescriptions',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _selectedTabIndex == 0
-                              ? 'Pending Connection Requests'
-                              : _selectedTabIndex == 1
-                                  ? 'Connected Patients'
-                                  : 'Connected Caretakers',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                        if (_selectedTabIndex == 3 || _selectedTabIndex == 1)
+                          TextButton.icon(
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Prescribe'),
+                            onPressed: () => _showCreatePrescriptionDialog(),
                           ),
-                        ),
                       ],
                     ),
                   ],
@@ -413,14 +686,25 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
               _buildRequestsSliver(theme)
             else if (_selectedTabIndex == 1)
               _buildPatientsSliver(theme)
+            else if (_selectedTabIndex == 2)
+              _buildCaretakersSliver(theme)
             else
-              _buildCaretakersSliver(theme),
+              _buildPrescriptionsSliver(theme),
 
             // Bottom Spacing
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
       ),
+      floatingActionButton: _selectedTabIndex == 3
+          ? FloatingActionButton.extended(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('New Prescription'),
+              onPressed: () => _showCreatePrescriptionDialog(),
+            )
+          : null,
     );
   }
 
@@ -433,50 +717,51 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
     required int tabIndex,
     required bool isSelected,
   }) {
-    return Expanded(
-      child: Card(
-        elevation: isSelected ? 2 : 0,
-        color: isSelected ? color.withValues(alpha: 0.1) : null,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: isSelected ? color : color.withValues(alpha: 0.25),
-            width: isSelected ? 2 : 1,
-          ),
+    return Card(
+      elevation: isSelected ? 2 : 0,
+      color: isSelected ? color.withValues(alpha: 0.1) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isSelected ? color : color.withValues(alpha: 0.25),
+          width: isSelected ? 2 : 1,
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            setState(() {
-              _selectedTabIndex = tabIndex;
-            });
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            child: Column(
-              children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          setState(() {
+            _selectedTabIndex = tabIndex;
+          });
+        },
+        child: Container(
+          width: 96,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isSelected ? color : Colors.grey,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isSelected ? color : Colors.grey,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -551,7 +836,6 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header: Requester Name & Role Tag
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -605,7 +889,6 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                         const Divider(height: 1),
                         const SizedBox(height: 10),
 
-                        // Contact & Date Info
                         if (req.requesterEmail.isNotEmpty) ...[
                           Row(
                             children: [
@@ -637,7 +920,6 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                         ),
                         const SizedBox(height: 14),
 
-                        // Actions: Accept, Reject, Remove
                         if (isProcessing)
                           const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()))
                         else
@@ -821,28 +1103,32 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
-                            if (pPhone != null && pPhone.isNotEmpty) ...[
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  icon: const Icon(Icons.call, size: 16, color: Colors.green),
-                                  label: const Text('Call', style: TextStyle(fontSize: 12, color: Colors.green)),
-                                  style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.green)),
-                                  onPressed: () => _makeCall(pPhone),
-                                ),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.add_circle_outline, size: 16),
+                              label: const Text('Prescribe', style: TextStyle(fontSize: 12)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepPurple,
+                                foregroundColor: Colors.white,
                               ),
-                              const SizedBox(width: 8),
-                            ],
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                icon: const Icon(Icons.mail_outline, size: 16),
-                                label: const Text('Email', style: TextStyle(fontSize: 12)),
-                                onPressed: () => _sendEmail(pEmail),
-                              ),
+                              onPressed: () => _showCreatePrescriptionDialog(pEmail),
                             ),
-                            if (connId != null) ...[
-                              const SizedBox(width: 8),
+                            if (pPhone != null && pPhone.isNotEmpty)
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.call, size: 16, color: Colors.green),
+                                label: const Text('Call', style: TextStyle(fontSize: 12, color: Colors.green)),
+                                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.green)),
+                                onPressed: () => _makeCall(pPhone),
+                              ),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.mail_outline, size: 16),
+                              label: const Text('Email', style: TextStyle(fontSize: 12)),
+                              onPressed: () => _sendEmail(pEmail),
+                            ),
+                            if (connId != null)
                               ElevatedButton.icon(
                                 icon: const Icon(Icons.person_remove, size: 16),
                                 label: const Text('Remove', style: TextStyle(fontSize: 12)),
@@ -854,7 +1140,6 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                 ),
                                 onPressed: () => _handleRemovePatient(connId, name),
                               ),
-                            ],
                           ],
                         ),
                       ],
@@ -1046,6 +1331,184 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  // ---- Section 4: Issued Prescriptions ----
+  Widget _buildPrescriptionsSliver(ThemeData theme) {
+    if (_isLoadingPrescriptions && _doctorPrescriptions.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (_doctorPrescriptions.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.description_outlined, size: 56, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  'No prescriptions issued yet',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Issue official digital prescriptions to connected patients for medical shop fulfillment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Issue First Prescription'),
+                  onPressed: () => _showCreatePrescriptionDialog(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final p = _doctorPrescriptions[index];
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.deepPurple.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.medication, color: Colors.deepPurple, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                p.medicineName,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Patient: ${p.patientName ?? p.patientId}',
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: p.isActive ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            p.isActive ? 'Active' : 'Expired',
+                            style: TextStyle(
+                              color: p.isActive ? Colors.green.shade800 : Colors.red,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        _buildChip(Icons.opacity, p.dosage),
+                        _buildChip(Icons.alarm, p.frequency),
+                        _buildChip(Icons.timelapse, p.duration),
+                        _buildChip(Icons.numbers, 'Qty: ${p.quantity}'),
+                      ],
+                    ),
+                    if (p.diagnosis != null && p.diagnosis!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Diagnosis: ${p.diagnosis}',
+                        style: TextStyle(color: Colors.grey.shade800, fontSize: 12),
+                      ),
+                    ],
+                    if (p.instructions != null && p.instructions!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Instructions: ${p.instructions}',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Issued: ${p.formattedIssuedDate}',
+                          style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                        ),
+                        Text(
+                          'Valid until: ${p.formattedValidUntilDate}',
+                          style: TextStyle(
+                            color: p.isActive ? Colors.grey.shade700 : Colors.red,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          childCount: _doctorPrescriptions.length,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey.shade700),
+          const SizedBox(width: 4),
+          Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800)),
+        ],
+      ),
     );
   }
 }

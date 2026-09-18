@@ -327,22 +327,23 @@ class MySQLApiService {
 
   Map<String, dynamic> _medicinePayload(Medicine m) => {
       'userId': m.userId.trim().isNotEmpty ? m.userId.trim() : _currentUserId,
-        'id': m.id,
-        'name': m.name,
-        'type': m.type,
-        'dosage': m.dosage,
-        'quantity': m.quantity,
-        'frequency': m.frequency,
-        'time': m.time,
-        'startDate': m.startDate.toIso8601String(),
-        'endDate': m.endDate.toIso8601String(),
-        'notes': m.notes,
-        'status': m.status,
-        'isScanned': m.isScanned,
-        'scannedText': m.scannedText,
-        'imagePath': m.imagePath,
-        'healthCondition': m.healthCondition,
-      };
+      'id': m.id,
+      'name': m.name,
+      'type': m.type,
+      'dosage': m.dosage,
+      'quantity': m.quantity,
+      'frequency': m.frequency,
+      'time': m.time,
+      'startDate': m.startDate.toIso8601String(),
+      'endDate': m.endDate.toIso8601String(),
+      'expiryDate': m.resolvedExpiryDate.toIso8601String(),
+      'notes': m.notes,
+      'status': m.status,
+      'isScanned': m.isScanned,
+      'scannedText': m.scannedText,
+      'imagePath': m.imagePath,
+      'healthCondition': m.healthCondition,
+    };
 
   // ---- Reminders ----
 
@@ -997,6 +998,262 @@ class MySQLApiService {
       return false;
     }
   }
+
+  // ============= MEDICAL SHOP & PHARMACY APIS =============
+
+  // Pharmacy Profile
+  Future<Map<String, dynamic>?> getPharmacyProfile({int? userId}) async {
+    try {
+      final uri = userId != null
+          ? Uri.parse('$baseUrl/api/pharmacy/profile?userId=$userId')
+          : Uri.parse('$baseUrl/api/pharmacy/profile');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> savePharmacyProfile(Map<String, dynamic> profileData) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/pharmacy/profile'),
+            headers: _headers,
+            body: jsonEncode(profileData),
+          )
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getPharmacyStats({int? userId}) async {
+    try {
+      final uri = userId != null
+          ? Uri.parse('$baseUrl/api/pharmacy/dashboard-stats?userId=$userId')
+          : Uri.parse('$baseUrl/api/pharmacy/dashboard-stats');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Pharmacy Inventory
+  Future<List<Map<String, dynamic>>> getPharmacyInventory({int? userId}) async {
+    try {
+      final uri = userId != null
+          ? Uri.parse('$baseUrl/api/pharmacy/inventory?userId=$userId')
+          : Uri.parse('$baseUrl/api/pharmacy/inventory');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<int?> addPharmacyMedicine(Map<String, dynamic> medicineData) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/pharmacy/inventory'),
+            headers: _headers,
+            body: jsonEncode(medicineData),
+          )
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body)['id'] as int?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> updatePharmacyMedicine(int id, Map<String, dynamic> medicineData) async {
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/api/pharmacy/inventory/$id'),
+            headers: _headers,
+            body: jsonEncode(medicineData),
+          )
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> deletePharmacyMedicine(int id) async {
+    try {
+      final res = await http
+          .delete(Uri.parse('$baseUrl/api/pharmacy/inventory/$id'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Medical Shop Catalog (Public / Patient / Caretaker)
+  Future<List<Map<String, dynamic>>> getShopCatalog({String? search, String? category, int? shopId}) async {
+    try {
+      final queryParams = <String, String>{};
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
+      if (category != null && category.isNotEmpty && category != 'All') queryParams['category'] = category;
+      if (shopId != null && shopId > 0) queryParams['shopId'] = shopId.toString();
+
+      final uri = Uri.parse('$baseUrl/api/shop/catalog').replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // Doctor Prescriptions
+  Future<Map<String, dynamic>> createPrescription(Map<String, dynamic> prescriptionData) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/prescriptions'),
+            headers: _headers,
+            body: jsonEncode(prescriptionData),
+          )
+          .timeout(const Duration(seconds: 6));
+      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      return decoded;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMyPrescriptions({int? patientId}) async {
+    try {
+      final uri = patientId != null
+          ? Uri.parse('$baseUrl/api/prescriptions/my-prescriptions?patientId=$patientId')
+          : Uri.parse('$baseUrl/api/prescriptions/my-prescriptions');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDoctorPrescriptions() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/prescriptions/doctor'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // Orders
+  Future<Map<String, dynamic>> placeOrder(Map<String, dynamic> orderData) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/orders'),
+            headers: _headers,
+            body: jsonEncode(orderData),
+          )
+          .timeout(const Duration(seconds: 8));
+      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      return decoded;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMyOrders() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/orders/my-orders'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getShopOrders({int? userId}) async {
+    try {
+      final uri = userId != null
+          ? Uri.parse('$baseUrl/api/orders/shop?userId=$userId')
+          : Uri.parse('$baseUrl/api/orders/shop');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> updateOrderStatus(int orderId, String status) async {
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/api/orders/$orderId/status'),
+            headers: _headers,
+            body: jsonEncode({'status': status}),
+          )
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getOrderDetails(int orderId) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/orders/$orderId'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getOrderById(int orderId) => getOrderDetails(orderId);
 
   void dispose() {}
 }

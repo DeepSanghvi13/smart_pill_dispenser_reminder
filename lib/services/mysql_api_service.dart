@@ -16,7 +16,7 @@ class MySQLApiService {
   factory MySQLApiService() => _instance;
   MySQLApiService._internal();
 
-  static const String _pcLanIp = '10.136.81.57';
+  static const String _pcLanIp = '192.168.29.240';
   static const int _port = 3000;
 
   String? _resolvedBaseUrl;

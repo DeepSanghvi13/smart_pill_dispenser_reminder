@@ -7,6 +7,8 @@ import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/medical_shop_service.dart';
 
+import 'package:flutter_typeahead/flutter_typeahead.dart';
+
 class MedicalShopScreen extends StatefulWidget {
   const MedicalShopScreen({super.key});
 
@@ -196,32 +198,68 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
                     ),
                   ),
 
-                // Search Bar
+                // Search Bar with TypeAhead Auto-complete
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: TextField(
+                  child: TypeAheadField<ShopMedicine>(
                     controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search medicines, generic names...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                _loadCatalog();
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
+                    builder: (context, controller, focusNode) {
+                      return TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        decoration: InputDecoration(
+                          hintText: 'Search medicines, generic names...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: controller.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    controller.clear();
+                                    _loadCatalog();
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onSubmitted: (_) => _loadCatalog(),
+                      );
+                    },
+                    suggestionsCallback: (pattern) async {
+                      // Call backend to get matching medicines (or all if empty)
+                      return await _shopService.getCatalog(search: pattern.trim());
+                    },
+                    itemBuilder: (context, ShopMedicine suggestion) {
+                      return ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(Icons.medication, color: theme.colorScheme.primary, size: 20),
+                        ),
+                        title: Text(suggestion.medicineName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('${suggestion.category} • ₹${suggestion.price.toStringAsFixed(2)}'),
+                        trailing: suggestion.isOutOfStock 
+                            ? const Text('Out of Stock', style: TextStyle(color: Colors.red, fontSize: 12))
+                            : const Icon(Icons.arrow_forward_ios, size: 14),
+                      );
+                    },
+                    emptyBuilder: (context) => const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('No matching medicines found.'),
                     ),
-                    onSubmitted: (_) => _loadCatalog(),
+                    onSelected: (ShopMedicine suggestion) {
+                      // Update search bar text and filter the list exactly to this medicine
+                      _searchController.text = suggestion.medicineName;
+                      _loadCatalog();
+                    },
                   ),
                 ),
 

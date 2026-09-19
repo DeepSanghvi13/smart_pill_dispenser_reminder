@@ -3232,9 +3232,14 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
     return res.json({
       ok: true,
       message: 'Order placed successfully.',
-      orderId,
-      orderNumber,
-      totalAmount
+      order: {
+        id: orderId,
+        orderNumber,
+        totalAmount,
+        status: 'pending',
+        patientId: targetPatientId,
+        shopId: Number(shopId)
+      }
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });

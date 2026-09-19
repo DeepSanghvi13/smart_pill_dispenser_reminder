@@ -523,18 +523,27 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 if (item.manufacturer != null && item.manufacturer!.isNotEmpty)
-                  Text(
-                    'Mfg: ${item.manufacturer}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  Expanded(
+                    child: Text(
+                      'Mfg: ${item.manufacturer}',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   )
                 else
-                  const SizedBox.shrink(),
+                  const Spacer(),
 
-                cart.hasItem(item.id)
-                    ? Row(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (cart.hasItem(item.id))
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton.filledTonal(
                             icon: const Icon(Icons.remove, size: 16),
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(),
                             onPressed: () {
                               cart.decrementItem(item.id);
                             },
@@ -548,6 +557,8 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
                           ),
                           IconButton.filled(
                             icon: const Icon(Icons.add, size: 16),
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(),
                             onPressed: () {
                               if (cart.getQuantity(item.id) < item.stockQuantity) {
                                 cart.addItem(item);
@@ -560,14 +571,10 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
                           ),
                         ],
                       )
-                    : ElevatedButton.icon(
-                        icon: const Icon(Icons.add_shopping_cart, size: 18),
-                        label: const Text('Add to Cart'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: canAddToCart ? theme.colorScheme.primary : Colors.grey,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                    else
+                      IconButton.filledTonal(
+                        icon: const Icon(Icons.add_shopping_cart, size: 20),
+                        tooltip: 'Add to Cart',
                         onPressed: canAddToCart
                             ? () {
                                 cart.addItem(item);
@@ -580,6 +587,32 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
                               }
                             : null,
                       ),
+                    
+                    const SizedBox(width: 8),
+
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canAddToCart ? theme.colorScheme.primary : Colors.grey,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      onPressed: canAddToCart
+                          ? () {
+                              if (!cart.hasItem(item.id)) {
+                                cart.addItem(item);
+                              }
+                              Navigator.pushNamed(
+                                context,
+                                AppRoutes.cart,
+                                arguments: _caretakerSelectedPatientEmail,
+                              );
+                            }
+                          : null,
+                      child: const Text('Buy Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
               ],
             ),
           ],

@@ -79,14 +79,11 @@ class PhotoPickerBottomSheet extends StatelessWidget {
         return;
       }
 
-      if (context.mounted) {
-        // Navigate to preview/add photo screen
-        Navigator.pushNamed(
-          context,
-          AppRoutes.addPhoto,
-          arguments: file,
-        );
-      }
+      // Navigate to preview/add photo screen
+      navigator.pushNamed(
+        AppRoutes.addPhoto,
+        arguments: file,
+      );
     } catch (e) {
       debugPrint("Photo picker error: $e");
       messenger.showSnackBar(

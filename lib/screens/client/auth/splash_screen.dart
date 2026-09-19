@@ -37,14 +37,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _navigateToNext() async {
+    final auth = context.read<AuthService>();
+    // Ensure session is fully loaded before checking status
+    await auth.loadSession();
+
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
-    final auth = context.read<AuthService>();
-    
     if (auth.isLoggedIn) {
       if (auth.isAdmin) {
         Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+      } else if (auth.isDoctor) {
+        if (auth.hasCompletedProfile()) {
+          Navigator.pushReplacementNamed(context, AppRoutes.doctorHome);
+        } else {
+          Navigator.pushReplacementNamed(context, AppRoutes.createProfile);
+        }
+      } else if (auth.isPharmacy) {
+        if (auth.hasCompletedProfile()) {
+          Navigator.pushReplacementNamed(context, AppRoutes.pharmacyHome);
+        } else {
+          Navigator.pushReplacementNamed(context, AppRoutes.createProfile);
+        }
       } else if (auth.hasCompletedProfile()) {
         Navigator.pushReplacementNamed(context, AppRoutes.userHome);
       } else {

@@ -48,21 +48,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       if (auth.isAdmin) {
         Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
       } else if (auth.isDoctor) {
-        if (auth.hasCompletedProfile()) {
-          Navigator.pushReplacementNamed(context, AppRoutes.doctorHome);
-        } else {
-          Navigator.pushReplacementNamed(context, AppRoutes.createProfile);
-        }
+        Navigator.pushReplacementNamed(context, AppRoutes.doctorHome);
       } else if (auth.isPharmacy) {
-        if (auth.hasCompletedProfile()) {
-          Navigator.pushReplacementNamed(context, AppRoutes.pharmacyHome);
-        } else {
-          Navigator.pushReplacementNamed(context, AppRoutes.createProfile);
-        }
-      } else if (auth.hasCompletedProfile()) {
-        Navigator.pushReplacementNamed(context, AppRoutes.userHome);
+        Navigator.pushReplacementNamed(context, AppRoutes.pharmacyHome);
       } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.createProfile);
+        Navigator.pushReplacementNamed(context, AppRoutes.userHome);
       }
     } else {
       Navigator.pushReplacementNamed(context, AppRoutes.login);

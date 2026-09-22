@@ -283,6 +283,40 @@ async function ensureDefaultAdmin() {
   }
 }
 
+// ------------------------------------------------------------------
+// Health Check Endpoint
+// ------------------------------------------------------------------
+app.get('/api/health', async (req, res) => {
+  try {
+    let dbStatus = 'disconnected';
+    let latency = 0;
+    
+    const start = Date.now();
+    try {
+      const [rows] = await db.query('SELECT 1');
+      if (rows) {
+        dbStatus = 'connected';
+        latency = Date.now() - start;
+      }
+    } catch (e) {
+      console.error('DB Health Check Error:', e);
+    }
+    
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      database: {
+        status: dbStatus,
+        latency_ms: latency,
+      },
+      memory: process.memoryUsage(),
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Health check failed', details: error.message });
+  }
+});
+
 // Middleware: authenticate token with fallback context supporting legacy sync parameters
 function authenticateTokenOrFallback(req, res, next) {
   const authHeader = req.headers['authorization'];

@@ -46,8 +46,8 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
 
   Future<void> _fetchDoctors() async {
     await doctorService.searchDoctors(
-      name: _searchController.text,
-      specialization: _selectedSpecialization == 'All' ? null : _selectedSpecialization,
+      query: _searchController.text,
+      specialization: _selectedSpecialization,
     );
     if (_verifiedOnly) {
       doctorService.filterVerifiedOnly();

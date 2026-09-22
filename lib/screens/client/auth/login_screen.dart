@@ -6,7 +6,8 @@ import '../../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? prefilledEmail;
-  const LoginScreen({super.key, this.prefilledEmail});
+  final bool isFromRegister;
+  const LoginScreen({super.key, this.prefilledEmail, this.isFromRegister = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -67,39 +68,41 @@ class _LoginScreenState extends State<LoginScreen> {
           (route) => false,
         );
       } else if (auth.isDoctor) {
-        if (auth.hasCompletedProfile()) {
+        if (widget.isFromRegister && !auth.hasCompletedProfile()) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.createProfile,
+            (route) => false,
+          );
+        } else {
           Navigator.of(context).pushNamedAndRemoveUntil(
             AppRoutes.doctorHome,
             (route) => false,
           );
-        } else {
+        }
+      } else if (auth.isPharmacy) {
+        if (widget.isFromRegister && !auth.hasCompletedProfile()) {
           Navigator.of(context).pushNamedAndRemoveUntil(
             AppRoutes.createProfile,
             (route) => false,
           );
-        }
-      } else if (auth.isPharmacy) {
-        if (auth.hasCompletedProfile()) {
+        } else {
           Navigator.of(context).pushNamedAndRemoveUntil(
             AppRoutes.pharmacyHome,
             (route) => false,
           );
-        } else {
+        }
+      } else {
+        if (widget.isFromRegister && !auth.hasCompletedProfile()) {
           Navigator.of(context).pushNamedAndRemoveUntil(
             AppRoutes.createProfile,
             (route) => false,
           );
+        } else {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.userHome,
+            (route) => false,
+          );
         }
-      } else if (auth.hasCompletedProfile()) {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.userHome,
-          (route) => false,
-        );
-      } else {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.createProfile,
-          (route) => false,
-        );
       }
     } else {
       showDialog(

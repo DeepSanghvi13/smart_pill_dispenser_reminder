@@ -75,7 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         context,
         AppRoutes.login,
         (route) => false,
-        arguments: email,
+        arguments: {'email': email, 'isFromRegister': true},
       );
     }
   }

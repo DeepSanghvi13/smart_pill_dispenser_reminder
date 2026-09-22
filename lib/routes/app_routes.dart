@@ -174,9 +174,21 @@ class AppRoutes {
         return _unknownRoute();
       case login:
         final args = settings.arguments;
-        final prefilledEmail = args is String ? args : null;
+        String? prefilledEmail;
+        bool isFromRegister = false;
+
+        if (args is String) {
+          prefilledEmail = args;
+        } else if (args is Map<String, dynamic>) {
+          prefilledEmail = args['email'] as String?;
+          isFromRegister = args['isFromRegister'] as bool? ?? false;
+        }
+
         return MaterialPageRoute(
-          builder: (_) => LoginScreen(prefilledEmail: prefilledEmail),
+          builder: (_) => LoginScreen(
+            prefilledEmail: prefilledEmail,
+            isFromRegister: isFromRegister,
+          ),
         );
       case register:
         return MaterialPageRoute(builder: (_) => const RegisterScreen());

@@ -13,6 +13,8 @@ class ShopMedicine {
   final DateTime expiryDate;
   final String? imageUrl;
   final String? description;
+  final String? sideEffects;
+  final String? storageInstructions;
   final bool prescriptionRequired;
   final bool isAvailable;
   final String? shopName;
@@ -34,6 +36,8 @@ class ShopMedicine {
     required this.expiryDate,
     this.imageUrl,
     this.description,
+    this.sideEffects,
+    this.storageInstructions,
     this.prescriptionRequired = false,
     this.isAvailable = true,
     this.shopName,
@@ -80,6 +84,8 @@ class ShopMedicine {
     DateTime? expiryDate,
     String? imageUrl,
     String? description,
+    String? sideEffects,
+    String? storageInstructions,
     bool? prescriptionRequired,
     bool? isAvailable,
     String? shopName,
@@ -101,6 +107,8 @@ class ShopMedicine {
       expiryDate: expiryDate ?? this.expiryDate,
       imageUrl: imageUrl ?? this.imageUrl,
       description: description ?? this.description,
+      sideEffects: sideEffects ?? this.sideEffects,
+      storageInstructions: storageInstructions ?? this.storageInstructions,
       prescriptionRequired: prescriptionRequired ?? this.prescriptionRequired,
       isAvailable: isAvailable ?? this.isAvailable,
       shopName: shopName ?? this.shopName,
@@ -126,6 +134,8 @@ class ShopMedicine {
       'expiryDate': expiryDate.toIso8601String(),
       'imageUrl': imageUrl,
       'description': description,
+      'sideEffects': sideEffects,
+      'storageInstructions': storageInstructions,
       'prescriptionRequired': prescriptionRequired ? 1 : 0,
       'requiresPrescription': prescriptionRequired ? 1 : 0,
       'isAvailable': isAvailable ? 1 : 0,
@@ -152,6 +162,8 @@ class ShopMedicine {
       expiryDate: parsedExp,
       imageUrl: map['imageUrl'] as String?,
       description: map['description'] as String?,
+      sideEffects: map['sideEffects'] as String?,
+      storageInstructions: map['storageInstructions'] as String?,
       prescriptionRequired: map['prescriptionRequired'] == 1 ||
           map['prescriptionRequired'] == true ||
           map['requiresPrescription'] == 1 ||

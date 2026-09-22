@@ -56,6 +56,8 @@ class Medicine {
   final String? scannedText;
   final String? imagePath;
   final String? healthCondition;
+  final String? sideEffects;
+  final String? storageInstructions;
 
   Medicine({
     this.id,
@@ -81,6 +83,8 @@ class Medicine {
     this.scannedText,
     this.imagePath,
     this.healthCondition,
+    this.sideEffects,
+    this.storageInstructions,
   })  : expiryDate = expiryDate ?? endDate,
         patientId = patientId ?? userId,
         createdBy = createdBy ?? userId,
@@ -144,6 +148,8 @@ class Medicine {
     String? scannedText,
     String? imagePath,
     String? healthCondition,
+    String? sideEffects,
+    String? storageInstructions,
   }) {
     return Medicine(
       id: id ?? this.id,
@@ -169,6 +175,8 @@ class Medicine {
       scannedText: scannedText ?? this.scannedText,
       imagePath: imagePath ?? this.imagePath,
       healthCondition: healthCondition ?? this.healthCondition,
+      sideEffects: sideEffects ?? this.sideEffects,
+      storageInstructions: storageInstructions ?? this.storageInstructions,
     );
   }
 
@@ -197,6 +205,8 @@ class Medicine {
       'scannedText': scannedText,
       'imagePath': imagePath,
       'healthCondition': healthCondition,
+      'sideEffects': sideEffects,
+      'storageInstructions': storageInstructions,
     };
   }
 
@@ -235,6 +245,8 @@ class Medicine {
       scannedText: map['scannedText'] as String?,
       imagePath: map['imagePath'] as String?,
       healthCondition: map['healthCondition'] as String?,
+      sideEffects: map['sideEffects'] as String?,
+      storageInstructions: map['storageInstructions'] as String?,
     );
   }
 

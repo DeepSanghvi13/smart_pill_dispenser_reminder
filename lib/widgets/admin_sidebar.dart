@@ -99,6 +99,12 @@ class AdminSidebar extends StatelessWidget {
                 ),
                 _buildMenuItem(
                   context,
+                  icon: Icons.monitor_heart_outlined,
+                  title: 'System Health',
+                  routeName: AppRoutes.adminSystemHealth,
+                ),
+                _buildMenuItem(
+                  context,
                   icon: Icons.analytics_outlined,
                   title: 'Compliance Reports',
                   routeName: AppRoutes.adminReports,

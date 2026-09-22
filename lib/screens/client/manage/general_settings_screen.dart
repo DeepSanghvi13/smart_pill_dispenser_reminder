@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../theme/theme_controller.dart';
-import 'package:smart_pill_reminder/routes/app_routes.dart';
+import '../../../routes/app_routes.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/hive_service.dart';
+import '../../../models/user.dart';
 
 
 class GeneralSettingsScreen extends StatefulWidget {
@@ -14,6 +18,50 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
   bool sound = true;
   bool vibrate = true;
   bool ledLight = true;
+  String _selectedTimezone = 'UTC';
+  final List<String> _timezones = ['UTC', 'EST', 'CST', 'MST', 'PST', 'GMT', 'CET', 'IST', 'AEST'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTimezone();
+  }
+
+  Future<void> _loadTimezone() async {
+    final auth = context.read<AuthService>();
+    final email = auth.currentUser;
+    if (email != null) {
+      final box = HiveService().usersBox;
+      final user = box.get(email);
+      if (user != null && user.timezone != null && _timezones.contains(user.timezone)) {
+        setState(() {
+          _selectedTimezone = user.timezone!;
+        });
+      }
+    }
+  }
+
+  Future<void> _updateTimezone(String? newZone) async {
+    if (newZone == null) return;
+    final auth = context.read<AuthService>();
+    final email = auth.currentUser;
+    if (email != null) {
+      final box = HiveService().usersBox;
+      final user = box.get(email);
+      if (user != null) {
+        final updated = user.copyWith(timezone: newZone);
+        await box.put(email, updated);
+        setState(() {
+          _selectedTimezone = newZone;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Timezone updated to $newZone')),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +152,23 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             onChanged: (val) {
               setState(() => ledLight = val);
             },
+          ),
+          const Divider(),
+          _sectionTitle('Regional Settings'),
+          ListTile(
+            title: const Text('Timezone'),
+            subtitle: const Text('Select your local timezone for notifications'),
+            trailing: DropdownButton<String>(
+              value: _selectedTimezone,
+              items: _timezones.map((tz) {
+                return DropdownMenuItem<String>(
+                  value: tz,
+                  child: Text(tz),
+                );
+              }).toList(),
+              onChanged: _updateTimezone,
+              underline: const SizedBox(),
+            ),
           ),
         ],
       ),

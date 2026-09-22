@@ -995,7 +995,20 @@ class MySQLApiService {
           .timeout(const Duration(seconds: 6));
       return res.statusCode == 200;
     } catch (_) {
+      _resolvedBaseUrl = null;
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getSystemHealth() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/health'), headers: _headers).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -1254,6 +1267,28 @@ class MySQLApiService {
   }
 
   Future<Map<String, dynamic>?> getOrderById(int orderId) => getOrderDetails(orderId);
+
+  Future<bool> requestPrescriptionRenewal(int prescriptionId) async {
+    try {
+      final res = await http.post(Uri.parse('$baseUrl/api/prescriptions/$prescriptionId/renew'), headers: _headers).timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDoctorFeedback({dynamic patientId = 'me'}) async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/doctor-feedback/$patientId'), headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        return List<Map<String, dynamic>>.from(body['data'] ?? []);
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
 
   void dispose() {}
 }

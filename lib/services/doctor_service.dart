@@ -59,6 +59,11 @@ class DoctorService extends ChangeNotifier {
     }
   }
 
+  void filterVerifiedOnly() {
+    _searchResults = _searchResults.where((d) => d.isVerified).toList();
+    _safeNotifyListeners();
+  }
+
   /// Send connection request to doctor (Patient or Caretaker -> Doctor)
   Future<String?> sendConnectionRequest(int? doctorId, {String? doctorEmail}) async {
     if (doctorId == null || doctorId <= 0) {

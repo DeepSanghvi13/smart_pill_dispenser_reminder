@@ -3,6 +3,7 @@ class User {
   final String email;
   final String password;
   final String role; // 'admin', 'patient', or 'caretaker'
+  final String? timezone;
   final bool isActive;
   final String createdBy;
   final String updatedBy;
@@ -14,6 +15,7 @@ class User {
     required this.email,
     required this.password,
     this.role = 'patient',
+    this.timezone = 'UTC',
     this.isActive = true,
     String? createdBy,
     String? updatedBy,
@@ -29,6 +31,7 @@ class User {
     String? email,
     String? password,
     String? role,
+    String? timezone,
     bool? isActive,
     String? createdBy,
     String? updatedBy,
@@ -40,6 +43,7 @@ class User {
       email: email ?? this.email,
       password: password ?? this.password,
       role: role ?? this.role,
+      timezone: timezone ?? this.timezone,
       isActive: isActive ?? this.isActive,
       createdBy: createdBy ?? this.createdBy,
       updatedBy: updatedBy ?? this.updatedBy,
@@ -54,6 +58,7 @@ class User {
       'email': email,
       'password': password,
       'role': role,
+      'timezone': timezone,
       'isActive': isActive ? 1 : 0,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
@@ -68,6 +73,7 @@ class User {
       email: map['email'] as String? ?? '',
       password: map['password'] as String? ?? '',
       role: map['role'] as String? ?? 'patient',
+      timezone: map['timezone'] as String? ?? 'UTC',
       isActive: map['isActive'] == null ? true : (map['isActive'] as int? ?? 1) == 1,
       createdBy: map['createdBy'] as String? ?? map['email'] as String? ?? '',
       updatedBy: map['updatedBy'] as String? ?? map['email'] as String? ?? '',

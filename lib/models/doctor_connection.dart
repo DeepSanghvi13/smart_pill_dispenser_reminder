@@ -12,6 +12,7 @@ class DoctorModel {
   final String? profilePicture;
   final String connectionStatus; // 'none', 'pending', 'accepted', 'rejected'
   final int? connectionId;
+  final bool isVerified;
 
   DoctorModel({
     this.id,
@@ -27,6 +28,7 @@ class DoctorModel {
     this.profilePicture,
     this.connectionStatus = 'none',
     this.connectionId,
+    this.isVerified = false,
   });
 
   DoctorModel copyWith({
@@ -43,6 +45,7 @@ class DoctorModel {
     String? profilePicture,
     String? connectionStatus,
     int? connectionId,
+    bool? isVerified,
   }) {
     return DoctorModel(
       id: id ?? this.id,
@@ -58,6 +61,7 @@ class DoctorModel {
       profilePicture: profilePicture ?? this.profilePicture,
       connectionStatus: connectionStatus ?? this.connectionStatus,
       connectionId: connectionId ?? this.connectionId,
+      isVerified: isVerified ?? this.isVerified,
     );
   }
 
@@ -76,6 +80,7 @@ class DoctorModel {
       'profilePicture': profilePicture,
       'connectionStatus': connectionStatus,
       'connectionId': connectionId,
+      'isVerified': isVerified ? 1 : 0,
     };
   }
 
@@ -96,6 +101,7 @@ class DoctorModel {
       connectionId: map['connectionId'] is int
           ? map['connectionId'] as int
           : int.tryParse(map['connectionId']?.toString() ?? ''),
+      isVerified: map['isVerified'] == 1 || map['isVerified'] == true,
     );
   }
 }

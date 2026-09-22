@@ -187,12 +187,23 @@ class _MyDoctorsScreenState extends State<MyDoctorsScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    doc.fullName,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          doc.fullName,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (doc.isVerified) ...[
+                                        const SizedBox(width: 4),
+                                        const Icon(Icons.verified, color: Colors.blue, size: 16),
+                                      ],
+                                    ],
                                   ),
                                   const SizedBox(height: 4),
                                   Row(

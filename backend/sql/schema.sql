@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `passwordHash` VARCHAR(255) NOT NULL,
   `role` ENUM('patient', 'caretaker', 'doctor', 'pharmacy', 'admin') NOT NULL DEFAULT 'patient',
   `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  `timezone` VARCHAR(100) DEFAULT 'UTC',
   `lastLoginAt` DATETIME DEFAULT NULL,
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -105,6 +106,8 @@ CREATE TABLE IF NOT EXISTS `medicines` (
   `scannedText` TEXT DEFAULT NULL,
   `imagePath` VARCHAR(255) DEFAULT NULL,
   `healthCondition` VARCHAR(255) DEFAULT NULL,
+  `sideEffects` TEXT DEFAULT NULL,
+  `storageInstructions` TEXT DEFAULT NULL,
   `createdBy` INT NOT NULL,
   `updatedBy` INT NOT NULL,
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -231,6 +234,7 @@ CREATE TABLE IF NOT EXISTS `doctors` (
   `hospitalName` VARCHAR(255) DEFAULT NULL,
   `experience` VARCHAR(50) DEFAULT NULL,
   `location` VARCHAR(255) DEFAULT NULL,
+  `isVerified` BOOLEAN DEFAULT FALSE,
   CONSTRAINT `fk_doctors_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -280,6 +284,8 @@ CREATE TABLE IF NOT EXISTS `shop_medicines` (
   `expiryDate` DATE NOT NULL,
   `imageUrl` VARCHAR(500) DEFAULT NULL,
   `description` TEXT DEFAULT NULL,
+  `sideEffects` TEXT DEFAULT NULL,
+  `storageInstructions` TEXT DEFAULT NULL,
   `prescriptionRequired` BOOLEAN DEFAULT FALSE,
   `isAvailable` BOOLEAN DEFAULT TRUE,
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -303,6 +309,8 @@ CREATE TABLE IF NOT EXISTS `prescriptions` (
   `instructions` TEXT DEFAULT NULL,
   `shopMedicineId` INT DEFAULT NULL,
   `status` VARCHAR(50) DEFAULT 'active',
+  `isRenewable` BOOLEAN DEFAULT FALSE,
+  `renewalsLeft` INT DEFAULT 0,
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `fk_presc_doctorId` FOREIGN KEY (`doctorId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
@@ -310,6 +318,20 @@ CREATE TABLE IF NOT EXISTS `prescriptions` (
   CONSTRAINT `fk_presc_shopMedicineId` FOREIGN KEY (`shopMedicineId`) REFERENCES `shop_medicines` (`id`) ON DELETE SET NULL,
   INDEX `idx_presc_patient` (`patientId`),
   INDEX `idx_presc_doctor` (`doctorId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 23: doctor_feedback (feedback from doctors on adherence)
+CREATE TABLE IF NOT EXISTS `doctor_feedback` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `doctorId` INT NOT NULL,
+  `patientId` INT NOT NULL,
+  `medicineId` INT DEFAULT NULL,
+  `feedbackText` TEXT NOT NULL,
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_feedback_doctorId` FOREIGN KEY (`doctorId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_feedback_patientId` FOREIGN KEY (`patientId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_feedback_medicineId` FOREIGN KEY (`medicineId`) REFERENCES `medicines` (`id`) ON DELETE SET NULL,
+  INDEX `idx_feedback_patient` (`patientId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table 21: medicine_orders (patient/caretaker orders from medical shops)

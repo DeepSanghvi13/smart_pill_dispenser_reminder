@@ -20,6 +20,7 @@ class UserProfile {
   final String? hospitalName;
   final String? experience;
   final String? location;
+  final bool isVerified;
 
   // Audit metadata fields
   final String createdBy;
@@ -47,6 +48,7 @@ class UserProfile {
     this.hospitalName,
     this.experience,
     this.location,
+    this.isVerified = false,
     String? createdBy,
     String? updatedBy,
     DateTime? createdAt,
@@ -76,6 +78,7 @@ class UserProfile {
     String? hospitalName,
     String? experience,
     String? location,
+    bool? isVerified,
     String? createdBy,
     String? updatedBy,
     DateTime? createdAt,
@@ -101,6 +104,7 @@ class UserProfile {
       hospitalName: hospitalName ?? this.hospitalName,
       experience: experience ?? this.experience,
       location: location ?? this.location,
+      isVerified: isVerified ?? this.isVerified,
       createdBy: createdBy ?? this.createdBy,
       updatedBy: updatedBy ?? this.updatedBy,
       createdAt: createdAt ?? this.createdAt,
@@ -129,6 +133,7 @@ class UserProfile {
       'hospitalName': hospitalName,
       'experience': experience,
       'location': location ?? address,
+      'isVerified': isVerified ? 1 : 0,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
       'createdAt': createdAt.toIso8601String(),
@@ -160,6 +165,7 @@ class UserProfile {
       hospitalName: map['hospitalName'] as String?,
       experience: map['experience'] as String?,
       location: rawLoc ?? rawAddr,
+      isVerified: map['isVerified'] == 1 || map['isVerified'] == true,
       createdBy: map['createdBy'] as String? ?? emailVal,
       updatedBy: map['updatedBy'] as String? ?? emailVal,
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),

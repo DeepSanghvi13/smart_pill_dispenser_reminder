@@ -71,8 +71,34 @@ const adminEmail = (process.env.ADMIN_EMAIL || 'admin@medisafe.com')
 const adminPassword = (process.env.ADMIN_PASSWORD || 'admin123').trim();
 
 // Health Check Endpoint
-app.get(['/api/health', '/health'], (req, res) => {
-  res.status(200).json({ ok: true, status: 'healthy', timestamp: new Date().toISOString() });
+app.get(['/api/health', '/health'], async (req, res) => {
+  const start = Date.now();
+  let dbStatus = 'disconnected';
+  try {
+    await ping();
+    dbStatus = 'connected';
+  } catch (err) {
+    dbStatus = 'error';
+  }
+  const latency = Date.now() - start;
+  
+  const memoryUsage = process.memoryUsage();
+  
+  res.status(200).json({ 
+    ok: dbStatus === 'connected', 
+    status: dbStatus === 'connected' ? 'healthy' : 'degraded', 
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: process.uptime(),
+    db: {
+      status: dbStatus,
+      latencyMs: latency
+    },
+    memory: {
+      rssMb: Math.round(memoryUsage.rss / 1024 / 1024),
+      heapTotalMb: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+      heapUsedMb: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+    }
+  });
 });
 
 // Auxiliary helper functions
@@ -309,6 +335,8 @@ function medicineToDto(doc) {
     scannedText: doc.scannedText,
     imagePath: doc.imagePath,
     healthCondition: doc.healthCondition,
+    sideEffects: doc.sideEffects,
+    storageInstructions: doc.storageInstructions,
     createdAt: doc.createdAt,
   };
 }
@@ -370,13 +398,13 @@ async function upsertMedicine(userId, medicine, creatorId) {
   if (id) {
     await query(
       `INSERT INTO medicines 
-       (id, userId, name, type, dosage, quantity, frequency, time, startDate, endDate, expiryDate, notes, status, lastActionDate, isScanned, scannedText, imagePath, healthCondition, createdBy, updatedBy)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (id, userId, name, type, dosage, quantity, frequency, time, startDate, endDate, expiryDate, notes, status, lastActionDate, isScanned, scannedText, imagePath, healthCondition, sideEffects, storageInstructions, createdBy, updatedBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE 
        name=VALUES(name), type=VALUES(type), dosage=VALUES(dosage), quantity=VALUES(quantity), frequency=VALUES(frequency),
        time=VALUES(time), startDate=VALUES(startDate), endDate=VALUES(endDate), expiryDate=VALUES(expiryDate), notes=VALUES(notes), status=VALUES(status),
        lastActionDate=VALUES(lastActionDate), isScanned=VALUES(isScanned), scannedText=VALUES(scannedText), imagePath=VALUES(imagePath),
-       healthCondition=VALUES(healthCondition), updatedBy=VALUES(updatedBy)`,
+       healthCondition=VALUES(healthCondition), sideEffects=VALUES(sideEffects), storageInstructions=VALUES(storageInstructions), updatedBy=VALUES(updatedBy)`,
       [
         id,
         userId,
@@ -396,6 +424,8 @@ async function upsertMedicine(userId, medicine, creatorId) {
         medicine.scannedText || null,
         medicine.imagePath || null,
         medicine.healthCondition || null,
+        medicine.sideEffects || null,
+        medicine.storageInstructions || null,
         updater,
         updater
       ]
@@ -404,8 +434,8 @@ async function upsertMedicine(userId, medicine, creatorId) {
   } else {
     const result = await query(
       `INSERT INTO medicines 
-       (userId, name, type, dosage, quantity, frequency, time, startDate, endDate, expiryDate, notes, status, lastActionDate, isScanned, scannedText, imagePath, healthCondition, createdBy, updatedBy)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (userId, name, type, dosage, quantity, frequency, time, startDate, endDate, expiryDate, notes, status, lastActionDate, isScanned, scannedText, imagePath, healthCondition, sideEffects, storageInstructions, createdBy, updatedBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         medicine.name || '',
@@ -424,6 +454,8 @@ async function upsertMedicine(userId, medicine, creatorId) {
         medicine.scannedText || null,
         medicine.imagePath || null,
         medicine.healthCondition || null,
+        medicine.sideEffects || null,
+        medicine.storageInstructions || null,
         updater,
         updater
       ]
@@ -471,6 +503,7 @@ async function upsertReminder(userId, reminder) {
 
 async function upsertAlarmLog(userId, alarmLog) {
   const id = alarmLog.id && Number.isInteger(Number(alarmLog.id)) ? Number(alarmLog.id) : null;
+  let finalId = id;
 
   if (id) {
     await query(
@@ -493,7 +526,6 @@ async function upsertAlarmLog(userId, alarmLog) {
         alarmLog.notes || null
       ]
     );
-    return id;
   } else {
     const result = await query(
       `INSERT INTO alarmLogs (userId, medicineId, medicineName, scheduledTime, triggeredTime, status, snoozeCount, takenAt, notes)
@@ -510,8 +542,29 @@ async function upsertAlarmLog(userId, alarmLog) {
         alarmLog.notes || null
       ]
     );
-    return result.insertId;
+    finalId = result.insertId;
   }
+  
+  // Strict Adherence Escalation Logic
+  if ((alarmLog.status || 'pending') === 'missed') {
+    try {
+      const caretakers = await query(`SELECT caretakerId FROM caretaker_connections WHERE patientId = ? AND status = 'connected'`, [userId]);
+      for (const c of caretakers) {
+        await query(`INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)`, 
+          [c.caretakerId, 'Missed Medication Alert', `Patient missed their medication: ${alarmLog.medicineName}`, 'critical_alert', false]);
+      }
+      
+      const doctors = await query(`SELECT doctorId FROM doctor_connections WHERE requesterId = ? AND status = 'accepted'`, [userId]);
+      for (const d of doctors) {
+        await query(`INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)`, 
+          [d.doctorId, 'Patient Missed Medication', `Your patient missed their medication: ${alarmLog.medicineName}`, 'critical_alert', false]);
+      }
+    } catch (err) {
+      console.error("Escalation failed", err);
+    }
+  }
+  
+  return finalId;
 }
 
 async function upsertCaretaker(userId, caretaker) {
@@ -2906,7 +2959,9 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
     duration,
     quantity = 1,
     instructions = '',
-    shopMedicineId = null
+    shopMedicineId = null,
+    isRenewable = false,
+    renewalsLeft = 0
   } = req.body || {};
 
   if (!patientId || !medicineName || !dosage || !frequency || !duration) {
@@ -2934,8 +2989,8 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
 
     const result = await query(
       `INSERT INTO prescriptions 
-       (doctorId, patientId, medicineName, dosage, frequency, duration, quantity, instructions, shopMedicineId, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+       (doctorId, patientId, medicineName, dosage, frequency, duration, quantity, instructions, shopMedicineId, status, isRenewable, renewalsLeft)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
       [
         doctorId,
         Number(patientId),
@@ -2945,7 +3000,9 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
         duration.trim(),
         Math.max(1, parseInt(quantity, 10) || 1),
         instructions ? instructions.trim() : null,
-        shopMedicineId ? Number(shopMedicineId) : null
+        shopMedicineId ? Number(shopMedicineId) : null,
+        isRenewable ? 1 : 0,
+        Math.max(0, parseInt(renewalsLeft, 10) || 0)
       ]
     );
 
@@ -3076,6 +3133,45 @@ app.get('/api/prescriptions/doctor', authenticateToken, requireRole(['doctor', '
   }
 });
 
+// Request prescription renewal
+app.post('/api/prescriptions/:id/renew', authenticateToken, async (req, res) => {
+  const patientId = req.user.id;
+  const prescriptionId = Number(req.params.id);
+  
+  try {
+    const rows = await query('SELECT * FROM prescriptions WHERE id = ? AND patientId = ?', [prescriptionId, patientId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Prescription not found.' });
+    }
+    const prescription = rows[0];
+    
+    if (prescription.isRenewable !== 1 || prescription.renewalsLeft <= 0) {
+      return res.status(400).json({ ok: false, message: 'This prescription is not eligible for renewal.' });
+    }
+    
+    await query('UPDATE prescriptions SET renewalsLeft = renewalsLeft - 1 WHERE id = ?', [prescriptionId]);
+    
+    await query(
+      'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+      [prescription.doctorId, 'Prescription Renewal Requested', `Patient requested renewal for ${prescription.medicineName}`, 'alert', false]
+    );
+
+    await logActivity({
+      userId: patientId,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'RENEW_PRESCRIPTION',
+      description: `Requested renewal for prescription ID ${prescriptionId}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({ ok: true, message: 'Renewal requested successfully.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 // 6. Orders (Patient & Caretaker create order, Pharmacy manages)
 app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 'admin']), async (req, res) => {
   const requesterId = req.user.id;
@@ -3121,7 +3217,7 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
 
   try {
     // Verify shop exists
-    const shopRows = await query('SELECT id, shopName FROM medical_shops WHERE id = ? LIMIT 1', [Number(shopId)]);
+    const shopRows = await query('SELECT id, shopName, userId FROM medical_shops WHERE id = ? LIMIT 1', [Number(shopId)]);
     if (shopRows.length === 0) {
       return res.status(404).json({ ok: false, message: 'Selected medical shop not found.' });
     }
@@ -3228,6 +3324,14 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
       status: 'SUCCESS',
       req
     });
+
+    // Notify the pharmacist
+    if (shopRows[0].userId) {
+      await query(
+        `INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)`,
+        [shopRows[0].userId, 'New Order Received', `You have received a new order (${orderNumber}) for ₹${totalAmount.toFixed(2)}.`, 'alert', false]
+      );
+    }
 
     return res.json({
       ok: true,
@@ -3483,6 +3587,59 @@ app.get('/api/orders/:id', authenticateToken, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message });
   }
 });
+
+// ----------------- DOCTOR FEEDBACK -----------------
+app.post('/api/doctor-feedback', authenticateToken, requireRole(['doctor', 'admin']), async (req, res) => {
+  const doctorId = req.user.id;
+  const { patientId, medicineId, feedbackText } = req.body || {};
+  
+  if (!patientId || !feedbackText) {
+    return res.status(400).json({ ok: false, message: 'patientId and feedbackText are required.' });
+  }
+  
+  try {
+    await query(
+      'INSERT INTO doctor_feedback (doctorId, patientId, medicineId, feedbackText) VALUES (?, ?, ?, ?)',
+      [doctorId, Number(patientId), medicineId ? Number(medicineId) : null, feedbackText.trim()]
+    );
+    
+    // Notify Patient
+    await query(
+      'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+      [patientId, 'New Doctor Feedback', 'Your doctor has left new feedback for you.', 'alert', false]
+    );
+
+    res.json({ ok: true, message: 'Feedback submitted successfully.' });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/doctor-feedback/:patientId', authenticateToken, async (req, res) => {
+  const patientId = req.params.patientId === 'me' ? req.user.id : Number(req.params.patientId);
+  try {
+    const rows = await query('SELECT df.*, d.fullName as doctorName FROM doctor_feedback df JOIN users d ON df.doctorId = d.id WHERE df.patientId = ? ORDER BY df.createdAt DESC', [patientId]);
+    res.json({ ok: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// ----------------- DOCTOR VERIFICATION -----------------
+app.post('/api/admin/verify-doctor/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  const doctorId = Number(req.params.id);
+  const { isVerified = true } = req.body || {};
+  try {
+    const result = await query('UPDATE doctors SET isVerified = ? WHERE userId = ?', [isVerified ? 1 : 0, doctorId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, message: 'Doctor not found.' });
+    }
+    res.json({ ok: true, message: `Doctor verification status set to ${isVerified}.` });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 
 // ----------------- BOOTSTRAP AND SHUTDOWN -----------------
 

@@ -481,6 +481,33 @@ class _ManageScreenState extends State<ManageScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
+                'Medical Records',
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+
+            _settingsCardTile(
+              icon: Icons.receipt_long,
+              title: 'My Prescriptions',
+              subtitle: 'View and request renewals',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.myPrescriptions),
+            ),
+            _settingsCardTile(
+              icon: Icons.feedback_outlined,
+              title: 'Doctor Feedback',
+              subtitle: 'Feedback and advice from your doctors',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.doctorFeedback),
+            ),
+            
+            const SizedBox(height: 16),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
                 'Support & Legal',
                 style: TextStyle(
                   color: theme.colorScheme.primary,

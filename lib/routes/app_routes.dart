@@ -43,6 +43,7 @@ import '../screens/admin/reports_screen.dart';
 import '../screens/admin/announcements_screen.dart';
 import '../screens/admin/admin_profile_screen.dart';
 import '../screens/admin/admin_settings_screen.dart';
+import '../screens/admin/system_health_screen.dart';
 
 import 'dart:io';
 import '../models/medicine_order.dart';
@@ -58,6 +59,8 @@ import '../screens/client/shop/medical_shop_screen.dart';
 import '../screens/client/shop/cart_screen.dart';
 import '../screens/client/shop/order_details_screen.dart';
 import '../screens/client/pharmacy/pharmacy_home_screen.dart';
+import '../screens/client/doctor/my_prescriptions_screen.dart';
+import '../screens/client/doctor/doctor_feedback_screen.dart';
 
 class AppRoutes {
   static const String myPhotos = '/photos/my-photos';
@@ -67,6 +70,8 @@ class AppRoutes {
   static const String findDoctor = '/doctor/find';
   static const String myDoctors = '/doctor/my-doctors';
   static const String doctorHome = '/doctor/home';
+  static const String myPrescriptions = '/doctor/my-prescriptions';
+  static const String doctorFeedback = '/doctor/feedback';
 
   static const String medicalShop = '/shop';
   static const String cart = '/shop/cart';
@@ -80,6 +85,7 @@ class AppRoutes {
   static const String adminAnnouncements = '/admin/announcements';
   static const String adminProfile = '/admin/profile';
   static const String adminSettings = '/admin/settings';
+  static const String adminSystemHealth = '/admin/health';
 
   static const String login = '/login';
   static const String register = '/register';
@@ -124,6 +130,10 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const MyDoctorsScreen());
       case doctorHome:
         return MaterialPageRoute(builder: (_) => const DoctorHomeScreen());
+      case myPrescriptions:
+        return MaterialPageRoute(builder: (_) => const MyPrescriptionsScreen());
+      case doctorFeedback:
+        return MaterialPageRoute(builder: (_) => const DoctorFeedbackScreen());
       case medicalShop:
         return MaterialPageRoute(builder: (_) => const MedicalShopScreen());
       case cart:
@@ -289,6 +299,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const AdminProfileScreen());
       case adminSettings:
         return MaterialPageRoute(builder: (_) => const AdminSettingsScreen());
+      case adminSystemHealth:
+        return MaterialPageRoute(builder: (_) => const SystemHealthScreen());
       default:
         return _unknownRoute();
     }

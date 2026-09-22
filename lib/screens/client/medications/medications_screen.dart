@@ -240,6 +240,28 @@ class MedicationsScreen extends StatelessWidget {
                                           ),
                                         ),
                                       ],
+                                      if (med.sideEffects != null && med.sideEffects!.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Side Effects: ${med.sideEffects}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.red.shade400,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ],
+                                      if (med.storageInstructions != null && med.storageInstructions!.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Storage: ${med.storageInstructions}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.blue.shade400,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),

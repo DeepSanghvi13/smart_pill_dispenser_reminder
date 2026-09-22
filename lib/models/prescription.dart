@@ -14,6 +14,8 @@ class Prescription {
   final DateTime? validUntil;
   final int? shopMedicineId;
   final String status;
+  final bool isRenewable;
+  final int renewalsLeft;
   final String? doctorName;
   final String? doctorEmail;
   final String? doctorPhone;
@@ -41,6 +43,8 @@ class Prescription {
     this.validUntil,
     this.shopMedicineId,
     this.status = 'active',
+    this.isRenewable = false,
+    this.renewalsLeft = 0,
     this.doctorName,
     this.doctorEmail,
     this.doctorPhone,
@@ -85,6 +89,8 @@ class Prescription {
       'validUntil': validUntil?.toIso8601String(),
       'shopMedicineId': shopMedicineId,
       'status': status,
+      'isRenewable': isRenewable ? 1 : 0,
+      'renewalsLeft': renewalsLeft,
     };
   }
 
@@ -105,6 +111,8 @@ class Prescription {
           : null,
       shopMedicineId: map['shopMedicineId'] as int?,
       status: map['status'] as String? ?? 'active',
+      isRenewable: map['isRenewable'] == 1 || map['isRenewable'] == true,
+      renewalsLeft: int.tryParse(map['renewalsLeft']?.toString() ?? '0') ?? 0,
       doctorName: map['doctorName'] as String?,
       doctorEmail: map['doctorEmail'] as String?,
       doctorPhone: map['doctorPhone'] as String?,

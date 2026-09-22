@@ -12,6 +12,7 @@ class FindDoctorScreen extends StatefulWidget {
 class _FindDoctorScreenState extends State<FindDoctorScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedSpecialization = 'All';
+  bool _verifiedOnly = false;
   String? _connectingDoctorKey;
 
   final List<String> _specializations = [
@@ -45,9 +46,12 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
 
   Future<void> _fetchDoctors() async {
     await doctorService.searchDoctors(
-      query: _searchController.text.trim(),
-      specialization: _selectedSpecialization,
+      name: _searchController.text,
+      specialization: _selectedSpecialization == 'All' ? null : _selectedSpecialization,
     );
+    if (_verifiedOnly) {
+      doctorService.filterVerifiedOnly();
+    }
   }
 
   Future<void> _handleConnect(DoctorModel doctor) async {
@@ -115,32 +119,52 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
             ),
             child: Column(
               children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search by doctor name, specialization, hospital...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              _fetchDoctors();
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: theme.colorScheme.primary.withValues(alpha: 0.05),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search by doctor name, specialization, hospital...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _fetchDoctors();
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (val) {
+                          _fetchDoctors();
+                        },
+                        onSubmitted: (_) => _fetchDoctors(),
+                      ),
                     ),
-                  ),
-                  onChanged: (val) {
-                    _fetchDoctors();
-                  },
-                  onSubmitted: (_) => _fetchDoctors(),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        _verifiedOnly ? Icons.verified : Icons.verified_outlined,
+                        color: _verifiedOnly ? Colors.blue : Colors.grey,
+                      ),
+                      tooltip: 'Verified Doctors Only',
+                      onPressed: () {
+                        setState(() {
+                          _verifiedOnly = !_verifiedOnly;
+                        });
+                        _fetchDoctors();
+                      },
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
 
@@ -324,12 +348,23 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        doctor.fullName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              doctor.fullName,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (doctor.isVerified) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.verified, color: Colors.blue, size: 16),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Container(

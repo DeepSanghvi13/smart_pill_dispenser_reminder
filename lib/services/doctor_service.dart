@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../models/doctor_connection.dart';
+import '../models/appointment.dart';
 import 'mysql_api_service.dart';
 
 class DoctorService extends ChangeNotifier {
@@ -13,6 +14,9 @@ class DoctorService extends ChangeNotifier {
   List<DoctorModel> _myDoctors = [];
   List<Map<String, dynamic>> _myPatients = [];
   List<Map<String, dynamic>> _myCaretakers = [];
+  
+  List<Appointment> _patientAppointments = [];
+  List<Appointment> _doctorAppointments = [];
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -22,6 +26,10 @@ class DoctorService extends ChangeNotifier {
   List<DoctorModel> get myDoctors => _myDoctors;
   List<Map<String, dynamic>> get myPatients => _myPatients;
   List<Map<String, dynamic>> get myCaretakers => _myCaretakers;
+  
+  List<Appointment> get patientAppointments => _patientAppointments;
+  List<Appointment> get doctorAppointments => _doctorAppointments;
+  
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -98,6 +106,7 @@ class DoctorService extends ChangeNotifier {
         loadIncomingRequests(silent: true),
         loadDoctorPatients(silent: true),
         loadDoctorCaretakers(silent: true),
+        loadDoctorAppointments(silent: true),
       ]);
     } finally {
       _isLoading = false;
@@ -175,6 +184,7 @@ class DoctorService extends ChangeNotifier {
     try {
       final rawList = await MySQLApiService().getMyDoctors();
       _myDoctors = rawList.map((map) => DoctorModel.fromMap(map)).toList();
+      await loadPatientAppointments(silent: true);
     } catch (_) {
       _myDoctors = [];
     } finally {
@@ -219,6 +229,83 @@ class DoctorService extends ChangeNotifier {
       return false;
     } catch (_) {
       return false;
+    }
+  }
+  // ---- Appointments ----
+
+  Future<String?> bookAppointment(int doctorId, String date, String time, String reason) async {
+    _isLoading = true;
+    _safeNotifyListeners();
+    try {
+      final res = await MySQLApiService().bookAppointment(
+        doctorId: doctorId,
+        appointmentDate: date,
+        appointmentTime: time,
+        reason: reason,
+      );
+      if (res['ok'] == true) {
+        return null; // Success
+      }
+      return res['message'] as String? ?? 'Failed to book appointment.';
+    } catch (e) {
+      return 'Error: $e';
+    } finally {
+      _isLoading = false;
+      _safeNotifyListeners();
+    }
+  }
+
+  Future<void> loadPatientAppointments({bool silent = false}) async {
+    if (!silent) {
+      _isLoading = true;
+      _safeNotifyListeners();
+    }
+    try {
+      final rawList = await MySQLApiService().getPatientAppointments();
+      _patientAppointments = rawList.map((m) => Appointment.fromJson(m)).toList();
+    } catch (_) {
+      _patientAppointments = [];
+    } finally {
+      if (!silent) {
+        _isLoading = false;
+        _safeNotifyListeners();
+      }
+    }
+  }
+
+  Future<void> loadDoctorAppointments({bool silent = false}) async {
+    if (!silent) {
+      _isLoading = true;
+      _safeNotifyListeners();
+    }
+    try {
+      final rawList = await MySQLApiService().getDoctorAppointments();
+      _doctorAppointments = rawList.map((m) => Appointment.fromJson(m)).toList();
+    } catch (_) {
+      _doctorAppointments = [];
+    } finally {
+      if (!silent) {
+        _isLoading = false;
+        _safeNotifyListeners();
+      }
+    }
+  }
+
+  Future<String?> updateAppointmentStatus(int appointmentId, String status) async {
+    _isLoading = true;
+    _safeNotifyListeners();
+    try {
+      final res = await MySQLApiService().updateAppointmentStatus(appointmentId, status);
+      if (res['ok'] == true) {
+        await loadDoctorAppointments(silent: true);
+        return null;
+      }
+      return res['message'] as String? ?? 'Failed to update status.';
+    } catch (e) {
+      return 'Error: $e';
+    } finally {
+      _isLoading = false;
+      _safeNotifyListeners();
     }
   }
 }

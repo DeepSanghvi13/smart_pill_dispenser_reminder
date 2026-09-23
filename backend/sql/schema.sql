@@ -372,3 +372,20 @@ CREATE TABLE IF NOT EXISTS `medicine_order_items` (
   CONSTRAINT `fk_items_shopMedicineId` FOREIGN KEY (`shopMedicineId`) REFERENCES `shop_medicines` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Table 24: appointments (date/time based bookings for patients with doctors)
+CREATE TABLE IF NOT EXISTS `appointments` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `patientId` INT NOT NULL,
+  `doctorId` INT NOT NULL,
+  `appointmentDate` DATE NOT NULL,
+  `appointmentTime` VARCHAR(50) NOT NULL,
+  `reason` TEXT DEFAULT NULL,
+  `status` ENUM('pending', 'approved', 'rejected', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_appt_patientId` FOREIGN KEY (`patientId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_appt_doctorId` FOREIGN KEY (`doctorId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  INDEX `idx_appt_date` (`appointmentDate`),
+  INDEX `idx_appt_patient` (`patientId`),
+  INDEX `idx_appt_doctor` (`doctorId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

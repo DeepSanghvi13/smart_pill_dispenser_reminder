@@ -108,6 +108,14 @@ class AppDrawer extends StatelessWidget {
                 Navigator.pushNamed(context, AppRoutes.myDoctors);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.event_outlined),
+              title: const Text('My Appointments'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.myAppointments);
+              },
+            ),
           ],
           ListTile(
             leading: const Icon(Icons.person_outline),

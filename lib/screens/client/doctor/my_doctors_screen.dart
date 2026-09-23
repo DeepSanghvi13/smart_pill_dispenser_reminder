@@ -348,6 +348,29 @@ class _MyDoctorsScreenState extends State<MyDoctorsScreen> {
                                 onPressed: () => _sendEmail(doc.email),
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.event, size: 16),
+                                label: const Text('Book Appointment'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: theme.colorScheme.primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.bookAppointment,
+                                    arguments: doc,
+                                  );
+                                },
+                              ),
+                            ),
                             if (doc.connectionId != null) ...[
                               const SizedBox(width: 8),
                               IconButton(

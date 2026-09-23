@@ -622,6 +622,16 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                 tabIndex: 3,
                                 isSelected: _selectedTabIndex == 3,
                               ),
+                              const SizedBox(width: 8),
+                              _buildStatCard(
+                                context: context,
+                                label: 'Appointments',
+                                value: '${doctorService.doctorAppointments.length}',
+                                color: Colors.pink.shade700,
+                                icon: Icons.event,
+                                tabIndex: 4,
+                                isSelected: _selectedTabIndex == 4,
+                              ),
                             ],
                           ),
                         );
@@ -642,7 +652,9 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                       ? Icons.healing
                                       : _selectedTabIndex == 2
                                           ? Icons.people
-                                          : Icons.description,
+                                          : _selectedTabIndex == 3
+                                              ? Icons.description
+                                              : Icons.event,
                               size: 18,
                               color: _selectedTabIndex == 0
                                   ? Colors.orange.shade800
@@ -650,7 +662,9 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                       ? Colors.blue.shade700
                                       : _selectedTabIndex == 2
                                           ? Colors.teal.shade700
-                                          : Colors.deepPurple.shade700,
+                                          : _selectedTabIndex == 3
+                                              ? Colors.deepPurple.shade700
+                                              : Colors.pink.shade700,
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -660,7 +674,9 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                       ? 'Connected Patients'
                                       : _selectedTabIndex == 2
                                           ? 'Connected Caretakers'
-                                          : 'Issued Prescriptions',
+                                          : _selectedTabIndex == 3
+                                              ? 'Issued Prescriptions'
+                                              : 'Appointments',
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
@@ -688,8 +704,10 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
               _buildPatientsSliver(theme)
             else if (_selectedTabIndex == 2)
               _buildCaretakersSliver(theme)
+            else if (_selectedTabIndex == 3)
+              _buildPrescriptionsSliver(theme)
             else
-              _buildPrescriptionsSliver(theme),
+              _buildAppointmentsSliver(theme),
 
             // Bottom Spacing
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -1510,5 +1528,132 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildAppointmentsSliver(ThemeData theme) {
+    return Consumer<DoctorService>(
+      builder: (context, docService, _) {
+        if (docService.isLoading && docService.doctorAppointments.isEmpty) {
+          return const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final appointments = docService.doctorAppointments;
+
+        if (appointments.isEmpty) {
+          return const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Text(
+                'No appointments scheduled.',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            ),
+          );
+        }
+
+        return SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final appt = appointments[index];
+              final isPending = appt.status == 'pending';
+              
+              Color statusColor = Colors.orange;
+              if (appt.status == 'approved') statusColor = Colors.green;
+              if (appt.status == 'rejected' || appt.status == 'cancelled') statusColor = Colors.red;
+              if (appt.status == 'completed') statusColor = Colors.blue;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundImage: AppImageHelper.getImageProvider(appt.patientPicture),
+                            child: AppImageHelper.getImageProvider(appt.patientPicture) == null
+                                ? const Icon(Icons.person)
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              appt.patientName ?? 'Patient #${appt.patientId}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              appt.status.toUpperCase(),
+                              style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                          const SizedBox(width: 8),
+                          Text(appt.appointmentDate),
+                          const SizedBox(width: 16),
+                          const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                          const SizedBox(width: 8),
+                          Text(appt.appointmentTime),
+                        ],
+                      ),
+                      if (appt.reason != null && appt.reason!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text('Reason: ${appt.reason}', style: const TextStyle(color: Colors.grey)),
+                      ],
+                      if (isPending) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => _updateAppointment(appt.id, 'rejected'),
+                              style: TextButton.styleFrom(foregroundColor: Colors.red),
+                              child: const Text('Reject'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () => _updateAppointment(appt.id, 'approved'),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                              child: const Text('Approve'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+            childCount: appointments.length,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _updateAppointment(int appointmentId, String status) async {
+    final error = await context.read<DoctorService>().updateAppointmentStatus(appointmentId, status);
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error), backgroundColor: Colors.red));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Appointment $status'), backgroundColor: Colors.green));
+    }
   }
 }

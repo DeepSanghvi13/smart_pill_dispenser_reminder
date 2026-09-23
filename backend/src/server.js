@@ -3675,6 +3675,97 @@ app.post('/api/admin/verify-doctor/:id', authenticateToken, requireRole(['admin'
 });
 
 
+// ----------------- APPOINTMENTS -----------------
+app.post('/api/appointments', authenticateToken, async (req, res) => {
+  const patientId = req.user.id;
+  const { doctorId, appointmentDate, appointmentTime, reason } = req.body || {};
+  
+  if (!doctorId || !appointmentDate || !appointmentTime) {
+    return res.status(400).json({ ok: false, message: 'doctorId, appointmentDate, and appointmentTime are required.' });
+  }
+  
+  try {
+    const result = await query(
+      'INSERT INTO appointments (patientId, doctorId, appointmentDate, appointmentTime, reason) VALUES (?, ?, ?, ?, ?)',
+      [patientId, Number(doctorId), appointmentDate, appointmentTime, reason || null]
+    );
+    
+    // Notify Doctor
+    await query(
+      'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+      [doctorId, 'New Appointment Request', 'You have a new appointment request pending.', 'alert', false]
+    );
+
+    res.json({ ok: true, message: 'Appointment requested successfully.', data: { id: result.insertId } });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/appointments/patient', authenticateToken, async (req, res) => {
+  const patientId = req.user.id;
+  try {
+    const rows = await query(`
+      SELECT a.*, d.fullName as doctorName, dp.specialization, up.profilePicture as doctorPicture
+      FROM appointments a
+      JOIN users d ON a.doctorId = d.id
+      LEFT JOIN doctors dp ON d.id = dp.userId
+      LEFT JOIN userProfiles up ON d.id = up.userId
+      WHERE a.patientId = ?
+      ORDER BY a.appointmentDate DESC, a.appointmentTime DESC
+    `, [patientId]);
+    res.json({ ok: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/appointments/doctor', authenticateToken, requireRole(['doctor']), async (req, res) => {
+  const doctorId = req.user.id;
+  try {
+    const rows = await query(`
+      SELECT a.*, p.fullName as patientName, up.profilePicture as patientPicture
+      FROM appointments a
+      JOIN users p ON a.patientId = p.id
+      LEFT JOIN userProfiles up ON p.id = up.userId
+      WHERE a.doctorId = ?
+      ORDER BY a.appointmentDate DESC, a.appointmentTime DESC
+    `, [doctorId]);
+    res.json({ ok: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.put('/api/appointments/:id/status', authenticateToken, requireRole(['doctor']), async (req, res) => {
+  const doctorId = req.user.id;
+  const appointmentId = Number(req.params.id);
+  const { status } = req.body || {};
+  
+  if (!['approved', 'rejected', 'completed', 'cancelled'].includes(status)) {
+    return res.status(400).json({ ok: false, message: 'Invalid status.' });
+  }
+  
+  try {
+    const check = await query('SELECT * FROM appointments WHERE id = ? AND doctorId = ?', [appointmentId, doctorId]);
+    if (check.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Appointment not found or unauthorized.' });
+    }
+    
+    await query('UPDATE appointments SET status = ? WHERE id = ?', [status, appointmentId]);
+    
+    const patientId = check[0].patientId;
+    await query(
+      'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+      [patientId, 'Appointment Status Updated', `Your appointment on ${check[0].appointmentDate} was ${status}.`, 'alert', false]
+    );
+
+    res.json({ ok: true, message: `Appointment status updated to ${status}.` });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 // ----------------- BOOTSTRAP AND SHUTDOWN -----------------
 
 async function startServer() {

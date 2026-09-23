@@ -1290,5 +1290,68 @@ class MySQLApiService {
     }
   }
 
+  // ---- Appointments ----
+  Future<Map<String, dynamic>> bookAppointment({
+    required int doctorId,
+    required String appointmentDate,
+    required String appointmentTime,
+    String? reason,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/appointments'),
+        headers: _headers,
+        body: jsonEncode({
+          'doctorId': doctorId,
+          'appointmentDate': appointmentDate,
+          'appointmentTime': appointmentTime,
+          'reason': reason,
+        }),
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPatientAppointments() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/appointments/patient'), headers: _headers);
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        return List<Map<String, dynamic>>.from(body['data'] ?? []);
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDoctorAppointments() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/appointments/doctor'), headers: _headers);
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        return List<Map<String, dynamic>>.from(body['data'] ?? []);
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> updateAppointmentStatus(int appointmentId, String status) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/appointments/$appointmentId/status'),
+        headers: _headers,
+        body: jsonEncode({'status': status}),
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
   void dispose() {}
 }

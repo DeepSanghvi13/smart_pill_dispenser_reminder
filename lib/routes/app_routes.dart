@@ -61,6 +61,9 @@ import '../screens/client/shop/order_details_screen.dart';
 import '../screens/client/pharmacy/pharmacy_home_screen.dart';
 import '../screens/client/doctor/my_prescriptions_screen.dart';
 import '../screens/client/doctor/doctor_feedback_screen.dart';
+import '../screens/client/doctor/book_appointment_screen.dart';
+import '../screens/client/doctor/my_appointments_screen.dart';
+import '../models/doctor_connection.dart';
 
 class AppRoutes {
   static const String myPhotos = '/photos/my-photos';
@@ -72,6 +75,8 @@ class AppRoutes {
   static const String doctorHome = '/doctor/home';
   static const String myPrescriptions = '/doctor/my-prescriptions';
   static const String doctorFeedback = '/doctor/feedback';
+  static const String bookAppointment = '/doctor/book-appointment';
+  static const String myAppointments = '/doctor/my-appointments';
 
   static const String medicalShop = '/shop';
   static const String cart = '/shop/cart';
@@ -134,6 +139,14 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const MyPrescriptionsScreen());
       case doctorFeedback:
         return MaterialPageRoute(builder: (_) => const DoctorFeedbackScreen());
+      case bookAppointment:
+        final args = settings.arguments;
+        if (args is DoctorModel) {
+          return MaterialPageRoute(builder: (_) => BookAppointmentScreen(doctor: args));
+        }
+        return _unknownRoute();
+      case myAppointments:
+        return MaterialPageRoute(builder: (_) => const MyAppointmentsScreen());
       case medicalShop:
         return MaterialPageRoute(builder: (_) => const MedicalShopScreen());
       case cart:

@@ -44,6 +44,7 @@ import '../screens/admin/announcements_screen.dart';
 import '../screens/admin/admin_profile_screen.dart';
 import '../screens/admin/admin_settings_screen.dart';
 import '../screens/admin/system_health_screen.dart';
+import '../screens/admin/connection_management_screen.dart';
 
 import 'dart:io';
 import '../models/medicine_order.dart';
@@ -91,6 +92,7 @@ class AppRoutes {
   static const String adminProfile = '/admin/profile';
   static const String adminSettings = '/admin/settings';
   static const String adminSystemHealth = '/admin/health';
+  static const String adminConnections = '/admin/connections';
 
   static const String login = '/login';
   static const String register = '/register';
@@ -326,6 +328,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const AdminSettingsScreen());
       case adminSystemHealth:
         return MaterialPageRoute(builder: (_) => const SystemHealthScreen());
+      case adminConnections:
+        return MaterialPageRoute(builder: (_) => const ConnectionManagementScreen());
       default:
         return _unknownRoute();
     }

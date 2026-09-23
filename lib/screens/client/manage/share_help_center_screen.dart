@@ -24,7 +24,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
   Future<void> _shareVia(BuildContext context, String platform) async {
     const String helpLink = 'https://www.medisafe.com/help';
     const String messageText =
-        'Check out the Smart Pill Dispenser Reminder Help Center for medication management tips and support!';
+        'Check out the Smart MedReminder Help Center for medication management tips and support!';
     final messenger = ScaffoldMessenger.of(context);
 
     try {
@@ -50,7 +50,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
           scheme: 'mailto',
           path: '', // empty path for compose
           queryParameters: {
-            'subject': 'Smart Pill Dispenser Reminder - Help Center',
+            'subject': 'Smart MedReminder - Help Center',
             'body': '$messageText\n\n$helpLink',
           },
         );
@@ -87,7 +87,7 @@ class ShareHelpCenterScreen extends StatelessWidget {
         // Generic share for other platforms
         await Share.share(
           '$messageText\n\n$helpLink',
-          subject: 'Smart Pill Dispenser Reminder - Help Center',
+          subject: 'Smart MedReminder - Help Center',
         );
       }
     } catch (e) {

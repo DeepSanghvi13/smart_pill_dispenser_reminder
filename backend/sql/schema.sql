@@ -389,3 +389,17 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   INDEX `idx_appt_patient` (`patientId`),
   INDEX `idx_appt_doctor` (`doctorId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 25: pharmacy_connections (patient to pharmacy connections)
+CREATE TABLE IF NOT EXISTS `pharmacy_connections` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `patientId` INT NOT NULL,
+  `shopId` INT NOT NULL,
+  `status` ENUM('pending', 'accepted', 'rejected') NOT NULL DEFAULT 'pending',
+  `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_pharm_conn_patientId` FOREIGN KEY (`patientId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_pharm_conn_shopId` FOREIGN KEY (`shopId`) REFERENCES `medical_shops` (`id`) ON DELETE CASCADE,
+  UNIQUE KEY `unique_pharm_connection` (`patientId`, `shopId`),
+  INDEX `idx_pharm_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
+import '../../../services/mysql_api_service.dart';
 import '../../../widgets/admin_sidebar.dart';
 import '../../../widgets/custom_charts.dart';
 import '../../../models/user.dart';
@@ -81,35 +82,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    try {
-      final uCount = await _db.adminGetTotalUsersCount();
-      final pCount = await _db.adminGetTotalPatientsCount();
-      final cCount = await _db.adminGetTotalCaretakersCount();
-      final mCount = await _db.adminGetTotalMedicinesCount();
-      final tToday = await _db.adminGetMedicinesTakenTodayCount();
-      final msToday = await _db.adminGetMissedMedicinesTodayCount();
-      final pReminders = await _db.adminGetPendingRemindersCount();
-      final aUsers = await _db.adminGetActiveUsersCount();
+      final res = await MySQLApiService().adminGetDashboardStats();
+      
+      int totalU = 0, totalP = 0, totalC = 0, totalM = 0;
+      
+      if (res['ok'] == true && res['stats'] != null) {
+        final stats = res['stats'];
+        final usersInfo = stats['users'] as List<dynamic>? ?? [];
+        
+        for (var row in usersInfo) {
+          final role = row['role'];
+          final count = (row['count'] as num).toInt();
+          totalU += count;
+          if (role == 'patient') totalP += count;
+          if (role == 'caretaker') totalC += count;
+          if (role == 'pharmacy') totalM += count; // Using pharmacy count as 'Total Medicines' proxy for now, or just use prescriptions
+        }
+      }
 
       final recUsers = await _db.adminGetRecentRegistrations();
       final recMeds = await _db.adminGetRecentMedicines();
       final recAct = await _db.adminGetRecentActivities();
 
       if (recAct.isEmpty) {
-        // Seeding default activities if empty
         await _db.adminLogActivity('System Boot: Admin Panel Initialized');
         await _db.adminLogActivity('Database Check: SQLite & Hive Boxes Synced');
       }
 
       setState(() {
-        _totalUsers = uCount;
-        _totalPatients = pCount;
-        _totalCaretakers = cCount;
-        _totalMedicines = mCount;
-        _takenToday = tToday;
-        _missedToday = msToday;
-        _pendingReminders = pReminders;
-        _activeUsers = aUsers;
+        _totalUsers = totalU;
+        _totalPatients = totalP;
+        _totalCaretakers = totalC;
+        _totalMedicines = totalM;
+        _takenToday = 0; // Backend implementation pending
+        _missedToday = 0; // Backend implementation pending
+        _pendingReminders = 0; // Backend implementation pending
+        _activeUsers = totalU;
         _recentUsers = recUsers;
         _recentMedicines = recMeds;
         _recentActivities = recAct;

@@ -123,7 +123,7 @@ class _CaretakerWebpageScreenState extends State<CaretakerWebpageScreen> {
         final isWide = constraints.maxWidth >= 900;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Smart Pill Dispenser - Caretaker Panel'),
+            title: const Text('Smart MedReminder - Caretaker Panel'),
             backgroundColor: const Color(0xFF0D4F8B),
             actions: [
               Padding(

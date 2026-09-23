@@ -58,7 +58,7 @@ class _ManageScreenState extends State<ManageScreen> {
         title: const Text('Privacy Policy'),
         content: const SingleChildScrollView(
           child: Text(
-            'Your privacy is extremely important to us. PillDispenser stores all of your personal details, profile picture, medication logs, and notification reminders directly on your local device. We do not transmit or upload your health records or personal identifiers to any remote servers.\n\nYour data remains securely on your device unless you choose to wipe the application data or delete your account, which completely clears all stored variables from local sandbox storage.',
+            'Your privacy is extremely important to us. MedReminder stores all of your personal details, profile picture, medication logs, and notification reminders directly on your local device. We do not transmit or upload your health records or personal identifiers to any remote servers.\n\nYour data remains securely on your device unless you choose to wipe the application data or delete your account, which completely clears all stored variables from local sandbox storage.',
             style: TextStyle(fontSize: 14, height: 1.4),
           ),
         ),
@@ -115,14 +115,14 @@ class _ManageScreenState extends State<ManageScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('About PillDispenser'),
+        title: const Text('About MedReminder'),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.medication_liquid, size: 64, color: Colors.blue),
             SizedBox(height: 16),
             Text(
-              'PillDispenser App',
+              'MedReminder App',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             SizedBox(height: 4),
@@ -531,7 +531,7 @@ class _ManageScreenState extends State<ManageScreen> {
             ),
             _settingsCardTile(
               icon: Icons.info_outline,
-              title: 'About PillDispenser',
+              title: 'About MedReminder',
               subtitle: 'Application version details',
               onTap: _showAbout,
             ),

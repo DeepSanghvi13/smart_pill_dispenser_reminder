@@ -20,7 +20,7 @@ class ContactSupportScreen extends StatelessWidget {
       scheme: 'mailto',
       path: 'support@medisafe.com',
       queryParameters: {
-        'subject': 'Support Request - Smart Pill Dispenser',
+        'subject': 'Support Request - Smart MedReminder',
         'body': 'Please describe your issue here:\n\n',
       },
     );
@@ -151,7 +151,7 @@ class ContactSupportScreen extends StatelessWidget {
 
                   _buildFAQItem(
                     'Why am I not receiving reminders?',
-                    'Check your notification settings in the app and device settings. Ensure notifications are enabled for Smart Pill Dispenser.',
+                    'Check your notification settings in the app and device settings. Ensure notifications are enabled for Smart MedReminder.',
                   ),
                   _buildFAQItem(
                     'How do I change my medicine schedule?',

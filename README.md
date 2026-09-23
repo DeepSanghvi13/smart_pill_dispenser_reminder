@@ -1,4 +1,4 @@
-# 💊 Smart Pill Dispenser & Reminder
+# 💊 Smart MedReminder & Reminder
 
 A comprehensive, full-stack cross-platform Flutter application and Node.js/MySQL backend system designed to ensure medication adherence, streamline prescription management, and enable real-time collaboration between **Patients**, **Caretakers**, and **Administrators**.
 

@@ -56,10 +56,10 @@ class _InviteMedfriendScreenState extends State<InviteMedfriendScreen> {
 
     try {
       final message = shareMeds
-          ? 'Hi $name, I\'m using Smart Pill Dispenser Reminder app to manage my medications. '
+          ? 'Hi $name, I\'m using Smart MedReminder app to manage my medications. '
             'I\'d like you to be my Medfriend and get notifications if I miss my medicines. '
             'Please download the app and I\'ll add you as my Medfriend.'
-          : 'Hi $name, I\'m inviting you to be my Medfriend on the Smart Pill Dispenser Reminder app. '
+          : 'Hi $name, I\'m inviting you to be my Medfriend on the Smart MedReminder app. '
             'You\'ll help me remember to take my medications.';
 
       bool sentAny = false;
@@ -83,7 +83,7 @@ class _InviteMedfriendScreenState extends State<InviteMedfriendScreen> {
           scheme: 'mailto',
           path: email,
           queryParameters: {
-            'subject': 'Join me as a Medfriend on Smart Pill Dispenser Reminder',
+            'subject': 'Join me as a Medfriend on Smart MedReminder',
             'body': message,
           },
         );

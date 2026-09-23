@@ -93,6 +93,12 @@ class AdminSidebar extends StatelessWidget {
                 ),
                 _buildMenuItem(
                   context,
+                  icon: Icons.link_rounded,
+                  title: 'Connections',
+                  routeName: AppRoutes.adminConnections,
+                ),
+                _buildMenuItem(
+                  context,
                   icon: Icons.medication_outlined,
                   title: 'Medications',
                   routeName: AppRoutes.adminMedicineList,

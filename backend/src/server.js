@@ -65,10 +65,10 @@ const profileUpload = multer({
 });
 
 const port = Number(process.env.PORT || 3000);
-const adminEmail = (process.env.ADMIN_EMAIL || 'admin@medisafe.com')
+const adminEmail = (process.env.ADMIN_EMAIL || 'admin@smartpill.com')
   .trim()
   .toLowerCase();
-const adminPassword = (process.env.ADMIN_PASSWORD || 'admin123').trim();
+const adminPassword = (process.env.ADMIN_PASSWORD || 'adminpassword').trim();
 
 // Health Check Endpoint
 app.get(['/api/health', '/health'], async (req, res) => {
@@ -3761,6 +3761,126 @@ app.put('/api/appointments/:id/status', authenticateToken, requireRole(['doctor'
     );
 
     res.json({ ok: true, message: `Appointment status updated to ${status}.` });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+// ----------------- ADMIN PANEL APIs -----------------
+
+// Admin Dashboard Stats
+app.get('/api/admin/dashboard', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const usersCount = await query('SELECT role, COUNT(*) as count FROM users GROUP BY role');
+    const prescriptionsCount = await query('SELECT COUNT(*) as count FROM prescriptions');
+    const ordersCount = await query('SELECT COUNT(*) as count FROM medicine_orders');
+    
+    res.json({ ok: true, stats: { users: usersCount, prescriptions: prescriptionsCount[0].count, orders: ordersCount[0].count } });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Admin Users Management
+app.get('/api/admin/users', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { role } = req.query;
+    let sql = 'SELECT id, fullName, email, phoneNumber, role, status, createdAt FROM users';
+    const params = [];
+    if (role) {
+      sql += ' WHERE role = ?';
+      params.push(role);
+    }
+    const users = await query(sql, params);
+    res.json({ ok: true, users });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/users', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { fullName, email, password, role, phoneNumber } = req.body;
+    if (!fullName || !email || !password || !role) {
+      return res.status(400).json({ ok: false, message: 'Missing required fields' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    const result = await query(
+      'INSERT INTO users (fullName, email, passwordHash, role, phoneNumber) VALUES (?, ?, ?, ?, ?)',
+      [fullName, email, hash, role, phoneNumber || null]
+    );
+    res.json({ ok: true, message: 'User created successfully', userId: result.insertId });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/users/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fullName, phoneNumber, status, role } = req.body;
+    await query(
+      'UPDATE users SET fullName = ?, phoneNumber = ?, status = ?, role = ? WHERE id = ?',
+      [fullName, phoneNumber, status, role, id]
+    );
+    res.json({ ok: true, message: 'User updated successfully' });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    await query('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ ok: true, message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Admin Connections Management
+app.get('/api/admin/connections', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const doctorConnections = await query('SELECT dc.*, u1.fullName as doctorName, u2.fullName as requesterName FROM doctor_connections dc JOIN users u1 ON dc.doctorId = u1.id JOIN users u2 ON dc.requesterId = u2.id');
+    const caretakerConnections = await query('SELECT cc.*, u1.fullName as patientName, u2.fullName as caretakerName FROM caretaker_connections cc JOIN users u1 ON cc.patientId = u1.id JOIN users u2 ON cc.caretakerId = u2.id');
+    const pharmacyConnections = await query('SELECT pc.*, u1.fullName as patientName, ms.shopName FROM pharmacy_connections pc JOIN users u1 ON pc.patientId = u1.id JOIN medical_shops ms ON pc.shopId = ms.id');
+    res.json({ ok: true, connections: { doctorConnections, caretakerConnections, pharmacyConnections } });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/connections', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { type, patientId, targetId } = req.body; // type: 'doctor', 'caretaker', 'pharmacy'
+    if (type === 'doctor') {
+      await query('INSERT INTO doctor_connections (doctorId, requesterId, requesterRole, status) VALUES (?, ?, "patient", "accepted")', [targetId, patientId]);
+    } else if (type === 'caretaker') {
+      await query('INSERT INTO caretaker_connections (patientId, caretakerId, connectionCode, status) VALUES (?, ?, ?, "connected")', [patientId, targetId, 'ADMIN_LINK']);
+    } else if (type === 'pharmacy') {
+      await query('INSERT INTO pharmacy_connections (patientId, shopId, status) VALUES (?, ?, "accepted")', [patientId, targetId]);
+    } else {
+      return res.status(400).json({ ok: false, message: 'Invalid connection type' });
+    }
+    res.json({ ok: true, message: 'Connection created successfully' });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/connections/:type/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    if (type === 'doctor') {
+      await query('DELETE FROM doctor_connections WHERE id = ?', [id]);
+    } else if (type === 'caretaker') {
+      await query('DELETE FROM caretaker_connections WHERE id = ?', [id]);
+    } else if (type === 'pharmacy') {
+      await query('DELETE FROM pharmacy_connections WHERE id = ?', [id]);
+    } else {
+      return res.status(400).json({ ok: false, message: 'Invalid connection type' });
+    }
+    res.json({ ok: true, message: 'Connection deleted successfully' });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }

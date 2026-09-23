@@ -42,7 +42,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Smart Pill Dispenser Reminder',
+                    'Smart MedReminder',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey,

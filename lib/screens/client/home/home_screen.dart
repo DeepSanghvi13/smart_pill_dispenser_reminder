@@ -207,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Text(
               _currentIndex == 0 
-                  ? (isCare ? 'Caregiver Dashboard' : 'PillDispenser') 
+                  ? (isCare ? 'Caregiver Dashboard' : 'MedReminder') 
                   : _currentIndex == 2 
                       ? 'My Medications' 
                       : 'Settings'

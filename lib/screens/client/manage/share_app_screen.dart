@@ -84,7 +84,7 @@ class ShareAppScreen extends StatelessWidget {
                         ),
                         onPressed: () {
                           Share.share(
-                            'Check out Medisafe - the smart pill dispenser reminder app! '
+                            'Check out Medisafe - the smart MedReminder app! '
                             'Never miss your medication again. Download now: '
                             'https://medisafe.com',
                             subject: 'Download Medisafe App',
@@ -121,7 +121,7 @@ class ShareAppScreen extends StatelessWidget {
               title: 'Email',
               onTap: () {
                 Share.share(
-                  'Check out Medisafe - the smart pill dispenser reminder app! '
+                  'Check out Medisafe - the smart MedReminder app! '
                   'Never miss your medication again.',
                 );
               },
@@ -132,7 +132,7 @@ class ShareAppScreen extends StatelessWidget {
               title: 'WhatsApp',
               onTap: () {
                 Share.share(
-                  'Check out Medisafe - the smart pill dispenser reminder app! '
+                  'Check out Medisafe - the smart MedReminder app! '
                   'Never miss your medication again. Download: https://medisafe.com',
                 );
               },

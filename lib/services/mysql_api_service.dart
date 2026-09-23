@@ -1353,5 +1353,75 @@ class MySQLApiService {
     }
   }
 
+  // Admin APIs
+  Future<Map<String, dynamic>> adminGetConnections() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/admin/connections'), headers: _headers);
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      return {'ok': false, 'message': 'Failed to load connections'};
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminCreateConnection(String type, int patientId, int targetId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/admin/connections'),
+        headers: _headers,
+        body: jsonEncode({
+          'type': type,
+          'patientId': patientId,
+          'targetId': targetId,
+        }),
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminDeleteConnection(String type, int id) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/api/admin/connections/$type/$id'),
+        headers: _headers,
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminGetUsers([String? role]) async {
+    try {
+      String url = '$baseUrl/api/admin/users';
+      if (role != null && role.isNotEmpty) {
+        url += '?role=$role';
+      }
+      final res = await http.get(Uri.parse(url), headers: _headers);
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      return {'ok': false, 'users': []};
+    } catch (e) {
+      return {'ok': false, 'users': [], 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminGetDashboardStats() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/admin/dashboard'), headers: _headers);
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      return {'ok': false, 'message': 'Failed to load dashboard stats'};
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
   void dispose() {}
 }

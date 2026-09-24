@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/medicine.dart';
+import '../../../core/responsive.dart';
 
 class ExpiryCalendarScreen extends StatefulWidget {
   final List<Medicine> medicines;
@@ -31,8 +32,11 @@ class _ExpiryCalendarScreenState extends State<ExpiryCalendarScreen> {
       appBar: AppBar(
         title: const Text('Expiry Calendar'),
       ),
-      body: Column(
-        children: [
+      body: Center(
+        child: ResponsiveContentWrapper(
+          maxWidth: 720,
+          child: Column(
+            children: [
           Card(
             margin: const EdgeInsets.all(12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -152,7 +156,9 @@ class _ExpiryCalendarScreenState extends State<ExpiryCalendarScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 }
 

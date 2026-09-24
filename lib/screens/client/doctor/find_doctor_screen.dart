@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/doctor_connection.dart';
 import '../../../services/doctor_service.dart';
+import '../../../core/responsive.dart';
 
 class FindDoctorScreen extends StatefulWidget {
   const FindDoctorScreen({super.key});
@@ -102,8 +103,11 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
+      body: Center(
+        child: ResponsiveContentWrapper(
+          maxWidth: 1100,
+          child: Column(
+            children: [
           // Search & Filter Header
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -299,12 +303,32 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
 
                 return RefreshIndicator(
                   onRefresh: _fetchDoctors,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: doctors.length,
-                    itemBuilder: (context, index) {
-                      final doc = doctors[index];
-                      return _buildDoctorCard(context, doc);
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth >= 650) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 520,
+                            mainAxisExtent: 200,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: doctors.length,
+                          itemBuilder: (context, index) {
+                            final doc = doctors[index];
+                            return _buildDoctorCard(context, doc);
+                          },
+                        );
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: doctors.length,
+                        itemBuilder: (context, index) {
+                          final doc = doctors[index];
+                          return _buildDoctorCard(context, doc);
+                        },
+                      );
                     },
                   ),
                 );
@@ -313,7 +337,9 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildDoctorCard(BuildContext context, DoctorModel doctor) {

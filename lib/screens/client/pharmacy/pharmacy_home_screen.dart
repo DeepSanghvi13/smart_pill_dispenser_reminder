@@ -7,6 +7,7 @@ import '../../../models/shop_profile.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/medical_shop_service.dart';
 import '../../../widgets/app_drawer.dart';
+import '../../../core/responsive.dart';
 
 class PharmacyHomeScreen extends StatefulWidget {
   const PharmacyHomeScreen({super.key});
@@ -97,10 +98,12 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: Text(existing == null ? 'Add Medicine to Inventory' : 'Edit Inventory Item'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TextField(
                   controller: nameCtrl,
@@ -231,6 +234,7 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
               ],
             ),
           ),
+        ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -383,13 +387,18 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildInventoryTab(theme),
-                _buildOrdersTab(theme),
-                _buildProfileTab(theme, auth),
-              ],
+          : Center(
+              child: ResponsiveContentWrapper(
+                maxWidth: 1200,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildInventoryTab(theme),
+                    _buildOrdersTab(theme),
+                    _buildProfileTab(theme, auth),
+                  ],
+                ),
+              ),
             ),
       floatingActionButton: _tabController.index == 0
           ? FloatingActionButton.extended(
@@ -504,12 +513,32 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                       ],
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, idx) {
-                      final item = filtered[idx];
-                      return _buildInventoryCard(context, item, theme);
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth >= 650) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 480,
+                            mainAxisExtent: 185,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, idx) {
+                            final item = filtered[idx];
+                            return _buildInventoryCard(context, item, theme);
+                          },
+                        );
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, idx) {
+                          final item = filtered[idx];
+                          return _buildInventoryCard(context, item, theme);
+                        },
+                      );
                     },
                   ),
           ),
@@ -739,12 +768,32 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                       ],
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, idx) {
-                      final order = filtered[idx];
-                      return _buildPharmacyOrderCard(context, order, theme);
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth >= 650) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 520,
+                            mainAxisExtent: 220,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, idx) {
+                            final order = filtered[idx];
+                            return _buildPharmacyOrderCard(context, order, theme);
+                          },
+                        );
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, idx) {
+                          final order = filtered[idx];
+                          return _buildPharmacyOrderCard(context, order, theme);
+                        },
+                      );
                     },
                   ),
           ),
@@ -911,11 +960,14 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 700),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
             child: Column(
               children: [
                 CircleAvatar(
@@ -950,8 +1002,10 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
             ),
           ),
         ),
-      ],
-    );
+      ),
+    ),
+  ],
+);
   }
 
   Widget _buildProfileDetailRow(IconData icon, String label, String value) {
@@ -982,9 +1036,11 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit Pharmacy Profile'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: shopNameCtrl,
@@ -1019,6 +1075,7 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
             ],
           ),
         ),
+      ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),

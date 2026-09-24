@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../routes/app_routes.dart';
+import '../core/responsive.dart';
 
 class AdminSidebar extends StatelessWidget {
   final String activeRoute;
@@ -47,10 +48,11 @@ class AdminSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      width: 280,
+    return Material(
       color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      child: Column(
+      child: SizedBox(
+        width: 280,
+        child: Column(
         children: [
           // Header
           Container(
@@ -178,6 +180,7 @@ class AdminSidebar extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -198,8 +201,7 @@ class AdminLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 900;
+    final isDesktop = Responsive.width(context) >= 900;
 
     return Scaffold(
       appBar: isDesktop

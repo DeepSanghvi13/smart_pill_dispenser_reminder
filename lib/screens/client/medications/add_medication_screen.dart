@@ -9,6 +9,7 @@ import '../../../services/database_service.dart';
 import '../../../services/medicine_scan_service.dart';
 import '../../../services/medicine_suggestion_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../core/responsive.dart';
 
 class AddMedicationScreen extends StatefulWidget {
   final Medicine? medicine; // null = add, not null = edit
@@ -346,11 +347,13 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         title: Text(widget.medicine == null ? 'Add Medication' : 'Edit Medication'),
       ),
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
+        child: ResponsiveFormContainer(
+          maxWidth: 720,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
               if (!kIsWeb)
                 Row(
                   children: [
@@ -686,7 +689,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 

@@ -144,30 +144,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         side: BorderSide(color: color.withValues(alpha: 0.15)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 28),
+              child: Icon(icon, color: color, size: 24),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     title,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     value,
-                    style: theme.textTheme.titleLarge?.copyWith(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.onSurface,
                     ),
@@ -184,8 +189,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 900;
 
     return AdminLayout(
       title: 'Admin Dashboard',
@@ -198,71 +201,76 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 padding: const EdgeInsets.all(24),
                 children: [
                   // KPI Grid
-                  GridView.count(
-                    crossAxisCount: isDesktop ? 4 : (width > 600 ? 2 : 1),
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    shrinkWrap: true,
-                    childAspectRatio: isDesktop ? 2.5 : (width > 600 ? 2.2 : 3.0),
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _buildKPICard(
-                        context,
-                        title: 'Total Users',
-                        value: _totalUsers.toString(),
-                        icon: Icons.people_outline,
-                        color: Colors.blue,
-                      ),
-                      _buildKPICard(
-                        context,
-                        title: 'Total Patients',
-                        value: _totalPatients.toString(),
-                        icon: Icons.healing_outlined,
-                        color: Colors.teal,
-                      ),
-                      _buildKPICard(
-                        context,
-                        title: 'Total Caretakers',
-                        value: _totalCaretakers.toString(),
-                        icon: Icons.supervised_user_circle_outlined,
-                        color: Colors.indigo,
-                      ),
-                      _buildKPICard(
-                        context,
-                        title: 'Total Medicines',
-                        value: _totalMedicines.toString(),
-                        icon: Icons.medication_outlined,
-                        color: Colors.orange,
-                      ),
-                      _buildKPICard(
-                        context,
-                        title: 'Doses Taken Today',
-                        value: _takenToday.toString(),
-                        icon: Icons.check_circle_outline,
-                        color: Colors.green,
-                      ),
-                      _buildKPICard(
-                        context,
-                        title: 'Doses Missed Today',
-                        value: _missedToday.toString(),
-                        icon: Icons.cancel_outlined,
-                        color: Colors.red,
-                      ),
-                      _buildKPICard(
-                        context,
-                        title: 'Pending Reminders',
-                        value: _pendingReminders.toString(),
-                        icon: Icons.alarm_outlined,
-                        color: Colors.purple,
-                      ),
-                      _buildKPICard(
-                        context,
-                        title: 'Active Users',
-                        value: _activeUsers.toString(),
-                        icon: Icons.check_outlined,
-                        color: Colors.teal,
-                      ),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cols = (constraints.maxWidth / 240).floor().clamp(1, 4);
+                      return GridView.count(
+                        crossAxisCount: cols,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        shrinkWrap: true,
+                        childAspectRatio: cols == 1 ? 3.2 : (cols == 2 ? 2.4 : 2.6),
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildKPICard(
+                            context,
+                            title: 'Total Users',
+                            value: _totalUsers.toString(),
+                            icon: Icons.people_outline,
+                            color: Colors.blue,
+                          ),
+                          _buildKPICard(
+                            context,
+                            title: 'Total Patients',
+                            value: _totalPatients.toString(),
+                            icon: Icons.healing_outlined,
+                            color: Colors.teal,
+                          ),
+                          _buildKPICard(
+                            context,
+                            title: 'Total Caretakers',
+                            value: _totalCaretakers.toString(),
+                            icon: Icons.supervised_user_circle_outlined,
+                            color: Colors.indigo,
+                          ),
+                          _buildKPICard(
+                            context,
+                            title: 'Total Medicines',
+                            value: _totalMedicines.toString(),
+                            icon: Icons.medication_outlined,
+                            color: Colors.orange,
+                          ),
+                          _buildKPICard(
+                            context,
+                            title: 'Doses Taken Today',
+                            value: _takenToday.toString(),
+                            icon: Icons.check_circle_outline,
+                            color: Colors.green,
+                          ),
+                          _buildKPICard(
+                            context,
+                            title: 'Doses Missed Today',
+                            value: _missedToday.toString(),
+                            icon: Icons.cancel_outlined,
+                            color: Colors.red,
+                          ),
+                          _buildKPICard(
+                            context,
+                            title: 'Pending Reminders',
+                            value: _pendingReminders.toString(),
+                            icon: Icons.alarm_outlined,
+                            color: Colors.purple,
+                          ),
+                          _buildKPICard(
+                            context,
+                            title: 'Active Users',
+                            value: _activeUsers.toString(),
+                            icon: Icons.check_outlined,
+                            color: Colors.teal,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
 

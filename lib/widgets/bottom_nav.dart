@@ -16,10 +16,9 @@ class BottomNav extends StatelessWidget {
       currentIndex: index,
       onTap: onTap,
 
-      // ðŸ”¹ IMPORTANT COLOR FIX
-      selectedItemColor: Theme.of(context).primaryColor,
+      selectedItemColor: Theme.of(context).colorScheme.primary,
       unselectedItemColor: Colors.grey.shade600,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       type: BottomNavigationBarType.fixed,
 
       items: const [

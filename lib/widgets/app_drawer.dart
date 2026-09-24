@@ -15,8 +15,8 @@ class AppDrawer extends StatelessWidget {
     final email = context.watch<AuthService>().currentUser ?? 'guest';
 
     return Drawer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ListView(
+        padding: EdgeInsets.zero,
         children: [
           // Drawer Header with Profile Info
           FutureBuilder<UserProfile?>(
@@ -141,9 +141,7 @@ class AppDrawer extends StatelessWidget {
               Navigator.pushNamed(context, AppRoutes.manage);
             },
           ),
-          const Divider(),
-          const Spacer(),
-          const Divider(),
+          const Divider(height: 24),
           // Logout
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.orange),

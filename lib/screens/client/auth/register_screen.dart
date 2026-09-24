@@ -425,7 +425,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return OutlinedButton.icon(
       icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
+      label: Text(
+        label,
+        style: const TextStyle(fontSize: 12),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       style: OutlinedButton.styleFrom(
         backgroundColor: isSelected
             ? theme.colorScheme.primaryContainer

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/medicine.dart';
+import '../../../core/responsive.dart';
 
 class MedicationsScreen extends StatelessWidget {
   final List<Medicine> medicines;
@@ -50,12 +51,36 @@ class MedicationsScreen extends StatelessWidget {
                     ],
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: medicines.length,
-                  itemBuilder: (context, index) {
-                    final med = medicines[index];
-                    final expiryText = 'Expiry: ${med.formattedExpiryDate}';
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth >= 650) {
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 520,
+                          mainAxisExtent: 220,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
+                        itemCount: medicines.length,
+                        itemBuilder: (context, index) => _buildMedicineCard(context, index, theme),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: medicines.length,
+                      itemBuilder: (context, index) => _buildMedicineCard(context, index, theme),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMedicineCard(BuildContext context, int index, ThemeData theme) {
+    final med = medicines[index];
+    final expiryText = 'Expiry: ${med.formattedExpiryDate}';
 
                     // Color based on category type
                     Color categoryColor;
@@ -291,11 +316,6 @@ class MedicationsScreen extends StatelessWidget {
                         ),
                       ),
                     );
-                  },
-                ),
-        ),
-      ],
-    );
   }
 
   Widget _buildMiniChip(BuildContext context, IconData icon, String text, Color color) {
@@ -327,26 +347,26 @@ class MedicationsScreen extends StatelessWidget {
   }
 
   void _showDeleteConfirm(BuildContext context, String medName, VoidCallback onConfirm) {
-    showDialog(
+    ResponsiveDialog.show(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete Medication'),
-        content: Text('Are you sure you want to delete "$medName"? This will also cancel all future reminders for it.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              onConfirm();
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Delete Medication',
+      icon: Icons.delete_outline,
+      iconColor: Colors.red,
+      content: Text('Are you sure you want to delete "$medName"? This will also cancel all future reminders for it.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            onConfirm();
+          },
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('Delete'),
+        ),
+      ],
     );
   }
 }

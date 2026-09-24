@@ -6,6 +6,7 @@ import '../../../providers/cart_provider.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/medical_shop_service.dart';
+import '../../../core/responsive.dart';
 
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 
@@ -143,9 +144,11 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
+      body: ResponsiveContentWrapper(
+        maxWidth: 1200,
+        child: TabBarView(
+          controller: _tabController,
+          children: [
           // Tab 1: Catalog
           RefreshIndicator(
             onRefresh: _loadCatalog,
@@ -328,12 +331,32 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
                                 ],
                               ),
                             )
-                          : ListView.builder(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: _catalog.length,
-                              itemBuilder: (context, index) {
-                                final item = _catalog[index];
-                                return _buildCatalogItemCard(context, item, cart);
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                if (constraints.maxWidth >= 650) {
+                                  return GridView.builder(
+                                    padding: const EdgeInsets.all(16),
+                                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                      maxCrossAxisExtent: 460,
+                                      mainAxisExtent: 220,
+                                      crossAxisSpacing: 16,
+                                      mainAxisSpacing: 16,
+                                    ),
+                                    itemCount: _catalog.length,
+                                    itemBuilder: (context, index) {
+                                      final item = _catalog[index];
+                                      return _buildCatalogItemCard(context, item, cart);
+                                    },
+                                  );
+                                }
+                                return ListView.builder(
+                                  padding: const EdgeInsets.all(16),
+                                  itemCount: _catalog.length,
+                                  itemBuilder: (context, index) {
+                                    final item = _catalog[index];
+                                    return _buildCatalogItemCard(context, item, cart);
+                                  },
+                                );
                               },
                             ),
                 ),
@@ -378,6 +401,7 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
           ),
         ],
       ),
+    ),
       floatingActionButton: cart.itemCount > 0
           ? FloatingActionButton.extended(
               backgroundColor: theme.colorScheme.primary,

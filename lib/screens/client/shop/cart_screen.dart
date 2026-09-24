@@ -5,6 +5,7 @@ import '../../../providers/cart_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/medical_shop_service.dart';
+import '../../../core/responsive.dart';
 
 class CartScreen extends StatefulWidget {
   final String? patientEmail;
@@ -231,9 +232,12 @@ class _CartScreenState extends State<CartScreen> {
                 ],
               ),
             )
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
+          : Center(
+              child: ResponsiveContentWrapper(
+                maxWidth: 800,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
                 // Patient notice for Caretaker
                 if (isCaretaker)
                   Container(
@@ -525,6 +529,8 @@ class _CartScreenState extends State<CartScreen> {
                 const SizedBox(height: 32),
               ],
             ),
+          ),
+        ),
     );
   }
 }

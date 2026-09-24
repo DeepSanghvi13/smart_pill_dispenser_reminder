@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../../widgets/photo_card.dart';
 import '../../widgets/photo_picker_bottom_sheet.dart';
 import '../../routes/app_routes.dart';
+import '../../core/responsive.dart';
 
 class MyPhotosScreen extends StatefulWidget {
   const MyPhotosScreen({super.key});
@@ -44,74 +45,76 @@ class _MyPhotosScreenState extends State<MyPhotosScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          photoProvider.loadPhotos(currentUserId);
-        },
-        child: photoProvider.isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : userPhotos.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-                      Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
+      body: ResponsiveContentWrapper(
+        maxWidth: 1200,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            photoProvider.loadPhotos(currentUserId);
+          },
+          child: photoProvider.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : userPhotos.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(height: Responsive.height(context) * 0.15),
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.photo_library_outlined,
+                                  size: 64,
+                                  color: theme.colorScheme.primary,
+                                ),
                               ),
-                              child: Icon(
-                                Icons.photo_library_outlined,
-                                size: 64,
-                                color: theme.colorScheme.primary,
+                              const SizedBox(height: 16),
+                              Text(
+                                'No Photos Saved Yet',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No Photos Saved Yet',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 32),
+                                child: Text(
+                                  'Tap the button below or on your Home screen to add your first photo.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 32),
-                              child: Text(
-                                'Tap the button below or on your Home screen to add your first photo.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: () => PhotoPickerBottomSheet.show(context),
+                                icon: const Icon(Icons.camera_alt),
+                                label: const Text('Add Photo'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 20),
-                            ElevatedButton.icon(
-                              onPressed: () => PhotoPickerBottomSheet.show(context),
-                              icon: const Icon(Icons.camera_alt),
-                              label: const Text('Add Photo'),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
+                      ],
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 260,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: 0.85,
                       ),
-                    ],
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.9,
-                    ),
-                    itemCount: userPhotos.length,
+                      itemCount: userPhotos.length,
                     itemBuilder: (context, index) {
                       final photo = userPhotos[index];
                       return PhotoCard(
@@ -126,6 +129,7 @@ class _MyPhotosScreenState extends State<MyPhotosScreen> {
                       );
                     },
                   ),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => PhotoPickerBottomSheet.show(context),

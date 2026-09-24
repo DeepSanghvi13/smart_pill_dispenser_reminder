@@ -10,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../services/mysql_api_service.dart';
 import '../../widgets/sql_status_card.dart';
+import '../../core/responsive.dart';
 
 class SqlConnectionStatusScreen extends StatefulWidget {
   const SqlConnectionStatusScreen({super.key});
@@ -251,9 +252,12 @@ class _SqlConnectionStatusScreenState extends State<SqlConnectionStatusScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshStatus,
-        child: ListView(
+      body: Center(
+        child: ResponsiveContentWrapper(
+          maxWidth: 900,
+          child: RefreshIndicator(
+            onRefresh: _refreshStatus,
+            child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(12),
           children: [
@@ -433,6 +437,8 @@ class _SqlConnectionStatusScreenState extends State<SqlConnectionStatusScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }

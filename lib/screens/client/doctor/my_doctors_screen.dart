@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../models/doctor_connection.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/doctor_service.dart';
+import '../../../core/responsive.dart';
 
 class MyDoctorsScreen extends StatefulWidget {
   const MyDoctorsScreen({super.key});
@@ -95,9 +96,12 @@ class _MyDoctorsScreenState extends State<MyDoctorsScreen> {
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: Colors.white,
       ),
-      body: AnimatedBuilder(
-        animation: doctorService,
-        builder: (context, _) {
+      body: Center(
+        child: ResponsiveContentWrapper(
+          maxWidth: 1100,
+          child: AnimatedBuilder(
+            animation: doctorService,
+            builder: (context, _) {
           if (doctorService.isLoading && doctorService.myDoctors.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -154,12 +158,44 @@ class _MyDoctorsScreenState extends State<MyDoctorsScreen> {
 
           return RefreshIndicator(
             onRefresh: () => doctorService.loadMyDoctors(),
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-              itemCount: doctors.length,
-              itemBuilder: (context, index) {
-                final doc = doctors[index];
-                return Card(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= 650) {
+                  return GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 520,
+                      mainAxisExtent: 220,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemCount: doctors.length,
+                    itemBuilder: (context, index) {
+                      final doc = doctors[index];
+                      return _buildDoctorCard(context, doc, theme);
+                    },
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                  itemCount: doctors.length,
+                  itemBuilder: (context, index) {
+                    final doc = doctors[index];
+                    return _buildDoctorCard(context, doc, theme);
+                  },
+                );
+              },
+            ),
+          );
+        },
+      ),
+    ),
+  ),
+);
+  }
+
+  Widget _buildDoctorCard(BuildContext context, DoctorModel doc, ThemeData theme) {
+    return Card(
                   margin: const EdgeInsets.only(bottom: 14),
                   elevation: 2,
                   shadowColor: Colors.black.withValues(alpha: 0.06),
@@ -385,11 +421,5 @@ class _MyDoctorsScreenState extends State<MyDoctorsScreen> {
                     ),
                   ),
                 );
-              },
-            ),
-          );
-        },
-      ),
-    );
   }
 }

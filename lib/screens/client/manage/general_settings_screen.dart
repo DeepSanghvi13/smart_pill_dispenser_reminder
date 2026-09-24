@@ -4,7 +4,6 @@ import '../../../theme/theme_controller.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/hive_service.dart';
-import '../../../models/user.dart';
 
 
 class GeneralSettingsScreen extends StatefulWidget {

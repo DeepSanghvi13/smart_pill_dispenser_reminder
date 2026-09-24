@@ -377,31 +377,36 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Single
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Connect Caretaker & Patient'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: selectedCaretaker,
-                decoration: const InputDecoration(labelText: 'Caretaker', prefixIcon: Icon(Icons.supervised_user_circle)),
-                items: caretakers.map((u) => DropdownMenuItem(value: u.email, child: Text(u.fullName))).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setDialogState(() => selectedCaretaker = val);
-                  }
-                },
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCaretaker,
+                    decoration: const InputDecoration(labelText: 'Caretaker', prefixIcon: Icon(Icons.supervised_user_circle)),
+                    items: caretakers.map((u) => DropdownMenuItem(value: u.email, child: Text(u.fullName))).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedCaretaker = val);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedPatient,
+                    decoration: const InputDecoration(labelText: 'Patient', prefixIcon: Icon(Icons.person)),
+                    items: patients.map((u) => DropdownMenuItem(value: u.email, child: Text(u.fullName))).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedPatient = val);
+                      }
+                    },
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: selectedPatient,
-                decoration: const InputDecoration(labelText: 'Patient', prefixIcon: Icon(Icons.person)),
-                items: patients.map((u) => DropdownMenuItem(value: u.email, child: Text(u.fullName))).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setDialogState(() => selectedPatient = val);
-                  }
-                },
-              ),
-            ],
+            ),
           ),
           actions: [
             TextButton(

@@ -9,11 +9,12 @@ import '../../../providers/photo_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/hive_service.dart';
-import '../../../widgets/bottom_nav.dart';
+import '../../../widgets/adaptive_scaffold.dart';
 import '../../../widgets/app_drawer.dart';
 import '../../../widgets/photo_picker_bottom_sheet.dart';
 import '../../../core/image_helper.dart';
 import '../../../core/validators.dart';
+import '../../../core/responsive.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
 
 import '../updates/updates_screen.dart';
@@ -202,15 +203,40 @@ class _HomeScreenState extends State<HomeScreen> {
         final userName = profile?.fullName ?? currentUserEmail.split('@').first;
         final profilePic = profile?.profilePicture;
 
-        return Scaffold(
+        return AdaptiveScaffold(
+          currentIndex: _currentIndex,
+          onNavigationChanged: (i) => setState(() => _currentIndex = i),
+          destinations: const [
+            AdaptiveNavigationItem(
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home,
+              label: 'Home',
+            ),
+            AdaptiveNavigationItem(
+              icon: Icons.update,
+              label: 'Updates',
+            ),
+            AdaptiveNavigationItem(
+              icon: Icons.medication_outlined,
+              activeIcon: Icons.medication,
+              label: 'Medications',
+            ),
+            AdaptiveNavigationItem(
+              icon: Icons.manage_accounts_outlined,
+              activeIcon: Icons.manage_accounts,
+              label: 'Manage',
+            ),
+          ],
           drawer: const AppDrawer(),
           appBar: AppBar(
             title: Text(
               _currentIndex == 0 
                   ? (isCare ? 'Caregiver Dashboard' : 'MedReminder') 
-                  : _currentIndex == 2 
-                      ? 'My Medications' 
-                      : 'Settings'
+                  : _currentIndex == 1
+                      ? 'Updates'
+                      : _currentIndex == 2 
+                          ? 'My Medications' 
+                          : 'Settings'
             ),
             actions: [
               if (_currentIndex == 0 && !isCare)
@@ -229,7 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          body: _buildCurrentPage(medicines, userName, profilePic, isCare),
+          body: ResponsiveContentWrapper(
+            maxWidth: 1200,
+            child: _buildCurrentPage(medicines, userName, profilePic, isCare),
+          ),
           floatingActionButton: (_currentIndex == 0 || _currentIndex == 2)
               ? FloatingActionButton(
                   backgroundColor: Theme.of(context).colorScheme.primary,
@@ -238,10 +267,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: const Icon(Icons.add),
                 )
               : null,
-          bottomNavigationBar: BottomNav(
-            index: _currentIndex,
-            onTap: (i) => setState(() => _currentIndex = i),
-          ),
         );
       },
     );
@@ -522,6 +547,49 @@ class HomeBody extends StatelessWidget {
 
   Widget _buildPatientQuickActions(BuildContext context) {
     final theme = Theme.of(context);
+    final buttons = [
+      _quickActionButton(
+        context: context,
+        icon: Icons.add_circle_outline,
+        label: 'Add Medicine',
+        color: Colors.blue,
+        onTap: onAddMed,
+      ),
+      _quickActionButton(
+        context: context,
+        icon: Icons.local_pharmacy_outlined,
+        label: 'Medical Shop',
+        color: Colors.indigo,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.medicalShop),
+      ),
+      _quickActionButton(
+        context: context,
+        icon: Icons.camera_alt_outlined,
+        label: 'Add Photo',
+        color: Colors.purple,
+        onTap: () => PhotoPickerBottomSheet.show(context),
+      ),
+      _quickActionButton(
+        context: context,
+        icon: Icons.photo_library_outlined,
+        label: 'My Photos',
+        color: Colors.teal,
+        onTap: () {
+          final auth = context.read<AuthService>();
+          final photoProvider = context.read<PhotoProvider>();
+          photoProvider.loadPhotos(auth.currentUser);
+          Navigator.pushNamed(context, AppRoutes.myPhotos);
+        },
+      ),
+      _quickActionButton(
+        context: context,
+        icon: Icons.people_outline,
+        label: 'My Caretaker',
+        color: Colors.orange,
+        onTap: () => _showCaretakerDialog(context),
+      ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -530,56 +598,27 @@ class HomeBody extends StatelessWidget {
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _quickActionButton(
-                context: context,
-                icon: Icons.add_circle_outline,
-                label: 'Add Medicine',
-                color: Colors.blue,
-                onTap: onAddMed,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 540) {
+              return Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                children: buttons,
+              );
+            }
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (int i = 0; i < buttons.length; i++) ...[
+                    buttons[i],
+                    if (i < buttons.length - 1) const SizedBox(width: 8),
+                  ],
+                ],
               ),
-              const SizedBox(width: 8),
-              _quickActionButton(
-                context: context,
-                icon: Icons.local_pharmacy_outlined,
-                label: 'Medical Shop',
-                color: Colors.indigo,
-                onTap: () => Navigator.pushNamed(context, AppRoutes.medicalShop),
-              ),
-              const SizedBox(width: 8),
-              _quickActionButton(
-                context: context,
-                icon: Icons.camera_alt_outlined,
-                label: 'Add Photo',
-                color: Colors.purple,
-                onTap: () => PhotoPickerBottomSheet.show(context),
-              ),
-              const SizedBox(width: 8),
-              _quickActionButton(
-                context: context,
-                icon: Icons.photo_library_outlined,
-                label: 'My Photos',
-                color: Colors.teal,
-                onTap: () {
-                  final auth = context.read<AuthService>();
-                  final photoProvider = context.read<PhotoProvider>();
-                  photoProvider.loadPhotos(auth.currentUser);
-                  Navigator.pushNamed(context, AppRoutes.myPhotos);
-                },
-              ),
-              const SizedBox(width: 8),
-              _quickActionButton(
-                context: context,
-                icon: Icons.people_outline,
-                label: 'My Caretaker',
-                color: Colors.orange,
-                onTap: () => _showCaretakerDialog(context),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
@@ -631,36 +670,33 @@ class HomeBody extends StatelessWidget {
   void _showCaretakerDialog(BuildContext context) {
     final auth = context.read<AuthService>();
     final caretakers = auth.getConnectedCaretakers();
-    showDialog(
+    ResponsiveDialog.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('My Connected Caretakers'),
-        content: caretakers.isEmpty
-            ? const Text(
-                'No caretakers connected yet.\n\nTo connect with a caretaker, ask them to connect using your unique Connection Code found in your profile.',
-              )
-            : SizedBox(
-                width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: caretakers.length,
-                  itemBuilder: (ctx, i) {
-                    final c = caretakers[i];
-                    return ListTile(
-                      leading: const CircleAvatar(child: Icon(Icons.person)),
-                      title: Text(c.fullName),
-                      subtitle: Text(c.email),
-                    );
-                  },
-                ),
-              ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+      title: 'My Connected Caretakers',
+      icon: Icons.people_outline,
+      content: caretakers.isEmpty
+          ? const Text(
+              'No caretakers connected yet.\n\nTo connect with a caretaker, ask them to connect using your unique Connection Code found in your profile.',
+            )
+          : ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: caretakers.length,
+              itemBuilder: (ctx, i) {
+                final c = caretakers[i];
+                return ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(c.fullName),
+                  subtitle: Text(c.email),
+                );
+              },
+            ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 

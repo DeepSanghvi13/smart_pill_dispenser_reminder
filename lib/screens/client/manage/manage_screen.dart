@@ -9,6 +9,7 @@ import '../../../services/hive_service.dart';
 import '../../../models/user_profile.dart';
 import '../../../services/database_service.dart';
 import 'create_profile_screen.dart';
+import '../../../core/responsive.dart';
 
 class ManageScreen extends StatefulWidget {
   const ManageScreen({super.key});
@@ -56,10 +57,13 @@ class _ManageScreenState extends State<ManageScreen> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Privacy Policy'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Your privacy is extremely important to us. MedReminder stores all of your personal details, profile picture, medication logs, and notification reminders directly on your local device. We do not transmit or upload your health records or personal identifiers to any remote servers.\n\nYour data remains securely on your device unless you choose to wipe the application data or delete your account, which completely clears all stored variables from local sandbox storage.',
-            style: TextStyle(fontSize: 14, height: 1.4),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: const SingleChildScrollView(
+            child: Text(
+              'Your privacy is extremely important to us. MedReminder stores all of your personal details, profile picture, medication logs, and notification reminders directly on your local device. We do not transmit or upload your health records or personal identifiers to any remote servers.\n\nYour data remains securely on your device unless you choose to wipe the application data or delete your account, which completely clears all stored variables from local sandbox storage.',
+              style: TextStyle(fontSize: 14, height: 1.4),
+            ),
           ),
         ),
         actions: [
@@ -78,26 +82,29 @@ class _ManageScreenState extends State<ManageScreen> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Help & Support'),
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Frequently Asked Questions:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Q: How do I mark a medicine as taken?\nA: Simply press the checkmark button next to any medication card on the Home Screen.',
-                style: TextStyle(fontSize: 14, height: 1.4),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Q: Are my medications private?\nA: Yes, all records are stored in your local Hive database and never shared.',
-                style: TextStyle(fontSize: 14, height: 1.4),
-              ),
-            ],
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: const SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Frequently Asked Questions:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Q: How do I mark a medicine as taken?\nA: Simply press the checkmark button next to any medication card on the Home Screen.',
+                  style: TextStyle(fontSize: 14, height: 1.4),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Q: Are my medications private?\nA: Yes, all records are stored in your local Hive database and never shared.',
+                  style: TextStyle(fontSize: 14, height: 1.4),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -116,24 +123,29 @@ class _ManageScreenState extends State<ManageScreen> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('About MedReminder'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.medication_liquid, size: 64, color: Colors.blue),
-            SizedBox(height: 16),
-            Text(
-              'MedReminder App',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.medication_liquid, size: 64, color: Colors.blue),
+                SizedBox(height: 16),
+                Text(
+                  'MedReminder App',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                SizedBox(height: 4),
+                Text('Version 3.0.0 (Local Hive Caretaker Build)', style: TextStyle(color: Colors.grey)),
+                SizedBox(height: 16),
+                Text(
+                  'Designed to manage your medicine reminder requirements locally and privately with support for Caregivers.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
             ),
-            SizedBox(height: 4),
-            Text('Version 3.0.0 (Local Hive Caretaker Build)', style: TextStyle(color: Colors.grey)),
-            SizedBox(height: 16),
-            Text(
-              'Designed to manage your medicine reminder requirements locally and privately with support for Caregivers.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14),
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -229,9 +241,12 @@ class _ManageScreenState extends State<ManageScreen> {
       builder: (context, currentThemeMode, _) {
         final isDarkMode = currentThemeMode == ThemeMode.dark;
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+        return Center(
+          child: ResponsiveContentWrapper(
+            maxWidth: 800,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
             // Settings Header Section
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -565,9 +580,11 @@ class _ManageScreenState extends State<ManageScreen> {
               onTap: _handleDeleteAccount,
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
+  },
+);
 
     if (canPop) {
       return Scaffold(

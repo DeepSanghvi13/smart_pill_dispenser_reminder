@@ -11,6 +11,7 @@ import '../../../services/database_service.dart';
 import '../../../services/doctor_service.dart';
 import '../../../services/medical_shop_service.dart';
 import '../../../widgets/app_drawer.dart';
+import '../../../core/responsive.dart';
 
 class DoctorHomeScreen extends StatefulWidget {
   const DoctorHomeScreen({super.key});
@@ -279,10 +280,12 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
               Text('Issue Prescription'),
             ],
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: selectedPatient,
@@ -403,6 +406,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
               ],
             ),
           ),
+        ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -485,10 +489,13 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshAll,
-        child: CustomScrollView(
-          slivers: [
+      body: Center(
+        child: ResponsiveContentWrapper(
+          maxWidth: 1100,
+          child: RefreshIndicator(
+            onRefresh: _refreshAll,
+            child: CustomScrollView(
+              slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
@@ -579,10 +586,10 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                         final caretakersCount = doctorService.myCaretakers.length;
                         final prescriptionsCount = _doctorPrescriptions.length;
 
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isWide = constraints.maxWidth >= 550;
+                            final cards = [
                               _buildStatCard(
                                 context: context,
                                 label: 'Requests',
@@ -591,8 +598,8 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                 icon: Icons.pending_actions,
                                 tabIndex: 0,
                                 isSelected: _selectedTabIndex == 0,
+                                isWide: isWide,
                               ),
-                              const SizedBox(width: 8),
                               _buildStatCard(
                                 context: context,
                                 label: 'Patients',
@@ -601,8 +608,8 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                 icon: Icons.healing,
                                 tabIndex: 1,
                                 isSelected: _selectedTabIndex == 1,
+                                isWide: isWide,
                               ),
-                              const SizedBox(width: 8),
                               _buildStatCard(
                                 context: context,
                                 label: 'Caretakers',
@@ -611,8 +618,8 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                 icon: Icons.people,
                                 tabIndex: 2,
                                 isSelected: _selectedTabIndex == 2,
+                                isWide: isWide,
                               ),
-                              const SizedBox(width: 8),
                               _buildStatCard(
                                 context: context,
                                 label: 'Prescriptions',
@@ -621,8 +628,8 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                 icon: Icons.description,
                                 tabIndex: 3,
                                 isSelected: _selectedTabIndex == 3,
+                                isWide: isWide,
                               ),
-                              const SizedBox(width: 8),
                               _buildStatCard(
                                 context: context,
                                 label: 'Appointments',
@@ -631,9 +638,33 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                 icon: Icons.event,
                                 tabIndex: 4,
                                 isSelected: _selectedTabIndex == 4,
+                                isWide: isWide,
                               ),
-                            ],
-                          ),
+                            ];
+
+                            if (isWide) {
+                              return Row(
+                                children: [
+                                  for (int i = 0; i < cards.length; i++) ...[
+                                    if (i > 0) const SizedBox(width: 8),
+                                    Expanded(child: cards[i]),
+                                  ],
+                                ],
+                              );
+                            } else {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    for (int i = 0; i < cards.length; i++) ...[
+                                      if (i > 0) const SizedBox(width: 8),
+                                      cards[i],
+                                    ],
+                                  ],
+                                ),
+                              );
+                            }
+                          },
                         );
                       },
                     ),
@@ -714,6 +745,8 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
           ],
         ),
       ),
+    ),
+  ),
       floatingActionButton: _selectedTabIndex == 3
           ? FloatingActionButton.extended(
               backgroundColor: Colors.deepPurple,
@@ -734,6 +767,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
     required IconData icon,
     required int tabIndex,
     required bool isSelected,
+    bool isWide = false,
   }) {
     return Card(
       elevation: isSelected ? 2 : 0,
@@ -753,7 +787,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
           });
         },
         child: Container(
-          width: 96,
+          width: isWide ? null : 96,
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           child: Column(
             children: [

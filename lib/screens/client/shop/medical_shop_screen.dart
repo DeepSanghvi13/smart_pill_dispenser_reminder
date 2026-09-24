@@ -227,7 +227,12 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
                             borderSide: BorderSide.none,
                           ),
                         ),
-                        onSubmitted: (_) => _loadCatalog(),
+                        onSubmitted: (_) {
+                          setState(() {
+                            _selectedCategory = 'All';
+                          });
+                          _loadCatalog();
+                        },
                       );
                     },
                     suggestionsCallback: (pattern) async {
@@ -256,8 +261,11 @@ class _MedicalShopScreenState extends State<MedicalShopScreen> with SingleTicker
                       child: Text('No matching medicines found.'),
                     ),
                     onSelected: (ShopMedicine suggestion) {
-                      // Update search bar text and filter the list exactly to this medicine
+                      // Update search bar text and clear category filter so it's guaranteed to show
                       _searchController.text = suggestion.medicineName;
+                      setState(() {
+                        _selectedCategory = 'All';
+                      });
                       _loadCatalog();
                     },
                   ),

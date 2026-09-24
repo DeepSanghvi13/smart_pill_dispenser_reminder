@@ -82,6 +82,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
+    try {
       final res = await MySQLApiService().adminGetDashboardStats();
       
       int totalU = 0, totalP = 0, totalC = 0, totalM = 0;

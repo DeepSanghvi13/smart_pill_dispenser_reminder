@@ -68,41 +68,20 @@ class _LoginScreenState extends State<LoginScreen> {
           (route) => false,
         );
       } else if (auth.isDoctor) {
-        if (widget.isFromRegister && !auth.hasCompletedProfile()) {
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            AppRoutes.createProfile,
-            (route) => false,
-          );
-        } else {
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            AppRoutes.doctorHome,
-            (route) => false,
-          );
-        }
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.doctorHome,
+          (route) => false,
+        );
       } else if (auth.isPharmacy) {
-        if (widget.isFromRegister && !auth.hasCompletedProfile()) {
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            AppRoutes.createProfile,
-            (route) => false,
-          );
-        } else {
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            AppRoutes.pharmacyHome,
-            (route) => false,
-          );
-        }
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.pharmacyHome,
+          (route) => false,
+        );
       } else {
-        if (widget.isFromRegister && !auth.hasCompletedProfile()) {
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            AppRoutes.createProfile,
-            (route) => false,
-          );
-        } else {
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            AppRoutes.userHome,
-            (route) => false,
-          );
-        }
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.userHome,
+          (route) => false,
+        );
       }
     } else {
       showDialog(

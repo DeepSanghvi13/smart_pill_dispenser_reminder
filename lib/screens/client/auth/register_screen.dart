@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/validators.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
+import 'package:provider/provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -61,22 +62,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registration successful! Please log in with your credentials.'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      // Auto-login the user
+      final auth = context.read<AuthService>();
+      final loginSuccess = await auth.login(email, password);
 
-      // Navigate to Login page with prefilled email
       if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.login,
-        (route) => false,
-        arguments: {'email': email, 'isFromRegister': true},
-      );
+
+      if (loginSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registration successful!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.createProfile,
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registration successful! Please log in with your credentials.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.login,
+          (route) => false,
+          arguments: {'email': email},
+        );
+      }
     }
   }
 

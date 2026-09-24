@@ -274,13 +274,15 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       if (widget.isEditing || Navigator.canPop(context)) {
         Navigator.pop(context, true); // go back if editing
       } else {
-        if (isDoc) {
-          Navigator.pushReplacementNamed(context, AppRoutes.doctorHome);
-        } else if (isPharm) {
-          Navigator.pushReplacementNamed(context, AppRoutes.pharmacyHome);
-        } else {
-          Navigator.pushReplacementNamed(context, AppRoutes.userHome);
-        }
+        // User requested: Register -> Profile -> Login
+        // We log them out of the temporary registration session and route to Login
+        await auth.logout();
+        if (!mounted) return;
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.login,
+          (route) => false,
+        );
       }
     } catch (e) {
       if (!mounted) return;

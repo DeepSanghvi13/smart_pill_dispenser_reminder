@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'lib/models/shop_medicine.dart';
 
 void main() {
@@ -25,9 +26,9 @@ void main() {
   
   try {
     final sm = ShopMedicine.fromMap(map);
-    print('Parsed successfully: \${sm.name}');
+    developer.log('Parsed successfully: ${sm.name}');
   } catch (e, stack) {
-    print('Error: \$e');
-    print(stack);
+    developer.log('Error: $e');
+    developer.log(stack.toString());
   }
 }

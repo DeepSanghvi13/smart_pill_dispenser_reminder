@@ -82,6 +82,29 @@ async function query(sql, params) {
   return results;
 }
 
+async function transaction(callback) {
+  if (!pool) {
+    throw new Error('MySQL connection pool has not been initialized');
+  }
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const result = await callback({
+      query: async (sql, params) => {
+        const [rows] = await connection.query(sql, params);
+        return rows;
+      }
+    });
+    await connection.commit();
+    return result;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 async function ping() {
   await query('SELECT 1');
 }
@@ -103,6 +126,7 @@ async function generateNextId(tableName, userId) {
 module.exports = {
   connectMySQL,
   query,
+  transaction,
   ping,
   disconnectMySQL,
   generateNextId

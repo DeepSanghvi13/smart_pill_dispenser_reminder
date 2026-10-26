@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/database_service.dart';
 import '../../../services/mysql_api_service.dart';
 import '../../../widgets/admin_sidebar.dart';
-import '../../../widgets/custom_charts.dart';
-import '../../../models/user.dart';
-import '../../../models/medicine.dart';
-import '../../../routes/app_routes.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -17,478 +14,133 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  final DatabaseService _db = DatabaseService();
-  bool _isLoading = true;
-
-  int _totalUsers = 0;
-  int _totalPatients = 0;
-  int _totalCaretakers = 0;
-  int _totalMedicines = 0;
-  int _takenToday = 0;
-  int _missedToday = 0;
-  int _pendingReminders = 0;
-  int _activeUsers = 0;
-
-  List<User> _recentUsers = [];
-  List<Medicine> _recentMedicines = [];
-  List<String> _recentActivities = [];
+  final MySQLApiService _api = MySQLApiService();
+  Map<String, dynamic> _stats = const {};
+  String? _error;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _checkAccessAndLoad();
-  }
-
-  void _checkAccessAndLoad() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final auth = context.read<AuthService>();
-      if (!auth.isLoggedIn || !auth.isAdmin) {
-        // Access Denied: redirect
-        _showAccessDenied();
-        return;
-      }
-      await _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadStats();
     });
   }
 
-  void _showAccessDenied() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Access Denied'),
-        content: const Text('You do not have administrative privileges to access this area.'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              final auth = context.read<AuthService>();
-              if (auth.isLoggedIn) {
-                if (auth.isCaretaker) {
-                  Navigator.pushReplacementNamed(context, AppRoutes.caretakerHome);
-                } else {
-                  Navigator.pushReplacementNamed(context, AppRoutes.userHome);
-                }
-              } else {
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
-              }
-            },
-            child: const Text('OK'),
-          ),
-        ],
+  Future<void> _loadStats() async {
+    final auth = context.read<AuthService>();
+    if (!auth.isLoggedIn || !auth.isAdmin) {
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+      }
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final response = await _api.adminGetDashboardStats();
+    if (!mounted) return;
+    if (response['ok'] == true) {
+      setState(() {
+        _stats = Map<String, dynamic>.from(response['stats'] as Map? ?? {});
+        _loading = false;
+      });
+    } else {
+      setState(() {
+        _loading = false;
+        _error = response['message'] as String? ?? 'Unable to load dashboard statistics.';
+      });
+    }
+  }
+
+  int _number(String key) => (_stats[key] as num?)?.toInt() ?? 0;
+
+  int _roleCount(String role) {
+    final users = _stats['users'] as List<dynamic>? ?? const [];
+    for (final item in users) {
+      final row = item as Map;
+      if (row['role'] == role) return (row['count'] as num?)?.toInt() ?? 0;
+    }
+    return 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminLayout(
+      title: 'Admin Dashboard',
+      activeRoute: AppRoutes.adminDashboard,
+      body: RefreshIndicator(
+        onRefresh: _loadStats,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.all(24),
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'System overview',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                      IconButton(onPressed: _loadStats, icon: const Icon(Icons.refresh)),
+                    ],
+                  ),
+                  if (_error != null)
+                    Card(
+                      color: Colors.red.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(_error!, style: TextStyle(color: Colors.red.shade900)),
+                      ),
+                    ),
+                  GridView.count(
+                    crossAxisCount: MediaQuery.sizeOf(context).width > 1100 ? 4 : 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    shrinkWrap: true,
+                    childAspectRatio: 1.8,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _metric('Total users', _roleCount('patient') + _roleCount('caretaker') + _roleCount('doctor') + _roleCount('pharmacy') + _roleCount('admin'), Icons.people),
+                      _metric('Active users', _number('activeUsers'), Icons.verified_user),
+                      _metric('Patients', _roleCount('patient'), Icons.personal_injury),
+                      _metric('Caretakers', _roleCount('caretaker'), Icons.supervised_user_circle),
+                      _metric('Doctors', _roleCount('doctor'), Icons.medical_services),
+                      _metric('Medicines', _number('medicines'), Icons.medication),
+                      _metric('Prescriptions', _number('prescriptions'), Icons.description),
+                      _metric('Orders', _number('orders'), Icons.shopping_cart),
+                    ],
+                  ),
+                ],
+              ),
       ),
     );
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    try {
-      final res = await MySQLApiService().adminGetDashboardStats();
-      
-      int totalU = 0, totalP = 0, totalC = 0, totalM = 0;
-      
-      if (res['ok'] == true && res['stats'] != null) {
-        final stats = res['stats'];
-        final usersInfo = stats['users'] as List<dynamic>? ?? [];
-        
-        for (var row in usersInfo) {
-          final role = row['role'];
-          final count = (row['count'] as num).toInt();
-          totalU += count;
-          if (role == 'patient') totalP += count;
-          if (role == 'caretaker') totalC += count;
-          if (role == 'pharmacy') totalM += count; // Using pharmacy count as 'Total Medicines' proxy for now, or just use prescriptions
-        }
-      }
-
-      final recUsers = await _db.adminGetRecentRegistrations();
-      final recMeds = await _db.adminGetRecentMedicines();
-      final recAct = await _db.adminGetRecentActivities();
-
-      if (recAct.isEmpty) {
-        await _db.adminLogActivity('System Boot: Admin Panel Initialized');
-        await _db.adminLogActivity('Database Check: SQLite & Hive Boxes Synced');
-      }
-
-      setState(() {
-        _totalUsers = totalU;
-        _totalPatients = totalP;
-        _totalCaretakers = totalC;
-        _totalMedicines = totalM;
-        _takenToday = 0; // Backend implementation pending
-        _missedToday = 0; // Backend implementation pending
-        _pendingReminders = 0; // Backend implementation pending
-        _activeUsers = totalU;
-        _recentUsers = recUsers;
-        _recentMedicines = recMeds;
-        _recentActivities = recAct;
-        _isLoading = false;
-      });
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Widget _buildKPICard(
-    BuildContext context, {
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    final theme = Theme.of(context);
+  Widget _metric(String title, int value, IconData icon) {
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: color.withValues(alpha: 0.15)),
-      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
+            Icon(icon, size: 30, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
+                  Text(title, overflow: TextOverflow.ellipsis),
+                  Text('$value', style: Theme.of(context).textTheme.headlineSmall),
                 ],
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return AdminLayout(
-      title: 'Admin Dashboard',
-      activeRoute: AppRoutes.adminDashboard,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  // KPI Grid
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final cols = (constraints.maxWidth / 240).floor().clamp(1, 4);
-                      return GridView.count(
-                        crossAxisCount: cols,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        shrinkWrap: true,
-                        childAspectRatio: cols == 1 ? 3.2 : (cols == 2 ? 2.4 : 2.6),
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          _buildKPICard(
-                            context,
-                            title: 'Total Users',
-                            value: _totalUsers.toString(),
-                            icon: Icons.people_outline,
-                            color: Colors.blue,
-                          ),
-                          _buildKPICard(
-                            context,
-                            title: 'Total Patients',
-                            value: _totalPatients.toString(),
-                            icon: Icons.healing_outlined,
-                            color: Colors.teal,
-                          ),
-                          _buildKPICard(
-                            context,
-                            title: 'Total Caretakers',
-                            value: _totalCaretakers.toString(),
-                            icon: Icons.supervised_user_circle_outlined,
-                            color: Colors.indigo,
-                          ),
-                          _buildKPICard(
-                            context,
-                            title: 'Total Medicines',
-                            value: _totalMedicines.toString(),
-                            icon: Icons.medication_outlined,
-                            color: Colors.orange,
-                          ),
-                          _buildKPICard(
-                            context,
-                            title: 'Doses Taken Today',
-                            value: _takenToday.toString(),
-                            icon: Icons.check_circle_outline,
-                            color: Colors.green,
-                          ),
-                          _buildKPICard(
-                            context,
-                            title: 'Doses Missed Today',
-                            value: _missedToday.toString(),
-                            icon: Icons.cancel_outlined,
-                            color: Colors.red,
-                          ),
-                          _buildKPICard(
-                            context,
-                            title: 'Pending Reminders',
-                            value: _pendingReminders.toString(),
-                            icon: Icons.alarm_outlined,
-                            color: Colors.purple,
-                          ),
-                          _buildKPICard(
-                            context,
-                            title: 'Active Users',
-                            value: _activeUsers.toString(),
-                            icon: Icons.check_outlined,
-                            color: Colors.teal,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Analytics Charts Section
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isNarrow = constraints.maxWidth < 600;
-                      final children = [
-                        Card(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Compliance Overview (Today)',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                ),
-                                const SizedBox(height: 20),
-                                CustomProgressRing(
-                                  percentage: (_takenToday + _missedToday) > 0
-                                      ? (_takenToday / (_takenToday + _missedToday))
-                                      : 0.0,
-                                  centerTitle: '${((_takenToday + _missedToday) > 0 ? (_takenToday / (_takenToday + _missedToday) * 100) : 0.0).toStringAsFixed(0)}%',
-                                  centerSubtitle: 'Doses Taken',
-                                  activeColor: Colors.teal,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: isNarrow ? 0 : 16, height: isNarrow ? 16 : 0),
-                        Card(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Weekly User Growth Trend',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                ),
-                                const SizedBox(height: 20),
-                                CustomLineChart(
-                                  values: const [5, 9, 12, 18, 25, 30, 35],
-                                  labels: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                                  lineColor: Colors.indigo,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ];
-                      if (isNarrow) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: children,
-                        );
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 2, child: children[0]),
-                          children[1],
-                          Expanded(flex: 3, child: children[2]),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Lists: Recent Registrations & Added Medicines
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isNarrow = constraints.maxWidth < 600;
-                      final regCard = Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Recent Registrations',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              const SizedBox(height: 12),
-                              if (_recentUsers.isEmpty)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 20),
-                                  child: Center(child: Text('No recent users.', style: TextStyle(color: Colors.grey))),
-                                )
-                              else
-                                ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: _recentUsers.length,
-                                  separatorBuilder: (_, __) => const Divider(),
-                                  itemBuilder: (ctx, index) {
-                                    final user = _recentUsers[index];
-                                    return ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: CircleAvatar(
-                                        backgroundColor: theme.colorScheme.primaryContainer,
-                                        child: Text(user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U'),
-                                      ),
-                                      title: Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                      subtitle: Text('${user.email} • Role: ${user.role}'),
-                                    );
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                      final medCard = Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Recent Medications Added',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              const SizedBox(height: 12),
-                              if (_recentMedicines.isEmpty)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 20),
-                                  child: Center(child: Text('No medications added recently.', style: TextStyle(color: Colors.grey))),
-                                )
-                              else
-                                ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: _recentMedicines.length,
-                                  separatorBuilder: (_, __) => const Divider(),
-                                  itemBuilder: (ctx, index) {
-                                    final med = _recentMedicines[index];
-                                    return ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: CircleAvatar(
-                                        backgroundColor: Colors.teal.shade50,
-                                        child: const Icon(Icons.medication, color: Colors.teal),
-                                      ),
-                                      title: Text(med.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                      subtitle: Text('${med.dosage} • Frequency: ${med.frequency}'),
-                                    );
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                      if (isNarrow) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            regCard,
-                            const SizedBox(height: 16),
-                            medCard,
-                          ],
-                        );
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: regCard),
-                          const SizedBox(width: 16),
-                          Expanded(child: medCard),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Recent Activities Feed Card
-                  Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Administrative Action Logs',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          const SizedBox(height: 12),
-                          if (_recentActivities.isEmpty)
-                            const Center(child: Text('No recorded actions.'))
-                          else
-                            ..._recentActivities.map((act) => Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 6),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Icon(Icons.circle, size: 8, color: Colors.indigo),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          act,
-                                          style: const TextStyle(fontSize: 13, height: 1.3),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
     );
   }
 }

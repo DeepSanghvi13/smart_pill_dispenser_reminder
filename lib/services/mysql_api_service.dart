@@ -71,7 +71,7 @@ class MySQLApiService {
   Map<String, String> get _headers {
     final h = <String, String>{'Content-Type': 'application/json'};
     final tok = _token;
-    if (tok != null) h['Authorization'] = 'Bearer $tok';
+    if (tok != null && tok.isNotEmpty) h['Authorization'] = 'Bearer $tok';
     return h;
   }
 
@@ -1532,13 +1532,13 @@ class MySQLApiService {
     }
   }
 
-  Future<Map<String, dynamic>> adminGetUsers([String? role]) async {
+  Future<Map<String, dynamic>> adminGetUsers([String? role, String? search, int page = 1, int limit = 25]) async {
     try {
-      String url = '$baseUrl/api/admin/users';
-      if (role != null && role.isNotEmpty) {
-        url += '?role=$role';
-      }
-      final res = await http.get(Uri.parse(url), headers: _headers);
+      final params = <String, String>{'page': '$page', 'limit': '$limit'};
+      if (role != null && role.isNotEmpty) params['role'] = role;
+      if (search != null && search.isNotEmpty) params['search'] = search;
+      final url = Uri.parse('$baseUrl/api/admin/users').replace(queryParameters: params);
+      final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
@@ -1555,6 +1555,93 @@ class MySQLApiService {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
       return {'ok': false, 'message': 'Failed to load dashboard stats'};
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminCreateUser({
+    required String fullName,
+    required String email,
+    required String password,
+    required String role,
+    String? phoneNumber,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/admin/users'),
+        headers: _headers,
+        body: jsonEncode({
+          'fullName': fullName,
+          'email': email,
+          'password': password,
+          'role': role,
+          if (phoneNumber != null && phoneNumber.isNotEmpty) 'phoneNumber': phoneNumber,
+        }),
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminUpdateUser(
+    int id, {
+    String? fullName,
+    String? phoneNumber,
+    String? status,
+    String? role,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (fullName != null) body['fullName'] = fullName;
+      if (phoneNumber != null) body['phoneNumber'] = phoneNumber;
+      if (status != null) body['status'] = status;
+      if (role != null) body['role'] = role;
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/admin/users/$id'),
+        headers: _headers,
+        body: jsonEncode(body),
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminSetUserStatus(int id, String status) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/admin/users/$id/status'),
+        headers: _headers,
+        body: jsonEncode({'status': status}),
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminResetUserPassword(int id, String password) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/admin/users/$id/reset-password'),
+        headers: _headers,
+        body: jsonEncode({'password': password}),
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminDeleteUser(int id) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/api/admin/users/$id'),
+        headers: _headers,
+      );
+      return jsonDecode(res.body) as Map<String, dynamic>;
     } catch (e) {
       return {'ok': false, 'message': 'Network error: $e'};
     }

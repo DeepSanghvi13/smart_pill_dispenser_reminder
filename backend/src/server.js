@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const {
   connectMySQL,
   query,
+  transaction,
   ping,
   disconnectMySQL,
 } = require('./db');
@@ -130,6 +131,8 @@ function normalizeEmail(value) {
 const GMAIL_REGEX = /^[A-Za-z0-9._%+-]+@gmail\.com$/;
 const PHONE_REGEX = /^[0-9]{10}$/;
 const LICENSE_REGEX = /^[0-9]{5}$/;
+const ADMIN_USER_ROLES = ['patient', 'caretaker', 'doctor', 'pharmacy', 'admin'];
+const USER_STATUSES = ['active', 'inactive'];
 
 function isValidGmail(email) {
   if (!email || typeof email !== 'string') return false;
@@ -2326,6 +2329,17 @@ app.get('/api/admin/stats', authenticateToken, requireRole(['admin']), async (re
 // Admin User list
 app.get('/api/admin/users', authenticateToken, requireRole(['admin']), async (req, res) => {
   const { role = '', search = '' } = req.query;
+  const page = Number.parseInt(req.query.page, 10) || 1;
+  const limit = Number.parseInt(req.query.limit, 10) || 25;
+  if (page < 1 || limit < 1 || limit > 100) {
+    return res.status(400).json({ ok: false, message: 'page must be at least 1 and limit must be between 1 and 100' });
+  }
+
+  const normalizedRole = String(role).trim().toLowerCase();
+  if (normalizedRole && normalizedRole !== 'all' && !ADMIN_USER_ROLES.includes(normalizedRole)) {
+    return res.status(400).json({ ok: false, message: 'Unsupported user role' });
+  }
+
   let sql = `
     SELECT id, fullName, email, phoneNumber, role, status, lastLoginAt, createdAt, updatedAt 
     FROM users
@@ -2333,23 +2347,27 @@ app.get('/api/admin/users', authenticateToken, requireRole(['admin']), async (re
   const params = [];
   const conditions = [];
   
-  if (role && role !== 'All') {
+  if (normalizedRole && normalizedRole !== 'all') {
     conditions.push('role = ?');
-    params.push(role.toLowerCase());
+    params.push(normalizedRole);
   }
-  if (search) {
+  const normalizedSearch = String(search).trim();
+  if (normalizedSearch) {
     conditions.push('(fullName LIKE ? OR email LIKE ? OR phoneNumber LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    params.push(`%${normalizedSearch}%`, `%${normalizedSearch}%`, `%${normalizedSearch}%`);
   }
   
   if (conditions.length > 0) {
     sql += ` WHERE ${conditions.join(' AND ')}`;
   }
   
-  sql += ' ORDER BY id DESC';
+  sql += ' ORDER BY id DESC LIMIT ? OFFSET ?';
   
   try {
-    const rows = await query(sql, params);
+    const countSql = `SELECT COUNT(*) AS total FROM users${conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : ''}`;
+    const totalRows = await query(countSql, params);
+    const total = Number(totalRows[0]?.total || 0);
+    const rows = await query(sql, [...params, limit, (page - 1) * limit]);
     await logActivity({
       userId: req.user.id,
       userRole: req.user.role,
@@ -2359,9 +2377,20 @@ app.get('/api/admin/users', authenticateToken, requireRole(['admin']), async (re
       status: 'SUCCESS',
       req
     });
-    return res.json({ ok: true, data: rows });
+    return res.json({
+      ok: true,
+      users: rows,
+      data: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message });
+    console.error('Admin user list lookup failed:', error.message);
+    return res.status(500).json({ ok: false, message: 'Unable to load users' });
   }
 });
 
@@ -3781,49 +3810,162 @@ app.put('/api/appointments/:id/status', authenticateToken, requireRole(['doctor'
 // ----------------- ADMIN PANEL APIs -----------------
 
 // Admin Dashboard Stats
-app.get('/api/admin/dashboard', authenticateToken, requireRole('admin'), async (req, res) => {
+app.get('/api/admin/dashboard', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const usersCount = await query('SELECT role, COUNT(*) as count FROM users GROUP BY role');
+    const activeUsersCount = await query("SELECT COUNT(*) as count FROM users WHERE status = 'active'");
+    const medicinesCount = await query('SELECT COUNT(*) as count FROM medicines');
     const prescriptionsCount = await query('SELECT COUNT(*) as count FROM prescriptions');
     const ordersCount = await query('SELECT COUNT(*) as count FROM medicine_orders');
     
-    res.json({ ok: true, stats: { users: usersCount, prescriptions: prescriptionsCount[0].count, orders: ordersCount[0].count } });
+    res.json({
+      ok: true,
+      stats: {
+        users: usersCount,
+        activeUsers: Number(activeUsersCount[0]?.count || 0),
+        medicines: Number(medicinesCount[0]?.count || 0),
+        prescriptions: Number(prescriptionsCount[0]?.count || 0),
+        orders: Number(ordersCount[0]?.count || 0)
+      }
+    });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    console.error('Admin dashboard lookup failed:', error.message);
+    res.status(500).json({ ok: false, message: 'Unable to load dashboard statistics' });
   }
 });
 
-// Admin Users Management
-app.get('/api/admin/users', authenticateToken, requireRole('admin'), async (req, res) => {
+app.post('/api/admin/users', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const { role } = req.query;
-    let sql = 'SELECT id, fullName, email, phoneNumber, role, status, createdAt FROM users';
+    const {
+      fullName,
+      email,
+      password,
+      role,
+      phoneNumber = null,
+      gender = null,
+      birthDate = null,
+      zipCode = null,
+      relationship = null,
+      specialization = null,
+      licenseNumber = null,
+      hospitalName = null,
+      experience = null,
+      location = null,
+      shopName = null,
+      address = null
+    } = req.body || {};
+    const normalizedName = String(fullName || '').trim();
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedRole = String(role || '').trim().toLowerCase();
+    const normalizedPassword = String(password || '').trim();
+
+    if (normalizedName.length < 2 || normalizedName.length > 255) {
+      return res.status(400).json({ ok: false, message: 'Full name must be between 2 and 255 characters' });
+    }
+    if (!normalizedEmail || (normalizedRole !== 'admin' && !isValidGmail(normalizedEmail))) {
+      return res.status(400).json({ ok: false, message: 'Please enter a valid Gmail address ending with @gmail.com.' });
+    }
+    if (!ADMIN_USER_ROLES.includes(normalizedRole)) {
+      return res.status(400).json({ ok: false, message: 'Unsupported user role' });
+    }
+    if (normalizedPassword.length < 6 || normalizedPassword.length > 128) {
+      return res.status(400).json({ ok: false, message: 'Password must be between 6 and 128 characters' });
+    }
+    if (phoneNumber !== null && phoneNumber !== undefined && String(phoneNumber).trim() !== '' &&
+        !isValidPhone(String(phoneNumber).trim())) {
+      return res.status(400).json({ ok: false, message: 'Phone number must be exactly 10 digits.' });
+    }
+    if (normalizedRole === 'doctor' && licenseNumber && !isValidLicense(String(licenseNumber).trim())) {
+      return res.status(400).json({ ok: false, message: 'Medical license/registration number must be exactly 5 digits.' });
+    }
+
+    const hash = await bcrypt.hash(normalizedPassword, 10);
+    const userId = await transaction(async (tx) => {
+      const existing = await tx.query('SELECT id FROM users WHERE email = ? LIMIT 1', [normalizedEmail]);
+      if (existing.length > 0) {
+        const duplicateError = new Error('Email already registered');
+        duplicateError.code = 'DUPLICATE_EMAIL';
+        throw duplicateError;
+      }
+
+      const result = await tx.query(
+        'INSERT INTO users (fullName, email, passwordHash, role, phoneNumber, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [normalizedName, normalizedEmail, hash, normalizedRole, phoneNumber ? String(phoneNumber).trim() : null, 'active']
+      );
+      const id = result.insertId;
+      if (normalizedRole === 'patient') {
+        await tx.query('INSERT INTO patients (userId, gender, birthDate, zipCode) VALUES (?, ?, ?, ?)',
+          [id, gender, birthDate ? parseDate(birthDate) : null, zipCode]);
+      } else if (normalizedRole === 'caretaker') {
+        await tx.query('INSERT INTO caretakers (userId, relationship) VALUES (?, ?)', [id, relationship]);
+      } else if (normalizedRole === 'doctor') {
+        await tx.query(
+          'INSERT INTO doctors (userId, specialization, licenseNumber, hospitalName, experience, location) VALUES (?, ?, ?, ?, ?, ?)',
+          [id, specialization || 'General Physician', licenseNumber || '', hospitalName || '', experience || '', location || '']
+        );
+      } else if (normalizedRole === 'pharmacy') {
+        await tx.query(
+          'INSERT INTO medical_shops (userId, shopName, ownerName, phoneNumber, email, address, licenseNumber) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [id, shopName || `${normalizedName}'s Pharmacy`, normalizedName, phoneNumber || null, normalizedEmail, address, licenseNumber || null]
+        );
+      } else if (normalizedRole === 'admin') {
+        await tx.query('INSERT INTO admins (userId) VALUES (?)', [id]);
+      }
+
+      const nameParts = normalizedName.split(/\s+/);
+      await tx.query(
+        `INSERT INTO userProfiles (userId, firstName, lastName, email, phoneNumber, gender)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [id, nameParts[0], nameParts.slice(1).join(' '), normalizedEmail, phoneNumber || null, gender]
+      );
+      return id;
+    });
+
+    return res.status(201).json({ ok: true, message: 'User created successfully', userId });
+  } catch (error) {
+    if (error.code === 'DUPLICATE_EMAIL' || error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ ok: false, message: 'Email already registered' });
+    }
+    console.error('Admin user creation failed:', error.message);
+    return res.status(500).json({ ok: false, message: 'Unable to create user' });
+  }
+});
+
+app.put('/api/admin/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, message: 'Invalid user ID' });
+    const existing = await query('SELECT id, role FROM users WHERE id = ? LIMIT 1', [id]);
+    if (existing.length === 0) return res.status(404).json({ ok: false, message: 'User not found' });
+    const updates = [];
     const params = [];
-    if (role) {
-      sql += ' WHERE role = ?';
-      params.push(role);
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'fullName')) {
+      const name = String(req.body.fullName || '').trim();
+      if (name.length < 2 || name.length > 255) return res.status(400).json({ ok: false, message: 'Invalid full name' });
+      updates.push('fullName = ?'); params.push(name);
     }
-    const users = await query(sql, params);
-    res.json({ ok: true, users });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-app.post('/api/admin/users', authenticateToken, requireRole('admin'), async (req, res) => {
-  try {
-    const { fullName, email, password, role, phoneNumber } = req.body;
-    if (!fullName || !email || !password || !role) {
-      return res.status(400).json({ ok: false, message: 'Missing required fields' });
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'phoneNumber')) {
+      const phone = req.body.phoneNumber === null ? null : String(req.body.phoneNumber).trim();
+      if (phone && !isValidPhone(phone)) return res.status(400).json({ ok: false, message: 'Phone number must be exactly 10 digits.' });
+      updates.push('phoneNumber = ?'); params.push(phone || null);
     }
-    const hash = await bcrypt.hash(password, 10);
-    const result = await query(
-      'INSERT INTO users (fullName, email, passwordHash, role, phoneNumber) VALUES (?, ?, ?, ?, ?)',
-      [fullName, email, hash, role, phoneNumber || null]
-    );
-    res.json({ ok: true, message: 'User created successfully', userId: result.insertId });
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'status')) {
+      if (!USER_STATUSES.includes(req.body.status)) return res.status(400).json({ ok: false, message: 'Invalid status' });
+      updates.push('status = ?'); params.push(req.body.status);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'role')) {
+      const nextRole = String(req.body.role || '').trim().toLowerCase();
+      if (!ADMIN_USER_ROLES.includes(nextRole)) return res.status(400).json({ ok: false, message: 'Unsupported user role' });
+      if (id === req.user.id && nextRole !== 'admin') return res.status(403).json({ ok: false, message: 'You cannot remove your own admin role' });
+      updates.push('role = ?'); params.push(nextRole);
+    }
+    if (updates.length === 0) return res.status(400).json({ ok: false, message: 'No supported fields to update' });
+    params.push(id);
+    const result = await query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+    return res.json({ ok: true, message: 'User updated successfully', affectedRows: result.affectedRows });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    console.error('Admin user update failed:', error.message);
+    return res.status(500).json({ ok: false, message: 'Unable to update user' });
   }
 });
 
@@ -3880,58 +4022,84 @@ app.put('/api/admin/users/:id', authenticateToken, requireRole('admin'), async (
   }
 });
 
-app.delete('/api/admin/users/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+app.delete('/api/admin/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const { id } = req.params;
-    await query('DELETE FROM users WHERE id = ?', [id]);
-    res.json({ ok: true, message: 'User deleted successfully' });
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, message: 'Invalid user ID' });
+    if (id === req.user.id) return res.status(403).json({ ok: false, message: 'You cannot delete your own account' });
+    const rows = await query('SELECT email, role FROM users WHERE id = ? LIMIT 1', [id]);
+    if (rows.length === 0) return res.status(404).json({ ok: false, message: 'User not found' });
+    if (rows[0].role === 'admin' && isAdminEmail(rows[0].email)) {
+      return res.status(403).json({ ok: false, message: 'Protected system account cannot be deleted' });
+    }
+    const result = await query('DELETE FROM users WHERE id = ?', [id]);
+    return res.json({ ok: true, message: 'User deleted successfully', affectedRows: result.affectedRows });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    console.error('Admin user deletion failed:', error.message);
+    return res.status(500).json({ ok: false, message: 'Unable to delete user' });
   }
 });
 
 // Admin Connections Management
-app.get('/api/admin/connections', authenticateToken, requireRole('admin'), async (req, res) => {
+app.get('/api/admin/connections', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const doctorConnections = await query('SELECT dc.*, u1.fullName as doctorName, u2.fullName as requesterName FROM doctor_connections dc JOIN users u1 ON dc.doctorId = u1.id JOIN users u2 ON dc.requesterId = u2.id');
-    const caretakerConnections = await query('SELECT cc.*, u1.fullName as patientName, u2.fullName as caretakerName FROM caretaker_connections cc JOIN users u1 ON cc.patientId = u1.id JOIN users u2 ON cc.caretakerId = u2.id');
-    const pharmacyConnections = await query('SELECT pc.*, u1.fullName as patientName, ms.shopName FROM pharmacy_connections pc JOIN users u1 ON pc.patientId = u1.id JOIN medical_shops ms ON pc.shopId = ms.id');
+    const doctorConnections = await query('SELECT dc.*, u1.fullName as doctorName, u2.fullName as requesterName FROM doctor_connections dc JOIN users u1 ON dc.doctorId = u1.id JOIN users u2 ON dc.requesterId = u2.id ORDER BY dc.id DESC');
+    const caretakerConnections = await query('SELECT cc.*, u1.fullName as patientName, u2.fullName as caretakerName FROM caretaker_connections cc JOIN users u1 ON cc.patientId = u1.id JOIN users u2 ON cc.caretakerId = u2.id ORDER BY cc.id DESC');
+    const pharmacyConnections = await query('SELECT pc.*, u1.fullName as patientName, ms.shopName FROM pharmacy_connections pc JOIN users u1 ON pc.patientId = u1.id JOIN medical_shops ms ON pc.shopId = ms.id ORDER BY pc.id DESC');
     res.json({ ok: true, connections: { doctorConnections, caretakerConnections, pharmacyConnections } });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    console.error('Admin connections lookup failed:', error.message);
+    res.status(500).json({ ok: false, message: 'Unable to load connections' });
   }
 });
 
-app.post('/api/admin/connections', authenticateToken, requireRole('admin'), async (req, res) => {
+app.post('/api/admin/connections', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { type, patientId, targetId } = req.body; // type: 'doctor', 'caretaker', 'pharmacy'
+    const patient = await query('SELECT id, role FROM users WHERE id = ? LIMIT 1', [Number(patientId)]);
+    if (patient.length === 0 || patient[0].role !== 'patient') {
+      return res.status(400).json({ ok: false, message: 'patientId must reference a patient' });
+    }
     if (type === 'doctor') {
-      await query('INSERT INTO doctor_connections (doctorId, requesterId, requesterRole, status) VALUES (?, ?, "patient", "accepted")', [targetId, patientId]);
+      const target = await query('SELECT id, role FROM users WHERE id = ? LIMIT 1', [Number(targetId)]);
+      if (target.length === 0 || target[0].role !== 'doctor') return res.status(400).json({ ok: false, message: 'targetId must reference a doctor' });
+      await query('INSERT INTO doctor_connections (doctorId, requesterId, requesterRole, status) VALUES (?, ?, ?, "accepted")', [target[0].id, patient[0].id, patient[0].role]);
     } else if (type === 'caretaker') {
-      await query('INSERT INTO caretaker_connections (patientId, caretakerId, connectionCode, status) VALUES (?, ?, ?, "connected")', [patientId, targetId, 'ADMIN_LINK']);
+      const target = await query('SELECT id, role FROM users WHERE id = ? LIMIT 1', [Number(targetId)]);
+      if (target.length === 0 || target[0].role !== 'caretaker') return res.status(400).json({ ok: false, message: 'targetId must reference a caretaker' });
+      await query('INSERT INTO caretaker_connections (patientId, caretakerId, connectionCode, status) VALUES (?, ?, ?, "connected")', [patient[0].id, target[0].id, 'ADMIN_LINK']);
     } else if (type === 'pharmacy') {
-      await query('INSERT INTO pharmacy_connections (patientId, shopId, status) VALUES (?, ?, "accepted")', [patientId, targetId]);
+      const target = await query(
+        'SELECT ms.id FROM medical_shops ms JOIN users u ON u.id = ms.userId WHERE u.id = ? AND u.role = "pharmacy" LIMIT 1',
+        [Number(targetId)]
+      );
+      if (target.length === 0) return res.status(400).json({ ok: false, message: 'targetId must reference a pharmacy' });
+      await query('INSERT INTO pharmacy_connections (patientId, shopId, status) VALUES (?, ?, "accepted")', [patient[0].id, target[0].id]);
     } else {
       return res.status(400).json({ ok: false, message: 'Invalid connection type' });
     }
     res.json({ ok: true, message: 'Connection created successfully' });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ ok: false, message: 'Connection already exists' });
+    console.error('Admin connection creation failed:', error.message);
+    res.status(500).json({ ok: false, message: 'Unable to create connection' });
   }
 });
 
-app.delete('/api/admin/connections/:type/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+app.delete('/api/admin/connections/:type/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { type, id } = req.params;
+    let result;
     if (type === 'doctor') {
-      await query('DELETE FROM doctor_connections WHERE id = ?', [id]);
+      result = await query('DELETE FROM doctor_connections WHERE id = ?', [id]);
     } else if (type === 'caretaker') {
-      await query('DELETE FROM caretaker_connections WHERE id = ?', [id]);
+      result = await query('DELETE FROM caretaker_connections WHERE id = ?', [id]);
     } else if (type === 'pharmacy') {
-      await query('DELETE FROM pharmacy_connections WHERE id = ?', [id]);
+      result = await query('DELETE FROM pharmacy_connections WHERE id = ?', [id]);
     } else {
       return res.status(400).json({ ok: false, message: 'Invalid connection type' });
     }
+    if (result && result.affectedRows === 0) return res.status(404).json({ ok: false, message: 'Connection not found' });
     res.json({ ok: true, message: 'Connection deleted successfully' });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });

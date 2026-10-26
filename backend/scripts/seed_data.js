@@ -23,11 +23,10 @@ async function seedDatabase() {
     const adminEmail = 'admin_test@smartpill.com';
     const existingAdmin = await query('SELECT id FROM users WHERE email = ?', [adminEmail]);
     if (existingAdmin.length === 0) {
-      const aRes = await query(
+      await query(
         `INSERT INTO users (fullName, email, phoneNumber, passwordHash, role, status) VALUES (?, ?, ?, ?, ?, ?)`,
         ['Super Admin Test', adminEmail, '9999999999', passwordHash, 'admin', 'active']
       );
-      await query(`INSERT IGNORE INTO admins (userId) VALUES (?)`, [aRes.insertId]);
     }
 
     // 1. Seed 10 Patients
@@ -38,8 +37,7 @@ async function seedDatabase() {
         [`Patient ${i}`, `patient${i}_${ts}@test.com`, `111${ts.toString().slice(-4)}${i.toString().padStart(3, '0')}`, passwordHash, 'patient', 'active']
       );
       patientIds.push(res.insertId);
-      await query(`INSERT INTO patients (userId, gender, birthDate, zipCode) VALUES (?, ?, ?, ?)`, [res.insertId, 'Male', '1990-01-01', '10001']);
-      await query(`INSERT INTO userProfiles (userId, firstName, lastName, email) VALUES (?, ?, ?, ?)`, [res.insertId, 'Patient', `${i}`, `patient${i}_${ts}@test.com`]);
+      await query(`INSERT INTO userProfiles (userId, firstName, lastName, gender, birthDate, zipCode, email) VALUES (?, ?, ?, ?, ?, ?, ?)`, [res.insertId, 'Patient', `${i}`, 'Male', '1990-01-01', '10001', `patient${i}_${ts}@test.com`]);
     }
 
     // 2. Seed 10 Caretakers

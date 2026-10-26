@@ -188,10 +188,6 @@ async function resolveUserId(val) {
       );
       const newId = res.insertId;
       await query(
-        'INSERT INTO patients (userId) VALUES (?) ON DUPLICATE KEY UPDATE userId=userId',
-        [newId]
-      );
-      await query(
         'INSERT INTO userProfiles (userId, firstName, email) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE userId=userId',
         [newId, namePart, normEmail]
       );
@@ -260,7 +256,6 @@ async function ensureDefaultAdmin() {
           ['System Admin', email, hash, 'admin', 'active']
         );
         adminUserId = result.insertId;
-        await query('INSERT INTO admins (userId) VALUES (?)', [adminUserId]);
         await query(
           'INSERT INTO userProfiles (userId, firstName, lastName, email) VALUES (?, ?, ?, ?)',
           [adminUserId, 'System', 'Admin', email]
@@ -271,10 +266,6 @@ async function ensureDefaultAdmin() {
           'UPDATE users SET fullName = ?, passwordHash = ?, role = ?, status = ?, updatedAt = NOW() WHERE id = ?',
           ['System Admin', hash, 'admin', 'active', adminUserId]
         );
-        const adminExists = await query('SELECT 1 FROM admins WHERE userId = ? LIMIT 1', [adminUserId]);
-        if (adminExists.length === 0) {
-          await query('INSERT INTO admins (userId) VALUES (?)', [adminUserId]);
-        }
       }
     }
     console.log('Default admin accounts verified in MySQL');
@@ -833,12 +824,7 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
     const userId = result.insertId;
 
     // Create role-specific profiles
-    if (userRole === 'patient') {
-      await query(
-        'INSERT INTO patients (userId, gender, birthDate, zipCode) VALUES (?, ?, ?, ?)',
-        [userId, gender, birthDate ? parseDate(birthDate) : null, zipCode]
-      );
-    } else if (userRole === 'caretaker') {
+    if (userRole === 'caretaker') {
       await query(
         'INSERT INTO caretakers (userId, relationship) VALUES (?, ?)',
         [userId, relationship]
@@ -864,20 +850,19 @@ app.post(['/api/auth/register', '/register'], async (req, res) => {
           req.body?.imageUrl || null
         ]
       );
-    } else if (userRole === 'admin') {
-      await query('INSERT INTO admins (userId) VALUES (?)', [userId]);
     }
 
-    // Always create userProfile entry in userProfiles table
+    // Always create userProfile entry in userProfiles table with all demographics
     const nameParts = fullName.trim().split(' ');
     const fName = nameParts.length > 0 ? nameParts[0] : fullName.trim();
     const lName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
     await query(
-      `INSERT INTO userProfiles (userId, firstName, lastName, email, phoneNumber, gender)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO userProfiles (userId, firstName, lastName, email, phoneNumber, gender, birthDate, zipCode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE 
-       firstName=VALUES(firstName), lastName=VALUES(lastName), email=VALUES(email), phoneNumber=VALUES(phoneNumber)`,
-      [userId, fName, lName, normEmail, phoneNumber, gender]
+       firstName=VALUES(firstName), lastName=VALUES(lastName), email=VALUES(email), 
+       phoneNumber=VALUES(phoneNumber), gender=VALUES(gender), birthDate=VALUES(birthDate), zipCode=VALUES(zipCode)`,
+      [userId, fName, lName, normEmail, phoneNumber, gender, birthDate ? String(birthDate).trim() : null, zipCode]
     );
 
     // Log Registration Activity

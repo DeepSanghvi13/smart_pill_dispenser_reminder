@@ -24,16 +24,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   INDEX `idx_role` (`role`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table 2: patients (patient-specific details)
-CREATE TABLE IF NOT EXISTS `patients` (
-  `userId` INT PRIMARY KEY,
-  `gender` VARCHAR(50) DEFAULT NULL,
-  `birthDate` DATE DEFAULT NULL,
-  `zipCode` VARCHAR(20) DEFAULT NULL,
-  CONSTRAINT `fk_patients_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table 3: caretakers (caretaker-specific details)
+-- Table 2: caretakers (caretaker-specific details)
 CREATE TABLE IF NOT EXISTS `caretakers` (
   `userId` INT PRIMARY KEY,
   `relationship` VARCHAR(100) DEFAULT NULL,
@@ -41,12 +32,6 @@ CREATE TABLE IF NOT EXISTS `caretakers` (
   `notifyViaEmail` BOOLEAN DEFAULT TRUE,
   `notifyViaNotification` BOOLEAN DEFAULT TRUE,
   CONSTRAINT `fk_caretakers_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table 4: admins (admin-specific details)
-CREATE TABLE IF NOT EXISTS `admins` (
-  `userId` INT PRIMARY KEY,
-  CONSTRAINT `fk_admins_userId` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table 5: user_sessions (session audit log)

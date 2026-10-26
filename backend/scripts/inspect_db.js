@@ -26,9 +26,9 @@ async function main() {
   console.log('--- DOCTOR CONNECTIONS ---');
   console.table(connections);
 
-  const [patients] = await conn.query("SELECT * FROM patients");
-  console.log('--- PATIENTS ---');
-  console.table(patients);
+  const [profiles] = await conn.query("SELECT * FROM userProfiles");
+  console.log('--- USER PROFILES ---');
+  console.table(profiles);
 
   const [caretakers] = await conn.query("SELECT * FROM caretakers");
   console.log('--- CARETAKERS ---');

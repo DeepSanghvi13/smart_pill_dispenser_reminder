@@ -41,7 +41,6 @@ class HiveService {
     await Hive.openBox('doctors');
     await Hive.openBox('notifications');
     await Hive.openBox('caretakers');
-    await Hive.openBox('patients');
     await Hive.openBox('reports');
   }
 
@@ -55,7 +54,6 @@ class HiveService {
   Box get doctorsBox => Hive.box('doctors');
   Box get notificationsBox => Hive.box('notifications');
   Box get caretakersBox => Hive.box('caretakers');
-  Box get patientsBox => Hive.box('patients');
   Box get reportsBox => Hive.box('reports');
 }
 

@@ -113,8 +113,8 @@ async function cleanDoctors() {
     console.log('Preserved Non-Doctor Users (Patients, Caretakers, Admins):');
     console.table(nonDoctorUsers);
 
-    const [patientProfiles] = await conn.query(`SELECT * FROM patients`);
-    console.log(`Preserved Patient records: ${patientProfiles.length}`);
+    const [userProfiles] = await conn.query(`SELECT * FROM userProfiles`);
+    console.log(`Preserved User Profile records: ${userProfiles.length}`);
 
     const [caretakerProfiles] = await conn.query(`SELECT * FROM caretakers`);
     console.log(`Preserved Caretaker records: ${caretakerProfiles.length}`);

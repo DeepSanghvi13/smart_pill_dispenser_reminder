@@ -55,6 +55,22 @@ async function connectMySQL() {
   try {
     await conn.query(`ALTER TABLE medicines ADD COLUMN expiryDate DATE DEFAULT NULL`);
   } catch (_) {}
+  try {
+    // Migrate legacy patients table data into userProfiles before cleanup
+    await conn.query(`
+      UPDATE userProfiles up
+      JOIN patients p ON up.userId = p.userId
+      SET up.gender = COALESCE(up.gender, p.gender),
+          up.birthDate = COALESCE(up.birthDate, p.birthDate),
+          up.zipCode = COALESCE(up.zipCode, p.zipCode)
+    `);
+  } catch (_) {}
+  try {
+    await conn.query(`DROP TABLE IF EXISTS patients`);
+  } catch (_) {}
+  try {
+    await conn.query(`DROP TABLE IF EXISTS admins`);
+  } catch (_) {}
   conn.release();
 }
 

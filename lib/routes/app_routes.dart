@@ -21,6 +21,7 @@ import '../screens/client/manage/general_settings_screen.dart';
 import '../screens/client/manage/help_articles_screen.dart';
 import '../screens/client/manage/help_center_screen.dart';
 import '../screens/client/manage/manage_screen.dart';
+import '../screens/client/manage/medication_reminders_settings_screen.dart';
 import '../screens/client/manage/morning_reminder_screen.dart';
 import '../screens/client/manage/professional_review_request_screen.dart';
 import '../screens/client/manage/rate_medisafe_screen.dart';
@@ -126,6 +127,7 @@ class AppRoutes {
   static const String eveningReminder = '/manage/settings/evening';
   static const String weeklySummary = '/manage/settings/weekly';
   static const String weekendMode = '/manage/settings/weekend';
+  static const String medicationRemindersSettings = '/manage/settings/medication-reminders';
   static const String addOrEditReminder = '/reminders/add-or-edit';
   static const String sqlCategoryEntries = '/database/category-entries';
 
@@ -288,6 +290,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const WeeklySummaryScreen());
       case weekendMode:
         return MaterialPageRoute(builder: (_) => const WeekendModeScreen());
+      case medicationRemindersSettings:
+        return MaterialPageRoute(builder: (_) => const MedicationRemindersSettingsScreen());
       case addOrEditReminder:
         final args = settings.arguments;
         if (args is ReminderRouteArgs) {

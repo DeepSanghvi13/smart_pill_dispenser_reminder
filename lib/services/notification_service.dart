@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'hive_service.dart';
 import '../models/reminder.dart';
 
 class NotificationService {
@@ -55,32 +56,110 @@ class NotificationService {
     enableVibration: true,
   );
 
+  static final Map<String, String> _timezoneMap = {
+    'UTC': 'UTC',
+    'EST': 'America/New_York',
+    'CST': 'America/Chicago',
+    'MST': 'America/Denver',
+    'PST': 'America/Los_Angeles',
+    'GMT': 'Europe/London',
+    'CET': 'Europe/Paris',
+    'IST': 'Asia/Kolkata',
+    'AEST': 'Australia/Sydney',
+  };
+
+  static void setTimezone(String? timezoneCode) {
+    if (timezoneCode == null || timezoneCode.isEmpty) return;
+    try {
+      final ianaName = _timezoneMap[timezoneCode.toUpperCase()] ?? timezoneCode;
+      final location = tz.getLocation(ianaName);
+      tz.setLocalLocation(location);
+    } catch (_) {}
+  }
+
+  static bool get soundEnabled {
+    try {
+      return HiveService().settingsBox.get('notification_sound', defaultValue: true) as bool;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static bool get vibrationEnabled {
+    try {
+      return HiveService().settingsBox.get('notification_vibrate', defaultValue: true) as bool;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static bool get ledLightEnabled {
+    try {
+      return HiveService().settingsBox.get('notification_led', defaultValue: true) as bool;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> updatePreferences({
+    bool? sound,
+    bool? vibrate,
+    bool? ledLight,
+    String? timezone,
+  }) async {
+    final settings = HiveService().settingsBox;
+    if (sound != null) await settings.put('notification_sound', sound);
+    if (vibrate != null) await settings.put('notification_vibrate', vibrate);
+    if (ledLight != null) await settings.put('notification_led', ledLight);
+    if (timezone != null) {
+      await settings.put('app_timezone', timezone);
+      setTimezone(timezone);
+    }
+  }
+
   static Future<void> init() async {
     tz.initializeTimeZones();
+
+    try {
+      final savedTz = HiveService().settingsBox.get('app_timezone') as String?;
+      if (savedTz != null) {
+        setTimezone(savedTz);
+      }
+    } catch (_) {}
 
     // Skip notification initialization on web platform
     if (kIsWeb) {
       return;
     }
 
-    // Skip if not Android
-    if (!Platform.isAndroid) {
+    if (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS) {
       return;
     }
 
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        _notifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    if (Platform.isAndroid) {
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+          _notifications.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
 
-    // Create both notification channels
-    await androidImplementation?.createNotificationChannel(_defaultChannel);
-    await androidImplementation?.createNotificationChannel(_alarmChannel);
-    await androidImplementation?.createNotificationChannel(_caretakerChannel);
+      await androidImplementation?.createNotificationChannel(_defaultChannel);
+      await androidImplementation?.createNotificationChannel(_alarmChannel);
+      await androidImplementation?.createNotificationChannel(_caretakerChannel);
+    }
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const initSettings = InitializationSettings(android: androidSettings);
+    const darwinSettings = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: darwinSettings,
+      macOS: darwinSettings,
+    );
 
     await _notifications.initialize(
       initSettings,
@@ -98,21 +177,25 @@ class NotificationService {
   }
 
   static Future<void> requestPermissions() async {
-    // Skip on web platform
     if (kIsWeb) {
       return;
     }
 
-    // Only request permissions on Android
-    if (!Platform.isAndroid) {
-      return;
+    if (Platform.isAndroid) {
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+          _notifications.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      await androidImplementation?.requestNotificationsPermission();
+      await androidImplementation?.requestExactAlarmsPermission();
+    } else if (Platform.isIOS) {
+      final ios = _notifications.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      await ios?.requestPermissions(alert: true, badge: true, sound: true);
+    } else if (Platform.isMacOS) {
+      final mac = _notifications.resolvePlatformSpecificImplementation<
+          MacOSFlutterLocalNotificationsPlugin>();
+      await mac?.requestPermissions(alert: true, badge: true, sound: true);
     }
-
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        _notifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    await androidImplementation?.requestNotificationsPermission();
-    await androidImplementation?.requestExactAlarmsPermission();
   }
 
   /// Schedule daily medication alarm with sound + vibration.
@@ -489,22 +572,107 @@ class NotificationService {
 
   /// Cancel all scheduled weekday notifications for a reminder
   static Future<void> cancelReminderNotifications(int reminderId) async {
-    if (kIsWeb || !Platform.isAndroid) return;
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS)) return;
     await cancelNotification(200000 + (reminderId * 10));
     for (int weekday = 1; weekday <= 7; weekday++) {
       await cancelNotification(200000 + (reminderId * 10) + weekday);
     }
   }
 
+  /// Cancel all scheduled alarms and reminders for a specific medicine
+  static Future<void> cancelNotificationsForMedicine(int medicineId) async {
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS)) return;
+    final baseId = 1000 + (medicineId.abs() % 100000);
+    // Cancel slots up to 30 doses
+    for (int i = 0; i < 30; i++) {
+      await cancelNotification(baseId * 10 + i);
+      await cancelNotification(baseId * 100 + i);
+      await cancelNotification(100000 + (medicineId % 9000) * 10 + i);
+    }
+    // Also cancel expiry notifications for this medicine
+    for (int i = 0; i < 5; i++) {
+      await cancelNotification(100000 + (medicineId * 10) + i);
+    }
+    // And query pending notification requests to cancel any with matching payload
+    try {
+      final pending = await _notifications.pendingNotificationRequests();
+      for (final req in pending) {
+        if (req.payload != null) {
+          try {
+            final data = jsonDecode(req.payload!);
+            if (data is Map &&
+                (data['id'] == medicineId || data['medicineId'] == medicineId)) {
+              await cancelNotification(req.id);
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
+  // ===== GENERAL PREFERENCE REMINDERS =====
+
+  static const int morningReminderNotificationId = 500001;
+  static const int eveningReminderNotificationId = 500002;
+  static const int weekendReminderBaseNotificationId = 500010;
+
+  static Future<void> scheduleDailyPreferenceReminder({
+    required int id,
+    required String title,
+    required String body,
+    required int hour,
+    required int minute,
+  }) async {
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS)) return;
+
+    final now = DateTime.now();
+    var scheduledDate = DateTime(now.year, now.month, now.day, hour, minute);
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    final androidDetails = AndroidNotificationDetails(
+      'default_channel',
+      'Default Notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: soundEnabled,
+      enableVibration: vibrationEnabled,
+      enableLights: ledLightEnabled,
+    );
+
+    const darwinDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    await _notifications.zonedSchedule(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      NotificationDetails(android: androidDetails, iOS: darwinDetails, macOS: darwinDetails),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  static Future<void> cancelDailyPreferenceReminder(int id) async {
+    await cancelNotification(id);
+  }
+
   /// Cancel all notifications
   static Future<void> cancelAllNotifications() async {
-    if (kIsWeb || !Platform.isAndroid) return;
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS)) return;
     await _notifications.cancelAll();
   }
 
   /// Cancel specific notification by ID
   static Future<void> cancelNotification(int id) async {
-    if (kIsWeb || !Platform.isAndroid) return;
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS)) return;
     await _notifications.cancel(id);
   }
 }

@@ -182,4 +182,73 @@ void main() {
       expect(activeMed.expiryStatus, equals(MedicineExpiryStatus.active));
     });
   });
+
+  group('Bug 5: Treatment Duration Window Enforcement', () {
+    test('Correctly determines if today is within treatment window', () {
+      final ongoingMed = Medicine(
+        id: 8,
+        userId: 'test@gmail.com',
+        name: 'Antibiotic Course',
+        type: 'Tablets',
+        dosage: '500mg',
+        quantity: '1',
+        frequency: 'Daily',
+        time: '08:00 AM',
+        startDate: DateTime.now().subtract(const Duration(days: 2)),
+        endDate: DateTime.now().add(const Duration(days: 5)),
+      );
+
+      expect(ongoingMed.isWithinTreatmentWindow(), isTrue);
+      expect(ongoingMed.isTreatmentCompleted, isFalse);
+      expect(ongoingMed.isTreatmentFuture, isFalse);
+    });
+
+    test('Correctly identifies completed medication course past endDate', () {
+      final finishedMed = Medicine(
+        id: 9,
+        userId: 'test@gmail.com',
+        name: 'Completed Painkiller',
+        type: 'Tablets',
+        dosage: '400mg',
+        quantity: '1',
+        frequency: 'Daily',
+        time: '08:00 AM',
+        startDate: DateTime.now().subtract(const Duration(days: 14)),
+        endDate: DateTime.now().subtract(const Duration(days: 1)),
+      );
+
+      expect(finishedMed.isWithinTreatmentWindow(), isFalse);
+      expect(finishedMed.isTreatmentCompleted, isTrue);
+      expect(finishedMed.isTreatmentFuture, isFalse);
+    });
+
+    test('Correctly identifies future course before startDate', () {
+      final futureMed = Medicine(
+        id: 10,
+        userId: 'test@gmail.com',
+        name: 'Pre-surgery Preparation',
+        type: 'Tablets',
+        dosage: '100mg',
+        quantity: '1',
+        frequency: 'Daily',
+        time: '08:00 AM',
+        startDate: DateTime.now().add(const Duration(days: 3)),
+        endDate: DateTime.now().add(const Duration(days: 10)),
+      );
+
+      expect(futureMed.isWithinTreatmentWindow(), isFalse);
+      expect(futureMed.isTreatmentCompleted, isFalse);
+      expect(futureMed.isTreatmentFuture, isTrue);
+    });
+  });
+
+  group('Bug 3 & 6: User Status & Password Consistency', () {
+    test('Hashed password verification matches across roles', () {
+      const plain = 'adminSecure2026!';
+      final hash = AuthService.hashPassword(plain);
+      expect(AuthService.verifyPassword(plain, hash), isTrue);
+      expect(AuthService.verifyPassword('wrongPassword', hash), isFalse);
+    });
+  });
 }
+

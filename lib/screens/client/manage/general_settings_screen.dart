@@ -4,7 +4,7 @@ import '../../../theme/theme_controller.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/hive_service.dart';
-
+import '../../../services/notification_service.dart';
 
 class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({super.key});
@@ -23,26 +23,32 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTimezone();
+    _loadPreferences();
   }
 
-  Future<void> _loadTimezone() async {
+  Future<void> _loadPreferences() async {
+    sound = NotificationService.soundEnabled;
+    vibrate = NotificationService.vibrationEnabled;
+    ledLight = NotificationService.ledLightEnabled;
+
     final auth = context.read<AuthService>();
     final email = auth.currentUser;
     if (email != null) {
       final box = HiveService().usersBox;
       final user = box.get(email);
       if (user != null && user.timezone != null && _timezones.contains(user.timezone)) {
-        setState(() {
-          _selectedTimezone = user.timezone!;
-        });
+        _selectedTimezone = user.timezone!;
+        NotificationService.setTimezone(_selectedTimezone);
       }
     }
+    if (mounted) setState(() {});
   }
 
   Future<void> _updateTimezone(String? newZone) async {
     if (newZone == null) return;
     final auth = context.read<AuthService>();
+    final messenger = ScaffoldMessenger.of(context);
+    await NotificationService.updatePreferences(timezone: newZone);
     final email = auth.currentUser;
     if (email != null) {
       final box = HiveService().usersBox;
@@ -50,16 +56,15 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
       if (user != null) {
         final updated = user.copyWith(timezone: newZone);
         await box.put(email, updated);
-        setState(() {
-          _selectedTimezone = newZone;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Timezone updated to $newZone')),
-          );
-        }
       }
     }
+    if (!mounted) return;
+    setState(() {
+      _selectedTimezone = newZone;
+    });
+    messenger.showSnackBar(
+      SnackBar(content: Text('Timezone updated to $newZone and notifications rescheduled.')),
+    );
   }
 
   @override
@@ -77,7 +82,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               'Snooze times, max alarms, shake to take',
             ),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {},
+            onTap: () {
+              Navigator.pushNamed(context, AppRoutes.medicationRemindersSettings);
+            },
           ),
           ListTile(
             title: const Text('Morning Reminder'),
@@ -136,6 +143,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             value: sound,
             onChanged: (val) {
               setState(() => sound = val);
+              NotificationService.updatePreferences(sound: val);
             },
           ),
           SwitchListTile(
@@ -143,6 +151,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             value: vibrate,
             onChanged: (val) {
               setState(() => vibrate = val);
+              NotificationService.updatePreferences(vibrate: val);
             },
           ),
           SwitchListTile(
@@ -150,6 +159,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             value: ledLight,
             onChanged: (val) {
               setState(() => ledLight = val);
+              NotificationService.updatePreferences(ledLight: val);
             },
           ),
           const Divider(),

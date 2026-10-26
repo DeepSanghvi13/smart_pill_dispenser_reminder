@@ -19,12 +19,16 @@ class MySQLSyncHelper {
     await MySQLApiService().deleteMedicineFromServer(id, userId: userId);
   }
 
-  static void syncReminder(Reminder reminder) {
-    // Reminders are synced with medicine schedules
+  static Future<void> syncReminder(Reminder reminder, {String? userId}) async {
+    await MySQLApiService().createOrUpdateReminderOnServer(reminder, userId: userId);
   }
 
-  static void syncAlarmLog(AlarmLog log) {
-    MySQLApiService().logAlarmToServer(log);
+  static Future<void> deleteReminder(int id, {String? userId}) async {
+    await MySQLApiService().deleteReminderFromServer(id, userId: userId);
+  }
+
+  static Future<void> syncAlarmLog(AlarmLog log, {String? userId}) async {
+    await MySQLApiService().logAlarmToServer(log, userId: userId);
   }
 
   static void syncCaretaker(Caretaker caretaker) {

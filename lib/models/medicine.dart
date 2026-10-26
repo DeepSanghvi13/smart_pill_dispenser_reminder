@@ -134,6 +134,31 @@ class Medicine {
         .toList();
   }
 
+  /// Checks whether a given date (defaults to today) falls strictly within the prescribed treatment window [startDate, endDate]
+  bool isWithinTreatmentWindow([DateTime? date]) {
+    final target = date ?? DateTime.now();
+    final targetDay = DateTime(target.year, target.month, target.day);
+    final startDay = DateTime(startDate.year, startDate.month, startDate.day);
+    final endDay = DateTime(endDate.year, endDate.month, endDate.day);
+    return !targetDay.isBefore(startDay) && !targetDay.isAfter(endDay);
+  }
+
+  /// Whether the medication course has completed (past endDate)
+  bool get isTreatmentCompleted {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final endDay = DateTime(endDate.year, endDate.month, endDate.day);
+    return today.isAfter(endDay);
+  }
+
+  /// Whether the medication course starts in the future (before startDate)
+  bool get isTreatmentFuture {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final startDay = DateTime(startDate.year, startDate.month, startDate.day);
+    return today.isBefore(startDay);
+  }
+
   Medicine copyWith({
     int? id,
     String? userId,

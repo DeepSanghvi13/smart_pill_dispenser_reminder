@@ -46,12 +46,6 @@ class MedicineProvider extends ChangeNotifier {
     reloadAll();
   }
 
-  // Helper for notification IDs
-  int _notificationIdForMedicine(int medicineId) {
-    const int base = 1000;
-    return base + (medicineId.abs() % 2147483647);
-  }
-
   // ============= MEDICINE OPERATIONS =============
 
   Future<void> loadMedicines() async {
@@ -199,16 +193,25 @@ class MedicineProvider extends ChangeNotifier {
   Future<void> _scheduleNotificationForMedicine(Medicine medicine) async {
     if (medicine.id == null) return;
     try {
-      final baseId = _notificationIdForMedicine(medicine.id!);
-      final freq = medicine.frequency.trim().toLowerCase();
+      // 1. If treatment duration has ended, do not schedule; cancel any remaining alarms
+      if (medicine.isTreatmentCompleted) {
+        await _cancelNotificationForMedicine(medicine.id!);
+        return;
+      }
 
+      final freq = medicine.frequency.trim().toLowerCase();
       if (freq == 'as needed') {
         // Do not schedule recurring alarms for "As needed"
         return;
       }
 
+      // First cancel all previous notifications for this medicine to prevent stale slots
+      await _cancelNotificationForMedicine(medicine.id!);
+
       final times = medicine.doseTimes.isNotEmpty ? medicine.doseTimes : [medicine.time];
       final now = DateTime.now();
+      final startDay = DateTime(medicine.startDate.year, medicine.startDate.month, medicine.startDate.day);
+      final endDay = DateTime(medicine.endDate.year, medicine.endDate.month, medicine.endDate.day, 23, 59, 59);
 
       for (int i = 0; i < times.length; i++) {
         final parsedTime = _parseTimeString(times[i]);
@@ -221,12 +224,31 @@ class MedicineProvider extends ChangeNotifier {
           parsedTime.hour,
           parsedTime.minute,
         );
+
         if (scheduledDate.isBefore(now)) {
           scheduledDate = scheduledDate.add(const Duration(days: 1));
         }
 
+        // If the medication start date is in the future, start scheduling from the start date
+        final scheduleDay = DateTime(scheduledDate.year, scheduledDate.month, scheduledDate.day);
+        if (scheduleDay.isBefore(startDay)) {
+          scheduledDate = DateTime(
+            startDay.year,
+            startDay.month,
+            startDay.day,
+            parsedTime.hour,
+            parsedTime.minute,
+          );
+        }
+
+        // If scheduled date is past the prescribed treatment end date, do not schedule
+        if (scheduledDate.isAfter(endDay)) {
+          continue;
+        }
+
         final doseLabel = times.length > 1 ? ' (Dose ${i + 1})' : '';
-        final notificationId = baseId * 10 + i;
+        // Explicit segregated ID range for medicine alarms: 100000..189999
+        final notificationId = 100000 + ((medicine.id! % 8000) * 10) + (i % 10);
 
         if (freq == 'weekly') {
           await NotificationService.scheduleWeeklyAlarmNotification(
@@ -243,7 +265,6 @@ class MedicineProvider extends ChangeNotifier {
             }),
           );
         } else {
-          // Schedule each dose at its prescribed time
           await NotificationService.scheduleAlarmNotification(
             id: notificationId,
             title: 'Medication Reminder$doseLabel',
@@ -266,11 +287,7 @@ class MedicineProvider extends ChangeNotifier {
 
   Future<void> _cancelNotificationForMedicine(int medicineId) async {
     try {
-      final baseId = _notificationIdForMedicine(medicineId);
-      for (int i = 0; i <= 10; i++) {
-        await NotificationService.cancelNotification(baseId * 10 + i);
-        await NotificationService.cancelNotification(baseId * 100 + i);
-      }
+      await NotificationService.cancelNotificationsForMedicine(medicineId);
     } catch (e) {
       debugPrint('Error cancelling notification: $e');
     }

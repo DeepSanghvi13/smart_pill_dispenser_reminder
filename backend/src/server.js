@@ -1595,6 +1595,34 @@ app.delete(['/api/user-profile/photo', '/api/profile/photo'], authenticateToken,
   }
 });
 
+// Self-service account deletion
+app.delete(['/api/users/account', '/api/user-profile/account'], authenticateTokenOrFallback, async (req, res) => {
+  const inputUserId = req.query.userId || req.body?.userId;
+  const userId = req.user ? req.user.id : await resolveUserId(inputUserId);
+  if (!userId) return res.status(400).json({ ok: false, error: 'User mapping failed' });
+
+  try {
+    const userRows = await query('SELECT email, role FROM users WHERE id = ?', [userId]);
+    const userEmail = userRows.length > 0 ? userRows[0].email : (req.user ? req.user.email : String(inputUserId));
+    const userRole = userRows.length > 0 ? userRows[0].role : 'patient';
+
+    await logActivity({
+      userId,
+      userEmail,
+      userRole,
+      activityType: 'DELETE_ACCOUNT',
+      description: 'User initiated permanent account and profile deletion',
+      status: 'SUCCESS',
+      req
+    });
+
+    await query('DELETE FROM users WHERE id = ?', [userId]);
+    return res.status(200).json({ ok: true, message: 'Account permanently deleted.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.post('/api/settings', authenticateTokenOrFallback, async (req, res) => {
   const inputUserId = req.body?.userId;
   const userId = req.user ? req.user.id : await resolveUserId(inputUserId);
@@ -3794,6 +3822,45 @@ app.post('/api/admin/users', authenticateToken, requireRole('admin'), async (req
       [fullName, email, hash, role, phoneNumber || null]
     );
     res.json({ ok: true, message: 'User created successfully', userId: result.insertId });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post(['/api/admin/reset-password', '/api/users/reset-password'], authenticateTokenOrFallback, async (req, res) => {
+  try {
+    const { email, newPassword } = req.body || {};
+    if (!email || !newPassword) {
+      return res.status(400).json({ ok: false, message: 'email and newPassword are required' });
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await query('UPDATE users SET passwordHash = ?, updatedAt = NOW() WHERE email = ?', [hash, email.trim().toLowerCase()]);
+    res.json({ ok: true, message: 'Password reset successfully' });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.put(['/api/admin/users/status', '/api/admin/users-status'], authenticateTokenOrFallback, async (req, res) => {
+  try {
+    const { email, isActive } = req.body || {};
+    if (!email || isActive === undefined) {
+      return res.status(400).json({ ok: false, message: 'email and isActive are required' });
+    }
+    const status = isActive ? 'active' : 'suspended';
+    await query('UPDATE users SET status = ?, updatedAt = NOW() WHERE email = ?', [status, email.trim().toLowerCase()]);
+    res.json({ ok: true, message: `User status set to ${status}` });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/users-by-email', authenticateTokenOrFallback, async (req, res) => {
+  try {
+    const email = req.query.email || req.body?.email;
+    if (!email) return res.status(400).json({ ok: false, message: 'email is required' });
+    await query('DELETE FROM users WHERE email = ?', [email.trim().toLowerCase()]);
+    res.json({ ok: true, message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }

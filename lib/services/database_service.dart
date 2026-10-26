@@ -197,6 +197,9 @@ class DatabaseService {
     if (payload.isActive) {
       await NotificationService.scheduleReminderNotifications(payload);
     }
+    try {
+      await MySQLSyncHelper.syncReminder(payload, userId: activePatientId);
+    } catch (_) {}
     return nextId;
   }
 
@@ -221,6 +224,9 @@ class DatabaseService {
       if (payload.isActive) {
         await NotificationService.scheduleReminderNotifications(payload);
       }
+      try {
+        await MySQLSyncHelper.syncReminder(payload, userId: activePatientId);
+      } catch (_) {}
       return 1;
     }
     return 0;
@@ -231,6 +237,9 @@ class DatabaseService {
     all.removeWhere((r) => r.id == id);
     await _saveReminders(all);
     await NotificationService.cancelReminderNotifications(id);
+    try {
+      await MySQLSyncHelper.deleteReminder(id, userId: activePatientId);
+    } catch (_) {}
     return 1;
   }
 
@@ -245,6 +254,9 @@ class DatabaseService {
       if (isActive) {
         await NotificationService.scheduleReminderNotifications(updated);
       }
+      try {
+        await MySQLSyncHelper.syncReminder(updated, userId: activePatientId);
+      } catch (_) {}
       return 1;
     }
     return 0;
@@ -317,6 +329,9 @@ class DatabaseService {
         takenAt: takenAt,
       );
       await _saveAlarmLogs(all);
+      try {
+        await MySQLSyncHelper.syncAlarmLog(all[index], userId: activePatientId);
+      } catch (_) {}
       return 1;
     }
     return 0;
@@ -329,6 +344,9 @@ class DatabaseService {
       final current = all[index];
       all[index] = current.copyWith(snoozeCount: current.snoozeCount + 1);
       await _saveAlarmLogs(all);
+      try {
+        await MySQLSyncHelper.syncAlarmLog(all[index], userId: activePatientId);
+      } catch (_) {}
       return 1;
     }
     return 0;

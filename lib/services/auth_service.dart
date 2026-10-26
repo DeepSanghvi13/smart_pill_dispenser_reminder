@@ -209,6 +209,11 @@ class AuthService extends ChangeNotifier {
       if (box.containsKey(normalizedEmail)) {
         final localUser = box.get(normalizedEmail);
         if (localUser != null && verifyPassword(password, localUser.password)) {
+          // Block disabled accounts even offline
+          if (!localUser.isActive) {
+            return false;
+          }
+
           // If password was legacy plaintext, upgrade to hash
           if (localUser.password == password) {
             await box.put(normalizedEmail, localUser.copyWith(password: hashPassword(password)));
@@ -216,7 +221,7 @@ class AuthService extends ChangeNotifier {
 
           _currentUser = normalizedEmail;
           _isLoggedIn = true;
-          _isOfflineSession = !isServerOnline;
+          _isOfflineSession = true;
 
           await settings.put(_sessionKey, normalizedEmail);
           await DatabaseService().setCurrentUser(normalizedEmail);
@@ -275,10 +280,15 @@ class AuthService extends ChangeNotifier {
   }
 
   /// Delete Account
-  Future<void> deleteAccount() async {
-    if (_currentUser == null) return;
+  Future<bool> deleteAccount() async {
+    if (_currentUser == null) return false;
     final email = _currentUser!;
     final isCare = isCaretaker;
+
+    // Delete remotely on MySQL server if reachable
+    try {
+      await MySQLApiService().deleteAccount(userId: email);
+    } catch (_) {}
 
     final usersBox = HiveService().usersBox;
     final profilesBox = HiveService().profilesBox;
@@ -331,6 +341,7 @@ class AuthService extends ChangeNotifier {
     }
 
     await logout();
+    return true;
   }
 
   // User role helpers
@@ -359,16 +370,20 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> adminResetPassword(String email, String newPassword) async {
+    final cleanPass = newPassword.trim();
     final normalized = email.trim().toLowerCase();
     final box = HiveService().usersBox;
     final user = box.get(normalized);
     if (user != null) {
       final updated = user.copyWith(
-        password: newPassword,
+        password: hashPassword(cleanPass),
         updatedBy: _currentUser ?? 'admin',
         updatedAt: DateTime.now(),
       );
       await box.put(normalized, updated);
+      try {
+        await MySQLApiService().adminResetPassword(normalized, cleanPass);
+      } catch (_) {}
       notifyListeners();
     }
   }
@@ -384,12 +399,19 @@ class AuthService extends ChangeNotifier {
         updatedAt: DateTime.now(),
       );
       await box.put(normalized, updated);
+      try {
+        await MySQLApiService().adminUpdateUserStatus(normalized, isActive);
+      } catch (_) {}
       notifyListeners();
     }
   }
 
   Future<void> adminDeleteUser(String email) async {
     final normalized = email.trim().toLowerCase();
+    try {
+      await MySQLApiService().adminDeleteUserByEmail(normalized);
+    } catch (_) {}
+
     final usersBox = HiveService().usersBox;
     final profilesBox = HiveService().profilesBox;
     final medicinesBox = HiveService().medicinesBox;
@@ -439,6 +461,10 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<String?> adminCreateUser(String name, String email, String password, String role) async {
+    final cleanPass = password.trim();
+    if (cleanPass.length < 6) {
+      return 'Password must be at least 6 characters.';
+    }
     final normalized = email.trim().toLowerCase();
     if (role.toLowerCase() != 'admin' && !AppValidators.isValidGmail(normalized)) {
       return 'Please enter a valid Gmail address ending with @gmail.com.';
@@ -451,7 +477,7 @@ class AuthService extends ChangeNotifier {
     final newUser = User(
       fullName: name,
       email: normalized,
-      password: password,
+      password: hashPassword(cleanPass),
       role: role,
       createdBy: _currentUser ?? 'admin',
       updatedBy: _currentUser ?? 'admin',
@@ -475,7 +501,7 @@ class AuthService extends ChangeNotifier {
     // Sync to MySQL Database
     MySQLApiService().registerUser(
       email: normalized,
-      password: password,
+      password: cleanPass,
       fullName: name,
       role: role,
     ).then((_) {}).catchError((_) => null);

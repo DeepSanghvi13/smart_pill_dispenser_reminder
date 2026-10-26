@@ -396,16 +396,61 @@ class MySQLApiService {
     }
   }
 
+  Future<int?> createOrUpdateReminderOnServer(Reminder reminder, {String? userId}) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/reminders'),
+            headers: _headers,
+            body: jsonEncode(_reminderPayload(reminder, userId: userId)),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body)['id'] as int?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> deleteReminderFromServer(int id, {String? userId}) async {
+    try {
+      final ownerId = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId;
+      final res = await http
+          .delete(
+            Uri.parse('$baseUrl/api/reminders/$id?userId=$ownerId'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Map<String, dynamic> _reminderPayload(Reminder r, {String? userId}) => {
+    'id': r.id,
+    'userId': (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId,
+    'medicineId': r.medicineId,
+    'time': r.time,
+    'daysOfWeek': r.daysOfWeek,
+    'isActive': r.isActive,
+    'lastNotifiedAt': r.lastNotifiedAt?.toIso8601String(),
+  };
+
   // ---- Alarm Logs ----
 
-  Future<bool> logAlarmToServer(AlarmLog log) async {
+  Future<bool> logAlarmToServer(AlarmLog log, {String? userId}) async {
     try {
+      final ownerId = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/alarm-logs'),
             headers: _headers,
             body: jsonEncode({
-              'userId': _currentUserId,
+              'id': log.id,
+              'userId': ownerId,
               'medicineId': log.medicineId,
               'medicineName': log.medicineName,
               'scheduledTime': log.scheduledTime.toIso8601String(),
@@ -438,6 +483,67 @@ class MySQLApiService {
       return [];
     } catch (_) {
       return [];
+    }
+  }
+
+  // ---- Account & Admin Synchronization ----
+
+  Future<bool> deleteAccount({String? userId}) async {
+    try {
+      final ownerId = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId;
+      final res = await http
+          .delete(
+            Uri.parse('$baseUrl/api/users/account?userId=$ownerId'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> adminResetPassword(String email, String newPassword) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/admin/reset-password'),
+            headers: _headers,
+            body: jsonEncode({'email': email, 'newPassword': newPassword}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> adminUpdateUserStatus(String email, bool isActive) async {
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/api/admin/users/status'),
+            headers: _headers,
+            body: jsonEncode({'email': email, 'isActive': isActive}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> adminDeleteUserByEmail(String email) async {
+    try {
+      final res = await http
+          .delete(
+            Uri.parse('$baseUrl/api/admin/users-by-email?email=${Uri.encodeComponent(email)}'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -711,7 +817,7 @@ class MySQLApiService {
 
   Future<bool> syncAllDataToServer({
     required List<Medicine> medicines,
-    required UserProfile? userProfile,
+    UserProfile? userProfile,
     required List<Caretaker> caretakers,
     required List<AlarmLog> alarmLogs,
     required List<Reminder> reminders,

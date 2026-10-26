@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../routes/app_routes.dart';
+import '../../../services/auth_service.dart';
 
 class DeleteAccountConfirmScreen extends StatefulWidget {
   const DeleteAccountConfirmScreen({super.key});
@@ -11,6 +14,7 @@ class DeleteAccountConfirmScreen extends StatefulWidget {
 class _DeleteAccountConfirmScreenState
     extends State<DeleteAccountConfirmScreen> {
   bool agreed = false;
+  bool _isDeleting = false;
 
   @override
   Widget build(BuildContext context) {
@@ -107,13 +111,46 @@ class _DeleteAccountConfirmScreenState
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: agreed
-                    ? () {
-                        // Final delete flow should be wired to backend account removal.
-                        Navigator.popUntil(
-                          context,
-                          (route) => route.isFirst,
-                        );
+                onPressed: (agreed && !_isDeleting)
+                    ? () async {
+                        final auth = context.read<AuthService>();
+                        final messenger = ScaffoldMessenger.of(context);
+                        final navigator = Navigator.of(context, rootNavigator: true);
+
+                        setState(() => _isDeleting = true);
+                        try {
+                          final success = await auth.deleteAccount();
+                          if (!mounted) return;
+                          if (success) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Account and all associated data permanently deleted.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            navigator.pushNamedAndRemoveUntil(
+                              AppRoutes.login,
+                              (route) => false,
+                            );
+                          } else {
+                            setState(() => _isDeleting = false);
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Account deletion failed. Please try again.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (!mounted) return;
+                          setState(() => _isDeleting = false);
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('Error deleting account: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       }
                     : null,
                 style: ElevatedButton.styleFrom(
@@ -124,14 +161,23 @@ class _DeleteAccountConfirmScreenState
                     borderRadius: BorderRadius.circular(30),
                   ),
                 ),
-                child: const Text(
-                  'Delete Permanently',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: _isDeleting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Delete Permanently',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
           ),

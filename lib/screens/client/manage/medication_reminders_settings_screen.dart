@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/hive_service.dart';
 
 class MedicationRemindersSettingsScreen extends StatefulWidget {
   const MedicationRemindersSettingsScreen({super.key});
@@ -15,6 +16,40 @@ class _MedicationRemindersSettingsScreenState
   bool showMedNames = false;
   bool shakeToTake = false;
   String reminderText = "Hi, it's time for your medication.";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  void _loadSettings() {
+    try {
+      final box = HiveService().settingsBox;
+      final savedMax = box.get('med_settings_max_reminders') as int?;
+      final savedSnooze = box.get('med_settings_snooze_minutes') as int?;
+      final savedShowNames = box.get('med_settings_show_names') as bool?;
+      final savedShake = box.get('med_settings_shake_to_take') as bool?;
+      final savedText = box.get('med_settings_reminder_text') as String?;
+
+      setState(() {
+        if (savedMax != null) maxReminders = savedMax;
+        if (savedSnooze != null) snoozeMinutes = savedSnooze;
+        if (savedShowNames != null) showMedNames = savedShowNames;
+        if (savedShake != null) shakeToTake = savedShake;
+        if (savedText != null && savedText.trim().isNotEmpty) {
+          reminderText = savedText;
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _persistValue(String key, dynamic value) async {
+    try {
+      final box = HiveService().settingsBox;
+      await box.put(key, value);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,11 +77,11 @@ class _MedicationRemindersSettingsScreenState
 
           _checkboxTile(
             title: 'Show meds names',
-            subtitle:
-            'See your meds names when receiving a reminder',
+            subtitle: 'See your meds names when receiving a reminder',
             value: showMedNames,
             onChanged: (val) {
               setState(() => showMedNames = val);
+              _persistValue('med_settings_show_names', val);
             },
           ),
 
@@ -58,11 +93,11 @@ class _MedicationRemindersSettingsScreenState
 
           _checkboxTile(
             title: 'Shake to Take',
-            subtitle:
-            'Shake the phone (on reminder screen) to mark all meds as taken',
+            subtitle: 'Shake the phone (on reminder screen) to mark all meds as taken',
             value: shakeToTake,
             onChanged: (val) {
               setState(() => shakeToTake = val);
+              _persistValue('med_settings_shake_to_take', val);
             },
           ),
         ],
@@ -110,7 +145,7 @@ class _MedicationRemindersSettingsScreenState
         title: const Text('Max reminders per medication'),
         children: List.generate(
           6,
-              (index) => SimpleDialogOption(
+          (index) => SimpleDialogOption(
             child: Text('${index + 1} reminders'),
             onPressed: () => Navigator.pop(context, index + 1),
           ),
@@ -120,6 +155,7 @@ class _MedicationRemindersSettingsScreenState
 
     if (result != null) {
       setState(() => maxReminders = result);
+      await _persistValue('med_settings_max_reminders', result);
     }
   }
 
@@ -139,12 +175,12 @@ class _MedicationRemindersSettingsScreenState
 
     if (result != null) {
       setState(() => snoozeMinutes = result);
+      await _persistValue('med_settings_snooze_minutes', result);
     }
   }
 
   void _editReminderText(BuildContext context) async {
-    final controller =
-    TextEditingController(text: reminderText);
+    final controller = TextEditingController(text: reminderText);
 
     final result = await showDialog<String>(
       context: context,
@@ -160,8 +196,7 @@ class _MedicationRemindersSettingsScreenState
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () =>
-                Navigator.pop(context, controller.text),
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
             child: const Text('Save'),
           ),
         ],
@@ -170,9 +205,7 @@ class _MedicationRemindersSettingsScreenState
 
     if (result != null && result.isNotEmpty) {
       setState(() => reminderText = result);
+      await _persistValue('med_settings_reminder_text', result);
     }
   }
 }
-
-
-

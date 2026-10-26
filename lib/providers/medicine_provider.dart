@@ -171,109 +171,93 @@ class MedicineProvider extends ChangeNotifier {
 
   // ============= NOTIFICATION HELPERS =============
 
+  DateTime? _parseTimeString(String raw) {
+    final clean = raw.trim();
+    final formats = [
+      DateFormat('h:mm a'),
+      DateFormat('hh:mm a'),
+      DateFormat('H:mm'),
+      DateFormat('HH:mm'),
+    ];
+    for (final format in formats) {
+      try {
+        return format.parse(clean);
+      } catch (_) {}
+    }
+    final parts = clean.split(':');
+    if (parts.length >= 2) {
+      try {
+        final hour = int.parse(parts[0]);
+        final minStr = parts[1].replaceAll(RegExp(r'[^0-9]'), '');
+        final minute = int.parse(minStr);
+        return DateTime(2000, 1, 1, hour, minute);
+      } catch (_) {}
+    }
+    return null;
+  }
+
   Future<void> _scheduleNotificationForMedicine(Medicine medicine) async {
     if (medicine.id == null) return;
     try {
-      final clean = medicine.time.trim();
-      final formats = [
-        DateFormat('h:mm a'),
-        DateFormat('hh:mm a'),
-        DateFormat('H:mm'),
-        DateFormat('HH:mm'),
-      ];
-      DateTime? parsedTime;
-      for (final format in formats) {
-        try {
-          parsedTime = format.parse(clean);
-          break;
-        } catch (_) {}
-      }
-
-      if (parsedTime == null) {
-        // Fallback for 24-hour manual separation
-        final parts = clean.split(':');
-        if (parts.length >= 2) {
-          final hour = int.parse(parts[0]);
-          final minStr = parts[1].replaceAll(RegExp(r'[^0-9]'), '');
-          final minute = int.parse(minStr);
-          parsedTime = DateTime(2000, 1, 1, hour, minute);
-        }
-      }
-
-      if (parsedTime == null) {
-        throw FormatException('Could not parse time string: $clean');
-      }
-
-      final now = DateTime.now();
-      var scheduledDate = DateTime(now.year, now.month, now.day, parsedTime.hour, parsedTime.minute);
-      if (scheduledDate.isBefore(now)) {
-        scheduledDate = scheduledDate.add(const Duration(days: 1));
-      }
-
       final baseId = _notificationIdForMedicine(medicine.id!);
       final freq = medicine.frequency.trim().toLowerCase();
 
-      if (freq == 'weekly') {
-        await NotificationService.scheduleWeeklyAlarmNotification(
-          id: baseId * 10,
-          title: 'Medication Reminder (Weekly)',
-          body: 'Time to take ${medicine.name} (${medicine.dosage})',
-          dateTime: scheduledDate,
-          payload: jsonEncode({
-            'type': 'alarm',
-            'id': medicine.id,
-            'name': medicine.name,
-            'dosage': medicine.dosage,
-          }),
+      if (freq == 'as needed') {
+        // Do not schedule recurring alarms for "As needed"
+        return;
+      }
+
+      final times = medicine.doseTimes.isNotEmpty ? medicine.doseTimes : [medicine.time];
+      final now = DateTime.now();
+
+      for (int i = 0; i < times.length; i++) {
+        final parsedTime = _parseTimeString(times[i]);
+        if (parsedTime == null) continue;
+
+        var scheduledDate = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          parsedTime.hour,
+          parsedTime.minute,
         );
-      } else if (freq == 'twice a day') {
-        for (int i = 0; i < 2; i++) {
-          final alarmTime = scheduledDate.add(Duration(hours: 12 * i));
-          await NotificationService.scheduleAlarmNotification(
-            id: baseId * 10 + i + 1,
-            title: 'Medication Reminder',
+        if (scheduledDate.isBefore(now)) {
+          scheduledDate = scheduledDate.add(const Duration(days: 1));
+        }
+
+        final doseLabel = times.length > 1 ? ' (Dose ${i + 1})' : '';
+        final notificationId = baseId * 10 + i;
+
+        if (freq == 'weekly') {
+          await NotificationService.scheduleWeeklyAlarmNotification(
+            id: notificationId,
+            title: 'Medication Reminder (Weekly)$doseLabel',
             body: 'Time to take ${medicine.name} (${medicine.dosage})',
-            dateTime: alarmTime,
+            dateTime: scheduledDate,
             payload: jsonEncode({
               'type': 'alarm',
               'id': medicine.id,
               'name': medicine.name,
               'dosage': medicine.dosage,
+              'doseIndex': i,
             }),
           );
-        }
-      } else if (freq == 'three times a day') {
-        for (int i = 0; i < 3; i++) {
-          final alarmTime = scheduledDate.add(Duration(hours: 8 * i));
+        } else {
+          // Schedule each dose at its prescribed time
           await NotificationService.scheduleAlarmNotification(
-            id: baseId * 10 + i + 1,
-            title: 'Medication Reminder',
+            id: notificationId,
+            title: 'Medication Reminder$doseLabel',
             body: 'Time to take ${medicine.name} (${medicine.dosage})',
-            dateTime: alarmTime,
+            dateTime: scheduledDate,
             payload: jsonEncode({
               'type': 'alarm',
               'id': medicine.id,
               'name': medicine.name,
               'dosage': medicine.dosage,
+              'doseIndex': i,
             }),
           );
         }
-      } else if (freq == 'as needed') {
-        // Do not schedule recurring notifications for "As needed"
-      } else {
-        // Default to "Daily" recurring alarm
-        await NotificationService.scheduleAlarmNotification(
-          id: baseId * 10,
-          title: 'Medication Reminder',
-          body: 'Time to take ${medicine.name} (${medicine.dosage})',
-          dateTime: scheduledDate,
-          payload: jsonEncode({
-            'type': 'alarm',
-            'id': medicine.id,
-            'name': medicine.name,
-            'dosage': medicine.dosage,
-          }),
-        );
       }
     } catch (e) {
       debugPrint('Error scheduling notification: $e');
@@ -283,9 +267,9 @@ class MedicineProvider extends ChangeNotifier {
   Future<void> _cancelNotificationForMedicine(int medicineId) async {
     try {
       final baseId = _notificationIdForMedicine(medicineId);
-      await NotificationService.cancelNotification(baseId * 10);
-      for (int i = 0; i < 4; i++) {
-        await NotificationService.cancelNotification(baseId * 10 + i + 1);
+      for (int i = 0; i <= 10; i++) {
+        await NotificationService.cancelNotification(baseId * 10 + i);
+        await NotificationService.cancelNotification(baseId * 100 + i);
       }
     } catch (e) {
       debugPrint('Error cancelling notification: $e');
@@ -475,7 +459,6 @@ class MedicineProvider extends ChangeNotifier {
   Future<void> checkExpiringMedicinesAndNotify() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final todayStr = DateFormat('yyyy-MM-dd').format(now);
     final notificationsBox = HiveService().notificationsBox;
 
     for (final med in _medicines) {
@@ -483,8 +466,10 @@ class MedicineProvider extends ChangeNotifier {
       final expDay = DateTime(exp.year, exp.month, exp.day);
       final diffDays = expDay.difference(today).inDays;
 
-      if (diffDays <= 30) {
-        final notifKey = 'expiry_${med.id}_$todayStr';
+      // 1. Medicine is already expired (< 0 days left)
+      if (diffDays < 0) {
+        final notifKey = 'expired_alert_${med.id}';
+        // Alert only once when expired; do not repeatedly alert every day
         if (!notificationsBox.containsKey(notifKey)) {
           await notificationsBox.put(notifKey, {
             'type': 'expiry',
@@ -492,6 +477,54 @@ class MedicineProvider extends ChangeNotifier {
             'medicineName': med.name,
             'expiryDate': med.formattedExpiryDate,
             'daysLeft': diffDays,
+            'status': 'expired',
+            'createdAt': DateTime.now().toIso8601String(),
+          });
+
+          await NotificationService.showExpiryWarningAlert(
+            medicineName: med.name,
+            expiryDate: med.formattedExpiryDate,
+            daysLeft: diffDays,
+          );
+        }
+      }
+      // 2. Medicine is expiring very soon (within next 7 days: 0 to 7 days)
+      else if (diffDays <= 7) {
+        // Milestone alerts: 7 days, 3 days, 1 day, and 0 days (day of expiry)
+        final isMilestone = diffDays == 7 || diffDays == 3 || diffDays == 1 || diffDays == 0;
+        if (isMilestone) {
+          final notifKey = 'expiring_milestone_${med.id}_day_$diffDays';
+          if (!notificationsBox.containsKey(notifKey)) {
+            await notificationsBox.put(notifKey, {
+              'type': 'expiry',
+              'medicineId': med.id,
+              'medicineName': med.name,
+              'expiryDate': med.formattedExpiryDate,
+              'daysLeft': diffDays,
+              'status': 'expiring_soon',
+              'createdAt': DateTime.now().toIso8601String(),
+            });
+
+            await NotificationService.showExpiryWarningAlert(
+              medicineName: med.name,
+              expiryDate: med.formattedExpiryDate,
+              daysLeft: diffDays,
+            );
+          }
+        }
+      }
+      // 3. Medicine is expiring within 30 days (8 to 30 days)
+      else if (diffDays <= 30) {
+        final notifKey = 'expiring_30d_${med.id}';
+        // Notify once when entering the 30-day window
+        if (!notificationsBox.containsKey(notifKey)) {
+          await notificationsBox.put(notifKey, {
+            'type': 'expiry',
+            'medicineId': med.id,
+            'medicineName': med.name,
+            'expiryDate': med.formattedExpiryDate,
+            'daysLeft': diffDays,
+            'status': 'expiring_30d',
             'createdAt': DateTime.now().toIso8601String(),
           });
 

@@ -9,6 +9,7 @@ import '../models/medicine.dart';
 import '../models/missed_medicine_alert.dart';
 import '../models/reminder.dart';
 import '../models/user_profile.dart';
+import 'notification_service.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -91,14 +92,18 @@ class DatabaseService {
       updatedBy: _currentUserId,
     );
     await box.put(id, payload);
-    MySQLSyncHelper.syncMedicine(payload);
+    MySQLSyncHelper.updateMedicine(id, payload);
     return 1;
   }
 
   Future<int> deleteMedicine(int id) async {
     final box = HiveService().medicinesBox;
+    final existing = box.get(id);
     await box.delete(id);
-    MySQLSyncHelper.deleteMedicine(id);
+    final ownerId = (existing != null && existing.userId.trim().isNotEmpty)
+        ? existing.userId.trim()
+        : activePatientId;
+    MySQLSyncHelper.deleteMedicine(id, userId: ownerId);
     return 1;
   }
 
@@ -189,6 +194,9 @@ class DatabaseService {
     final payload = reminder.copyWith(id: nextId);
     all.add(payload);
     await _saveReminders(all);
+    if (payload.isActive) {
+      await NotificationService.scheduleReminderNotifications(payload);
+    }
     return nextId;
   }
 
@@ -206,8 +214,13 @@ class DatabaseService {
     final all = await getAllReminders();
     final index = all.indexWhere((r) => r.id == id);
     if (index >= 0) {
-      all[index] = reminder.copyWith(id: id);
+      final payload = reminder.copyWith(id: id);
+      all[index] = payload;
       await _saveReminders(all);
+      await NotificationService.cancelReminderNotifications(id);
+      if (payload.isActive) {
+        await NotificationService.scheduleReminderNotifications(payload);
+      }
       return 1;
     }
     return 0;
@@ -217,6 +230,7 @@ class DatabaseService {
     final all = await getAllReminders();
     all.removeWhere((r) => r.id == id);
     await _saveReminders(all);
+    await NotificationService.cancelReminderNotifications(id);
     return 1;
   }
 
@@ -224,8 +238,13 @@ class DatabaseService {
     final all = await getAllReminders();
     final index = all.indexWhere((r) => r.id == id);
     if (index >= 0) {
-      all[index] = all[index].copyWith(isActive: isActive);
+      final updated = all[index].copyWith(isActive: isActive);
+      all[index] = updated;
       await _saveReminders(all);
+      await NotificationService.cancelReminderNotifications(id);
+      if (isActive) {
+        await NotificationService.scheduleReminderNotifications(updated);
+      }
       return 1;
     }
     return 0;

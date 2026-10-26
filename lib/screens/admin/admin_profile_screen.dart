@@ -118,7 +118,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       final email = auth.currentUser ?? 'admin@smartpill.com';
 
       final updatedUser = _adminUser!.copyWith(
-        password: newPassword,
+        password: AuthService.hashPassword(newPassword),
         updatedBy: email,
         updatedAt: DateTime.now(),
       );

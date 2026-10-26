@@ -35,7 +35,14 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
         (m) => m.id == widget.reminder!.medicineId,
         orElse: () => widget.medicines.first,
       );
-      reminderTime = TimeOfDay(hour: 9, minute: 0);
+      int h = 9;
+      int m = 0;
+      final parts = widget.reminder!.time.split(':');
+      if (parts.length >= 2) {
+        h = int.tryParse(parts[0]) ?? 9;
+        m = int.tryParse(parts[1].replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      }
+      reminderTime = TimeOfDay(hour: h, minute: m);
       selectedDays = Set.from(widget.reminder!.daysOfWeek);
       isActive = widget.reminder!.isActive;
     } else {

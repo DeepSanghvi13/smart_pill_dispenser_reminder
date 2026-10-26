@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:intl/intl.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import '../models/reminder.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
@@ -383,6 +386,114 @@ class NotificationService {
       NotificationDetails(android: androidDetails),
       payload: 'expiry:$medicineName:$expiryDate',
     );
+  }
+
+  static int _mapDayToWeekday(String day) {
+    final d = day.trim().toLowerCase();
+    if (d.startsWith('mon')) return DateTime.monday;
+    if (d.startsWith('tue')) return DateTime.tuesday;
+    if (d.startsWith('wed')) return DateTime.wednesday;
+    if (d.startsWith('thu')) return DateTime.thursday;
+    if (d.startsWith('fri')) return DateTime.friday;
+    if (d.startsWith('sat')) return DateTime.saturday;
+    if (d.startsWith('sun')) return DateTime.sunday;
+    return -1;
+  }
+
+  static DateTime _nextInstanceOfDayAndTime(int targetWeekday, int hour, int minute) {
+    final now = DateTime.now();
+    var scheduled = DateTime(now.year, now.month, now.day, hour, minute);
+    while (scheduled.weekday != targetWeekday || scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    return scheduled;
+  }
+
+  /// Schedule recurring notifications for a Reminder across all selected days of week
+  static Future<void> scheduleReminderNotifications(Reminder reminder) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    if (reminder.id == null || !reminder.isActive || reminder.daysOfWeek.isEmpty) return;
+
+    // Parse time
+    int hour = 9;
+    int minute = 0;
+    final cleanTime = reminder.time.trim();
+    final timeFormats = [
+      DateFormat('h:mm a'),
+      DateFormat('hh:mm a'),
+      DateFormat('H:mm'),
+      DateFormat('HH:mm'),
+    ];
+    bool parsed = false;
+    for (final f in timeFormats) {
+      try {
+        final dt = f.parse(cleanTime);
+        hour = dt.hour;
+        minute = dt.minute;
+        parsed = true;
+        break;
+      } catch (_) {}
+    }
+    if (!parsed) {
+      final parts = cleanTime.split(':');
+      if (parts.length >= 2) {
+        try {
+          hour = int.parse(parts[0]);
+          minute = int.parse(parts[1].replaceAll(RegExp(r'[^0-9]'), ''));
+        } catch (_) {}
+      }
+    }
+
+    final androidDetails = AndroidNotificationDetails(
+      'alarm_channel',
+      'Alarm Notifications',
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: true,
+      enableVibration: true,
+      fullScreenIntent: true,
+      sound: const RawResourceAndroidNotificationSound('alarm'),
+      vibrationPattern: _vibrationPattern,
+      category: AndroidNotificationCategory.alarm,
+      visibility: NotificationVisibility.public,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+    );
+
+    for (final dayStr in reminder.daysOfWeek) {
+      final weekday = _mapDayToWeekday(dayStr);
+      if (weekday == -1) continue;
+
+      final scheduledDate = _nextInstanceOfDayAndTime(weekday, hour, minute);
+      final notificationId = 200000 + (reminder.id! * 10) + weekday;
+
+      await _notifications.zonedSchedule(
+        notificationId,
+        'Medication Reminder',
+        'Time to take ${reminder.medicineName}',
+        tz.TZDateTime.from(scheduledDate, tz.local),
+        NotificationDetails(android: androidDetails),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+        payload: jsonEncode({
+          'type': 'reminder',
+          'id': reminder.id,
+          'medicineId': reminder.medicineId,
+          'medicineName': reminder.medicineName,
+          'time': reminder.time,
+        }),
+      );
+    }
+  }
+
+  /// Cancel all scheduled weekday notifications for a reminder
+  static Future<void> cancelReminderNotifications(int reminderId) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    await cancelNotification(200000 + (reminderId * 10));
+    for (int weekday = 1; weekday <= 7; weekday++) {
+      await cancelNotification(200000 + (reminderId * 10) + weekday);
+    }
   }
 
   /// Cancel all notifications

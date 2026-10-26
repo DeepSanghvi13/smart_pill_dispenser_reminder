@@ -124,6 +124,16 @@ class Medicine {
   /// Compatibility getter for medicineId
   int? get medicineId => id;
 
+  /// Returns each scheduled dose time as an individual string (trimmed)
+  List<String> get doseTimes {
+    if (time.trim().isEmpty) return [];
+    return time
+        .split(',')
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+  }
+
   Medicine copyWith({
     int? id,
     String? userId,

@@ -21,8 +21,36 @@ class MySQLApiService {
 
   String? _resolvedBaseUrl;
 
+  String? getCustomServerUrl() {
+    try {
+      return HiveService().settingsBox.get('custom_backend_url') as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setCustomServerUrl(String? url) async {
+    try {
+      if (url == null || url.trim().isEmpty) {
+        await HiveService().settingsBox.delete('custom_backend_url');
+      } else {
+        var clean = url.trim();
+        if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+          clean = 'http://$clean';
+        }
+        if (clean.endsWith('/')) {
+          clean = clean.substring(0, clean.length - 1);
+        }
+        await HiveService().settingsBox.put('custom_backend_url', clean);
+      }
+      _resolvedBaseUrl = null;
+    } catch (_) {}
+  }
+
   String get baseUrl {
     if (_resolvedBaseUrl != null) return _resolvedBaseUrl!;
+    final customUrl = getCustomServerUrl();
+    if (customUrl != null && customUrl.isNotEmpty) return customUrl;
     if (kIsWeb) return 'http://localhost:$_port';
     try {
       if (Platform.isAndroid) return 'http://10.0.2.2:$_port';
@@ -87,6 +115,10 @@ class MySQLApiService {
 
     // 2. Build candidate list based on platform
     final candidates = <String>[];
+    final customUrl = getCustomServerUrl();
+    if (customUrl != null && customUrl.isNotEmpty) {
+      candidates.add(customUrl);
+    }
     if (kIsWeb) {
       candidates.addAll([
         'http://localhost:$_port',
@@ -220,11 +252,10 @@ class MySQLApiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'email': email, 'password': password}),
           )
-          .timeout(const Duration(milliseconds: 2500));
-      if (res.statusCode == 200) {
-        return jsonDecode(res.body) as Map<String, dynamic>;
-      }
-      return null;
+          .timeout(const Duration(milliseconds: 3500));
+
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return body;
     } catch (_) {
       return null;
     }

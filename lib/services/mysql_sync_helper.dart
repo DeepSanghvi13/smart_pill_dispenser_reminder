@@ -11,6 +11,10 @@ class MySQLSyncHelper {
     await MySQLApiService().createMedicineOnServer(medicine);
   }
 
+  static Future<void> updateMedicine(int id, Medicine medicine) async {
+    await MySQLApiService().updateMedicineOnServer(id, medicine);
+  }
+
   static Future<void> deleteMedicine(int id, {String? userId}) async {
     await MySQLApiService().deleteMedicineFromServer(id, userId: userId);
   }

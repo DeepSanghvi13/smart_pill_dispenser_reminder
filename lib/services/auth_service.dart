@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'hive_service.dart';
 import 'mysql_api_service.dart';
@@ -19,15 +21,29 @@ class AuthService extends ChangeNotifier {
   // Current user session details
   String? _currentUser;
   bool _isLoggedIn = false;
+  bool _isOfflineSession = false;
 
   String? get currentUser => _currentUser;
   bool get isLoggedIn => _isLoggedIn;
+  bool get isOfflineSession => _isOfflineSession;
 
   // Key for session storage in Hive settings box
   static const String _sessionKey = 'current_user_session';
 
-  /// Register a new user — saves locally AND sends to MySQL database
-  Future<String?> registerWithMessage(String name, String email, String password, {String role = 'patient'}) async {
+  /// Hash password using SHA-256 with salt
+  static String hashPassword(String password) {
+    final bytes = utf8.encode('smart_pill_salt_$password');
+    return sha256.convert(bytes).toString();
+  }
+
+  /// Verify entered password against stored password (supports legacy plaintext & hashes)
+  static bool verifyPassword(String inputPassword, String storedPassword) {
+    if (storedPassword == inputPassword) return true;
+    return storedPassword == hashPassword(inputPassword);
+  }
+
+  /// Register a new user — validates, checks server, and syncs
+  Future<String?> registerWithMessage(String name, String email, String password, {String role = 'patient', String? phoneNumber}) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
       if (normalizedEmail.isEmpty) {
@@ -48,11 +64,28 @@ class AuthService extends ChangeNotifier {
         return 'Email already registered. Please login.';
       }
 
-      // 1. Save locally in Hive
+      // 1. Check server connection and register on server if available
+      final isServerOnline = await MySQLApiService().checkServerConnection();
+      if (isServerOnline) {
+        final serverError = await MySQLApiService().registerUser(
+          email: normalizedEmail,
+          password: password,
+          fullName: name.trim(),
+          role: role,
+          phoneNumber: phoneNumber,
+        );
+
+        if (serverError != null) {
+          // Communicate explicit server registration failure (e.g. duplicate email, invalid phone)
+          return serverError;
+        }
+      }
+
+      // 2. Save user locally in Hive with hashed password
       final newUser = User(
         fullName: name.trim(),
         email: normalizedEmail,
-        password: password,
+        password: hashPassword(password),
         role: role,
       );
       await box.put(normalizedEmail, newUser);
@@ -70,18 +103,7 @@ class AuthService extends ChangeNotifier {
       );
       await profileBox.put(normalizedEmail, defaultProfile);
 
-      // 2. Connect to MySQL Database via backend API in background
-      MySQLApiService().registerUser(
-        email: normalizedEmail,
-        password: password,
-        fullName: name.trim(),
-        role: role,
-      ).catchError((e) {
-        debugPrint('MySQL registration error: $e');
-        return null;
-      });
-
-      return null; // Success immediately
+      return null; // Success
     } catch (e) {
       return 'Registration failed: $e';
     }
@@ -95,7 +117,7 @@ class AuthService extends ChangeNotifier {
         final defaultAdmin = User(
           fullName: 'System Admin',
           email: 'admin@smartpill.com',
-          password: 'adminpassword',
+          password: hashPassword('adminpassword'),
           role: 'admin',
           createdBy: 'system',
           updatedBy: 'system',
@@ -122,92 +144,85 @@ class AuthService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Login — authenticates with local database instantly & syncs with MySQL backend
+  /// Login — authenticates with server when online, or allows deliberate offline session
   Future<bool> login(String email, String password) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
       final box = HiveService().usersBox;
+      final settings = HiveService().settingsBox;
 
-      // 1. Fast local verification (< 5ms)
-      if (box.containsKey(normalizedEmail)) {
-        final localUser = box.get(normalizedEmail);
-        if (localUser != null && localUser.password == password) {
-          _currentUser = normalizedEmail;
-          _isLoggedIn = true;
-          
-          final settings = HiveService().settingsBox;
-          await settings.put(_sessionKey, normalizedEmail);
-          await DatabaseService().setCurrentUser(normalizedEmail);
-          notifyListeners();
+      // 1. Check if server is reachable
+      final isServerOnline = await MySQLApiService().checkServerConnection();
 
-          // Sync JWT token with backend asynchronously in background
-          MySQLApiService().loginUser(normalizedEmail, password).then((sessionData) async {
-            if (sessionData != null && sessionData['token'] != null) {
-              settings.put('jwt_token', sessionData['token']);
-              try {
-                final serverProf = await MySQLApiService().getUserProfileFromServer(normalizedEmail);
-                if (serverProf?.profilePicture != null && serverProf!.profilePicture!.isNotEmpty) {
-                  final profBox = HiveService().profilesBox;
-                  final existing = profBox.get(normalizedEmail);
-                  if (existing != null && existing.profilePicture != serverProf.profilePicture) {
-                    await profBox.put(normalizedEmail, existing.copyWith(profilePicture: serverProf.profilePicture));
-                  }
-                }
-              } catch (_) {}
-            }
-          }).catchError((_) => null);
+      if (isServerOnline) {
+        // Authenticate with server directly
+        final sessionData = await MySQLApiService().loginUser(normalizedEmail, password);
 
-          return true;
+        if (sessionData != null) {
+          if (sessionData['ok'] == true) {
+            // Server approved credentials
+            _isOfflineSession = false;
+            final token = sessionData['token'] as String?;
+            if (token != null) await settings.put('jwt_token', token);
+
+            final userData = sessionData['data'] as Map<String, dynamic>? ?? {};
+            final userRole = userData['role'] as String? ?? 'patient';
+            final fullName = userData['fullName'] as String? ?? normalizedEmail;
+
+            // Cache credentials with hash locally for future offline capability
+            final localUser = User(
+              fullName: fullName,
+              email: normalizedEmail,
+              password: hashPassword(password),
+              role: userRole,
+            );
+            await box.put(normalizedEmail, localUser);
+
+            final profileBox = HiveService().profilesBox;
+            try {
+              final serverProf = await MySQLApiService().getUserProfileFromServer(normalizedEmail);
+              if (serverProf != null) {
+                await profileBox.put(normalizedEmail, serverProf);
+              } else if (!profileBox.containsKey(normalizedEmail)) {
+                await profileBox.put(
+                  normalizedEmail,
+                  UserProfile(email: normalizedEmail, fullName: fullName),
+                );
+              }
+            } catch (_) {}
+
+            _currentUser = normalizedEmail;
+            _isLoggedIn = true;
+            await settings.put(_sessionKey, normalizedEmail);
+            await DatabaseService().setCurrentUser(normalizedEmail);
+            notifyListeners();
+            return true;
+          } else {
+            // Server actively rejected the login (wrong password, unknown user, suspended account)
+            // Stale local account CANNOT bypass server authentication
+            return false;
+          }
         }
       }
 
-      // 2. MySQL server authentication fallback (e.g. registered from another device)
-      final sessionData = await MySQLApiService().loginUser(normalizedEmail, password);
-      if (sessionData != null && sessionData['ok'] == true) {
-        final token = sessionData['token'] as String?;
-        final settings = HiveService().settingsBox;
-        if (token != null) await settings.put('jwt_token', token);
-
-        final userData = sessionData['data'] as Map<String, dynamic>? ?? {};
-        final userRole = userData['role'] as String? ?? 'patient';
-        final fullName = userData['fullName'] as String? ?? normalizedEmail;
-
-        final localUser = User(
-          fullName: fullName,
-          email: normalizedEmail,
-          password: password,
-          role: userRole,
-        );
-        await box.put(normalizedEmail, localUser);
-
-        final profileBox = HiveService().profilesBox;
-        try {
-          final serverProf = await MySQLApiService().getUserProfileFromServer(normalizedEmail);
-          if (serverProf != null) {
-            await profileBox.put(normalizedEmail, serverProf);
-          } else if (!profileBox.containsKey(normalizedEmail)) {
-            final defaultProfile = UserProfile(
-              email: normalizedEmail,
-              fullName: fullName,
-            );
-            await profileBox.put(normalizedEmail, defaultProfile);
+      // 2. Deliberate offline session: server is unreachable / offline
+      if (box.containsKey(normalizedEmail)) {
+        final localUser = box.get(normalizedEmail);
+        if (localUser != null && verifyPassword(password, localUser.password)) {
+          // If password was legacy plaintext, upgrade to hash
+          if (localUser.password == password) {
+            await box.put(normalizedEmail, localUser.copyWith(password: hashPassword(password)));
           }
-        } catch (_) {
-          if (!profileBox.containsKey(normalizedEmail)) {
-            final defaultProfile = UserProfile(
-              email: normalizedEmail,
-              fullName: fullName,
-            );
-            await profileBox.put(normalizedEmail, defaultProfile);
-          }
+
+          _currentUser = normalizedEmail;
+          _isLoggedIn = true;
+          _isOfflineSession = !isServerOnline;
+
+          await settings.put(_sessionKey, normalizedEmail);
+          await DatabaseService().setCurrentUser(normalizedEmail);
+          notifyListeners();
+          return true;
         }
-
-        _currentUser = normalizedEmail;
-        _isLoggedIn = true;
-        await settings.put(_sessionKey, normalizedEmail);
-        await DatabaseService().setCurrentUser(normalizedEmail);
-        notifyListeners();
-        return true;
       }
 
       return false;

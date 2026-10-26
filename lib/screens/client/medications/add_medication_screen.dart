@@ -65,6 +65,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     selectedFrequency = _frequencies.contains(widget.medicine?.frequency) 
         ? widget.medicine!.frequency 
         : 'Daily';
+
+    _initDoseTimeControllers(selectedFrequency, widget.medicine?.time ?? '');
         
     _startDate = widget.medicine?.startDate ?? DateTime.now();
     _endDate = widget.medicine?.endDate ?? DateTime.now().add(const Duration(days: 30));
@@ -86,8 +88,86 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     });
   }
 
+  final List<TextEditingController> _doseTimeControllers = [];
+
+  void _initDoseTimeControllers(String frequency, String initialTimes) {
+    for (final c in _doseTimeControllers) {
+      c.dispose();
+    }
+    _doseTimeControllers.clear();
+
+    final parts = initialTimes
+        .split(',')
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+
+    int count = 1;
+    final f = frequency.trim().toLowerCase();
+    if (f == 'twice a day') {
+      count = 2;
+    } else if (f == 'three times a day') {
+      count = 3;
+    } else if (f == 'as needed') {
+      count = parts.isNotEmpty ? 1 : 0;
+    }
+
+    for (int i = 0; i < count; i++) {
+      String val = '';
+      if (i < parts.length) {
+        val = parts[i];
+      } else {
+        if (count == 2) {
+          val = i == 0 ? '08:00 AM' : '08:00 PM';
+        } else if (count == 3) {
+          val = i == 0 ? '08:00 AM' : (i == 1 ? '02:00 PM' : '08:00 PM');
+        } else {
+          val = '08:00 AM';
+        }
+      }
+      _doseTimeControllers.add(TextEditingController(text: val));
+    }
+  }
+
+  void _onFrequencyChanged(String newFreq) {
+    setState(() {
+      selectedFrequency = newFreq;
+      final currentValues = _doseTimeControllers.map((c) => c.text).join(', ');
+      _initDoseTimeControllers(newFreq, currentValues);
+    });
+  }
+
+  Future<void> _pickDoseTime(int index) async {
+    final currentText = _doseTimeControllers[index].text.trim();
+    TimeOfDay initial = TimeOfDay.now();
+    try {
+      final parsed = DateFormat('h:mm a').parse(currentText);
+      initial = TimeOfDay(hour: parsed.hour, minute: parsed.minute);
+    } catch (_) {
+      try {
+        final parsed2 = DateFormat('hh:mm a').parse(currentText);
+        initial = TimeOfDay(hour: parsed2.hour, minute: parsed2.minute);
+      } catch (_) {}
+    }
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+    );
+
+    if (picked != null) {
+      setState(() {
+        _doseTimeControllers[index].text = picked.format(context);
+        timeController.text = _doseTimeControllers.map((c) => c.text.trim()).join(', ');
+      });
+    }
+  }
+
   @override
   void dispose() {
+    for (final c in _doseTimeControllers) {
+      c.dispose();
+    }
     nameController.dispose();
     dosageController.dispose();
     quantityController.dispose();
@@ -302,6 +382,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     final auth = context.read<AuthService>();
     final userId = auth.currentUser ?? 'guest';
 
+    final combinedTime = _doseTimeControllers.map((c) => c.text.trim()).where((t) => t.isNotEmpty).join(', ');
+    final effectiveTime = combinedTime.isNotEmpty ? combinedTime : timeController.text.trim();
+
     final medicine = Medicine(
       id: widget.medicine?.id,
       userId: userId,
@@ -310,7 +393,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       dosage: dosageController.text.trim(),
       quantity: quantityController.text.trim(),
       frequency: selectedFrequency,
-      time: timeController.text.trim(),
+      time: effectiveTime,
       startDate: _startDate ?? DateTime.now(),
       endDate: _endDate ?? DateTime.now().add(const Duration(days: 30)),
       expiryDate: _expiryDate ?? _endDate ?? DateTime.now().add(const Duration(days: 180)),
@@ -473,26 +556,49 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                         }).toList(),
                         onChanged: (val) {
                           if (val != null) {
-                            setState(() {
-                              selectedFrequency = val;
-                            });
+                            _onFrequencyChanged(val);
                           }
                         },
                       ),
                       const SizedBox(height: 16),
 
-                      // Scheduled Time
-                      TextFormField(
-                        controller: timeController,
-                        readOnly: true,
-                        onTap: _pickTime,
-                        decoration: const InputDecoration(
-                          labelText: 'Reminder Time *',
-                          prefixIcon: Icon(Icons.access_time),
+                      // Scheduled Dose Times (separate prescribed dose times)
+                      if (_doseTimeControllers.isNotEmpty) ...[
+                        ...List.generate(_doseTimeControllers.length, (idx) {
+                          final label = _doseTimeControllers.length == 1
+                              ? 'Reminder Time *'
+                              : _doseTimeControllers.length == 2
+                                  ? (idx == 0 ? 'Morning Dose Time *' : 'Evening Dose Time *')
+                                  : (idx == 0
+                                      ? 'Morning Dose Time *'
+                                      : (idx == 1 ? 'Afternoon Dose Time *' : 'Night Dose Time *'));
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: TextFormField(
+                              controller: _doseTimeControllers[idx],
+                              readOnly: true,
+                              onTap: () => _pickDoseTime(idx),
+                              decoration: InputDecoration(
+                                labelText: label,
+                                prefixIcon: const Icon(Icons.access_time),
+                                helperText: 'Prescribed time for dose ${idx + 1}',
+                              ),
+                              validator: (v) => v!.trim().isEmpty ? 'Please pick a time for this dose' : null,
+                            ),
+                          );
+                        }),
+                      ] else ...[
+                        TextFormField(
+                          controller: timeController,
+                          readOnly: true,
+                          onTap: _pickTime,
+                          decoration: const InputDecoration(
+                            labelText: 'Reminder Time (Optional for As needed)',
+                            prefixIcon: Icon(Icons.access_time),
+                          ),
                         ),
-                        validator: (v) => v!.trim().isEmpty ? 'Please pick a time' : null,
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
+                      ],
 
                       // Start & End Dates
                       Row(

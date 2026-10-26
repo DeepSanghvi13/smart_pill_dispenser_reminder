@@ -13,7 +13,7 @@ class UserProfile {
   final String? relationship; // Caretaker field
   final String? connectionCode; // Patient field
   final String? address; // Patient / general address
-  
+
   // Doctor fields
   final String? specialization;
   final String? licenseNumber;
@@ -142,34 +142,67 @@ class UserProfile {
   }
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
-    final emailVal = map['email'] as String? ?? '';
-    final rawAddr = map['address'] as String?;
-    final rawLoc = map['location'] as String?;
+    String? stringValue(dynamic value) {
+      if (value == null) return null;
+      final text = value.toString().trim();
+      return text.isEmpty ? null : text;
+    }
+
+    int? calculateAge(String? birthDate) {
+      if (birthDate == null) return null;
+      final parsed = DateTime.tryParse(birthDate);
+      if (parsed == null) return null;
+      final today = DateTime.now();
+      var result = today.year - parsed.year;
+      if (today.month < parsed.month ||
+          (today.month == parsed.month && today.day < parsed.day)) {
+        result--;
+      }
+      return result >= 0 ? result : null;
+    }
+
+    final emailVal = stringValue(map['email']) ?? '';
+    final rawAddr = stringValue(map['address'] ?? map['zipCode']);
+    final rawLoc = stringValue(map['location']);
+    final birthDate =
+        stringValue(map['birthDate'] ?? map['birth_date'] ?? map['dob']);
+    final rawAge = map['age'];
     return UserProfile(
       email: emailVal,
-      fullName: map['fullName'] as String? ?? '',
-      profilePicture: map['profilePicture'] as String?,
-      age: map['age'] as int?,
-      gender: map['gender'] as String?,
-      mobileNumber: map['mobileNumber'] as String?,
-      emergencyContact: map['emergencyContact'] as String?,
-      bloodGroup: map['bloodGroup'] as String?,
-      weight: map['weight'] as String?,
-      height: map['height'] as String?,
-      medicalConditions: map['medicalConditions'] as String?,
-      relationship: map['relationship'] as String?,
-      connectionCode: map['connectionCode'] as String?,
+      fullName: stringValue(map['fullName']) ??
+          '${stringValue(map['firstName']) ?? ''} ${stringValue(map['lastName']) ?? ''}'
+              .trim(),
+      profilePicture:
+          stringValue(map['profilePicture'] ?? map['profile_picture']),
+      age: rawAge is num
+          ? rawAge.toInt()
+          : int.tryParse(rawAge?.toString() ?? '') ?? calculateAge(birthDate),
+      gender: stringValue(map['gender']),
+      mobileNumber: stringValue(
+          map['mobileNumber'] ?? map['phoneNumber'] ?? map['phone_number']),
+      emergencyContact:
+          stringValue(map['emergencyContact'] ?? map['emergency_contact']),
+      bloodGroup: stringValue(map['bloodGroup'] ?? map['blood_group']),
+      weight: stringValue(map['weight']),
+      height: stringValue(map['height']),
+      medicalConditions:
+          stringValue(map['medicalConditions'] ?? map['medical_conditions']),
+      relationship: stringValue(map['relationship']),
+      connectionCode:
+          stringValue(map['connectionCode'] ?? map['connection_code']),
       address: rawAddr ?? rawLoc,
-      specialization: map['specialization'] as String?,
-      licenseNumber: map['licenseNumber'] as String?,
-      hospitalName: map['hospitalName'] as String?,
-      experience: map['experience'] as String?,
+      specialization: stringValue(map['specialization']),
+      licenseNumber: stringValue(map['licenseNumber']),
+      hospitalName: stringValue(map['hospitalName']),
+      experience: stringValue(map['experience']),
       location: rawLoc ?? rawAddr,
       isVerified: map['isVerified'] == 1 || map['isVerified'] == true,
       createdBy: map['createdBy'] as String? ?? emailVal,
       updatedBy: map['updatedBy'] as String? ?? emailVal,
-      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
-      updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt'] as String) : DateTime.now(),
+      createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(map['updatedAt']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 }

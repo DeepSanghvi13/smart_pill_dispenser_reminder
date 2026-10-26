@@ -21,7 +21,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
-  String _selectedAudience = 'All Users'; // 'All Users', 'Patients Only', 'Caretakers Only'
+  String _selectedAudience = 'All Users';
 
   List<Map<String, dynamic>> _announcements = [];
 
@@ -50,7 +50,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
           list.add(notif);
         }
       }
-      list.sort((a, b) => (b['createdAt'] as String).compareTo(a['createdAt'] as String));
+      list.sort((a, b) =>
+          (b['createdAt'] as String).compareTo(a['createdAt'] as String));
 
       setState(() {
         _announcements = list;
@@ -67,7 +68,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
     if (title.isEmpty || body.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter both title and body for the announcement.')),
+        const SnackBar(
+            content:
+                Text('Please enter both title and body for the announcement.')),
       );
       return;
     }
@@ -100,9 +103,17 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         bool isAudience = false;
         if (_selectedAudience == 'All Users') {
           isAudience = true;
-        } else if (_selectedAudience == 'Patients Only' && user.role == 'patient') {
+        } else if (_selectedAudience == 'Patients Only' &&
+            user.role == 'patient') {
           isAudience = true;
-        } else if (_selectedAudience == 'Caretakers Only' && user.role == 'caretaker') {
+        } else if (_selectedAudience == 'Caretakers Only' &&
+            user.role == 'caretaker') {
+          isAudience = true;
+        } else if (_selectedAudience == 'Doctors Only' &&
+            user.role == 'doctor') {
+          isAudience = true;
+        } else if (_selectedAudience == 'Pharmacies Only' &&
+            user.role == 'pharmacy') {
           isAudience = true;
         }
 
@@ -126,17 +137,20 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         }
       }
 
-      await _db.adminLogActivity('Broadcasted announcement "$title" to $_selectedAudience');
+      await _db.adminLogActivity(
+          'Broadcasted announcement "$title" to $_selectedAudience');
 
       _titleController.clear();
       _bodyController.clear();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Announcement successfully broadcasted to $_selectedAudience.')),
+          SnackBar(
+              content: Text(
+                  'Announcement successfully broadcasted to $_selectedAudience.')),
         );
       }
-      
+
       setState(() => _isBroadcasting = false);
       await _loadAnnouncements();
     } catch (_) {
@@ -158,7 +172,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
               children: [
                 // Composer Panel
                 Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -166,7 +181,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       children: [
                         const Text(
                           'Compose System Announcement',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         const SizedBox(height: 16),
                         TextField(
@@ -198,26 +214,46 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                           alignment: WrapAlignment.spaceBetween,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            DropdownButton<String>(
-                              value: _selectedAudience,
-                              items: const [
-                                DropdownMenuItem(value: 'All Users', child: Text('All Registered Users')),
-                                DropdownMenuItem(value: 'Patients Only', child: Text('Patients Only')),
-                                DropdownMenuItem(value: 'Caretakers Only', child: Text('Caretakers Only')),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() => _selectedAudience = val);
-                                }
-                              },
+                            SizedBox(
+                              width: 240,
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _selectedAudience,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                    labelText: 'Audience'),
+                                items: const [
+                                  DropdownMenuItem(
+                                      value: 'All Users',
+                                      child: Text('All Registered Users')),
+                                  DropdownMenuItem(
+                                      value: 'Patients Only',
+                                      child: Text('Patients Only')),
+                                  DropdownMenuItem(
+                                      value: 'Caretakers Only',
+                                      child: Text('Caretakers Only')),
+                                  DropdownMenuItem(
+                                      value: 'Doctors Only',
+                                      child: Text('Doctors Only')),
+                                  DropdownMenuItem(
+                                      value: 'Pharmacies Only',
+                                      child: Text('Pharmacies Only')),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() => _selectedAudience = val);
+                                  }
+                                },
+                              ),
                             ),
                             ElevatedButton.icon(
-                              onPressed: _isBroadcasting ? null : _sendAnnouncement,
+                              onPressed:
+                                  _isBroadcasting ? null : _sendAnnouncement,
                               icon: _isBroadcasting
                                   ? const SizedBox(
                                       width: 18,
                                       height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     )
                                   : const Icon(Icons.send),
                               label: const Text('Broadcast'),
@@ -232,7 +268,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
                 // History Panel
                 Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -240,11 +277,14 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       children: [
                         const Text(
                           'Broadcasting Log History',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         const SizedBox(height: 16),
                         if (_announcements.isEmpty)
-                          const Center(child: Text('No announcements have been broadcasted.'))
+                          const Center(
+                              child: Text(
+                                  'No announcements have been broadcasted.'))
                         else
                           ListView.separated(
                             shrinkWrap: true,
@@ -254,45 +294,61 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                             itemBuilder: (ctx, index) {
                               final ann = _announcements[index];
                               final date = ann['createdAt'] != null
-                                  ? DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(ann['createdAt'] as String))
+                                  ? DateFormat('yyyy-MM-dd HH:mm').format(
+                                      DateTime.parse(
+                                          ann['createdAt'] as String))
                                   : 'N/A';
-                              
+
                               return ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.08),
-                                  child: const Icon(Icons.campaign, color: Colors.indigo),
+                                  backgroundColor: theme.colorScheme.primary
+                                      .withValues(alpha: 0.08),
+                                  child: const Icon(Icons.campaign,
+                                      color: Colors.indigo),
                                 ),
-                                title: Text(ann['title'] ?? 'No Title', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                title: Text(ann['title'] ?? 'No Title',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold)),
                                 subtitle: Text(
                                   '${ann['body']}\nAudience: ${ann['audience']} • Date: $date\nCreated By: ${ann['createdBy']}',
                                   style: const TextStyle(height: 1.3),
                                 ),
                                 isThreeLine: true,
                                 trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.red),
                                   onPressed: () async {
                                     final confirm = await showDialog<bool>(
                                       context: context,
                                       builder: (ctx) => AlertDialog(
-                                        title: const Text('Delete Announcement'),
-                                        content: const Text('Are you sure you want to permanently delete this broadcast log?'),
+                                        title:
+                                            const Text('Delete Announcement'),
+                                        content: const Text(
+                                            'Are you sure you want to permanently delete this broadcast log?'),
                                         actions: [
                                           TextButton(
-                                            onPressed: () => Navigator.pop(ctx, false),
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, false),
                                             child: const Text('Cancel'),
                                           ),
                                           TextButton(
-                                            onPressed: () => Navigator.pop(ctx, true),
-                                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, true),
+                                            child: const Text('Delete',
+                                                style: TextStyle(
+                                                    color: Colors.red)),
                                           ),
                                         ],
                                       ),
                                     );
 
                                     if (confirm == true) {
-                                      final notifBox = HiveService().notificationsBox;
-                                      await notifBox.delete(ann['notificationId']);
-                                      await _db.adminLogActivity('Deleted announcement broadcast logs: ${ann['title']}');
+                                      final notifBox =
+                                          HiveService().notificationsBox;
+                                      await notifBox
+                                          .delete(ann['notificationId']);
+                                      await _db.adminLogActivity(
+                                          'Deleted announcement broadcast logs: ${ann['title']}');
                                       _loadAnnouncements();
                                     }
                                   },

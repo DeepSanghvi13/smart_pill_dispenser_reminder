@@ -129,6 +129,7 @@ function normalizeEmail(value) {
 }
 
 const GMAIL_REGEX = /^[A-Za-z0-9._%+-]+@gmail\.com$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^[0-9]{10}$/;
 const LICENSE_REGEX = /^[0-9]{5}$/;
 const ADMIN_USER_ROLES = ['patient', 'caretaker', 'doctor', 'pharmacy', 'admin'];
@@ -137,6 +138,11 @@ const USER_STATUSES = ['active', 'inactive'];
 function isValidGmail(email) {
   if (!email || typeof email !== 'string') return false;
   return GMAIL_REGEX.test(email.trim());
+}
+
+function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  return EMAIL_REGEX.test(email.trim());
 }
 
 function isValidPhone(phone) {
@@ -258,6 +264,7 @@ async function ensureDefaultAdmin() {
           'INSERT INTO users (fullName, email, passwordHash, role, status) VALUES (?, ?, ?, ?, ?)',
           ['System Admin', email, hash, 'admin', 'active']
         );
+
         adminUserId = result.insertId;
         await query(
           'INSERT INTO userProfiles (userId, firstName, lastName, email) VALUES (?, ?, ?, ?)',
@@ -317,13 +324,7 @@ function authenticateTokenOrFallback(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
   
   if (token) {
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-      if (err) {
-        return res.status(403).json({ ok: false, message: 'Invalid or expired token' });
-      }
-      req.user = decoded;
-      next();
-    });
+    return authenticateToken(req, res, next);
   } else {
     const fallbackId = req.body?.userId || req.query?.userId || req.body?.patientId || req.body?.email;
     if (fallbackId && fallbackId !== 'guest') {
@@ -1393,8 +1394,9 @@ app.get('/api/caretakers', authenticateTokenOrFallback, async (req, res) => {
     const rows = await query(
       `SELECT c.*, u.fullName, u.email as caretakerEmail, u.phoneNumber 
        FROM caretakers c 
-       JOIN users u ON c.userId = u.id`,
-      []
+       JOIN users u ON c.userId = u.id
+       WHERE c.userId = ?`,
+      [userId]
     );
     res.json({ ok: true, data: rows });
   } catch (error) {
@@ -2058,6 +2060,80 @@ app.get('/api/doctor-connections/my-doctors', authenticateToken, requireRole(['p
   }
 });
 
+app.get('/api/caretaker/patients', authenticateToken, requireRole(['caretaker']), async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT u.id, u.fullName, u.email
+       FROM caretaker_connections cc
+       JOIN users u ON cc.patientId = u.id
+       WHERE cc.caretakerId = ? AND cc.status = 'connected'
+       ORDER BY u.fullName ASC`,
+      [req.user.id]
+    );
+    res.json({ ok: true, data: rows });
+  } catch (error) {
+    console.error('Loading caretaker patients failed:', error);
+    res.status(500).json({ ok: false, message: 'Unable to load connected patients.' });
+  }
+});
+
+app.post('/api/users/resolve-id', authenticateToken, async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  if (!email) return res.status(400).json({ ok: false, message: 'A valid email is required.' });
+  try {
+    const rows = await query(
+      'SELECT id, role, status FROM users WHERE email = ? LIMIT 1',
+      [email]
+    );
+    if (rows.length === 0 || rows[0].status !== 'active') {
+      return res.status(404).json({ ok: false, message: 'User not found or inactive.' });
+    }
+    res.json({ ok: true, userId: rows[0].id, role: rows[0].role });
+  } catch (error) {
+    console.error('Resolving user ID failed:', error);
+    res.status(500).json({ ok: false, message: 'Unable to resolve user ID.' });
+  }
+});
+
+app.post('/api/caretaker/patients/sync', authenticateToken, requireRole(['caretaker']), async (req, res) => {
+  const patientId = Number(req.body?.patientId);
+  if (!Number.isInteger(patientId) || patientId <= 0) {
+    return res.status(400).json({ ok: false, message: 'A valid patientId is required.' });
+  }
+  try {
+    const patients = await query(
+      `SELECT id FROM users WHERE id = ? AND role = 'patient' AND status = 'active'`,
+      [patientId]
+    );
+    if (patients.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Active patient not found.' });
+    }
+    const existing = await query(
+      `SELECT id FROM caretaker_connections
+       WHERE caretakerId = ? AND patientId = ? LIMIT 1`,
+      [req.user.id, patientId]
+    );
+    if (existing.length === 0) {
+      await query(
+        `INSERT INTO caretaker_connections
+         (patientId, caretakerId, connectionCode, status)
+         VALUES (?, ?, 'LOCAL_SYNC', 'connected')`,
+        [patientId, req.user.id]
+      );
+    } else {
+      await query(
+        `UPDATE caretaker_connections SET status = 'connected'
+         WHERE id = ?`,
+        [existing[0].id]
+      );
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Syncing caretaker patient failed:', error);
+    res.status(500).json({ ok: false, message: 'Unable to sync monitored patient.' });
+  }
+});
+
 // Get Connected Patients for logged-in Doctor
 app.get('/api/doctor-connections/my-patients', authenticateToken, requireRole(['doctor']), async (req, res) => {
   const doctorId = req.user.id;
@@ -2432,8 +2508,8 @@ app.post('/api/admin/users/:id/reset-password', authenticateToken, requireRole([
   const id = Number(req.params.id);
   const { password } = req.body || {};
   
-  if (!password || password.length < 6) {
-    return res.status(400).json({ ok: false, message: 'Password must be at least 6 characters' });
+  if (!password || password.length < 8) {
+    return res.status(400).json({ ok: false, message: 'Password must be at least 8 characters' });
   }
   
   try {
@@ -2996,7 +3072,8 @@ app.get('/api/shop/catalog', authenticateTokenOrFallback, async (req, res) => {
         ms.shopName, ms.ownerName, ms.phoneNumber as shopPhone, ms.address as shopAddress, ms.imageUrl as shopLogo
       FROM shop_medicines sm
       JOIN medical_shops ms ON sm.shopId = ms.id
-      WHERE sm.isAvailable = 1 AND sm.stockQuantity > 0 AND sm.expiryDate >= CURDATE()
+      WHERE sm.isAvailable = 1 AND sm.stockQuantity > 0
+        AND (sm.expiryDate IS NULL OR sm.expiryDate >= CURDATE())
     `;
     const params = [];
 
@@ -3006,7 +3083,7 @@ app.get('/api/shop/catalog', authenticateTokenOrFallback, async (req, res) => {
     }
 
     if (category && category.trim().length > 0 && category.toLowerCase() !== 'all') {
-      sql += ' AND sm.category = ?';
+      sql += ' AND LOWER(sm.category) = LOWER(?)';
       params.push(category.trim());
     }
 
@@ -3082,6 +3159,28 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
       ]
     );
 
+    const prescriptionRows = await query(
+      'SELECT * FROM prescriptions WHERE id = ? LIMIT 1',
+      [result.insertId]
+    );
+    await query(
+      'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+      [Number(patientId), 'New Prescription',
+        'Your doctor issued a new prescription.', 'alert', false]
+    );
+    const caretakerRows = await query(
+      `SELECT caretakerId FROM caretaker_connections
+       WHERE patientId = ? AND status = 'connected'`,
+      [Number(patientId)]
+    );
+    for (const caretaker of caretakerRows) {
+      await query(
+        'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+        [caretaker.caretakerId, 'Patient Prescription Updated',
+          'A new prescription was issued for your monitored patient.', 'alert', false]
+      );
+    }
+
     await logActivity({
       userId: doctorId,
       userRole: 'doctor',
@@ -3092,7 +3191,12 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
       req
     });
 
-    return res.json({ ok: true, message: 'Prescription created successfully.', prescriptionId: result.insertId });
+    return res.json({
+      ok: true,
+      message: 'Prescription created successfully.',
+      prescriptionId: result.insertId,
+      prescription: prescriptionRows[0],
+    });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
   }
@@ -3301,6 +3405,22 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
     // Verify each item in inventory
     let totalAmount = 0.0;
     const validatedItems = [];
+    let selectedPrescription = null;
+    if (prescriptionId) {
+      const prescriptionRows = await query(
+        `SELECT * FROM prescriptions
+         WHERE id = ? AND patientId = ? AND status = 'active'
+         LIMIT 1`,
+        [Number(prescriptionId), targetPatientId]
+      );
+      if (prescriptionRows.length === 0) {
+        return res.status(400).json({
+          ok: false,
+          message: 'The selected prescription is invalid, expired, or does not belong to this patient.'
+        });
+      }
+      selectedPrescription = prescriptionRows[0];
+    }
 
     for (const item of items) {
       const medId = Number(item.shopMedicineId || item.id);
@@ -3343,6 +3463,17 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
         return res.status(400).json({
           ok: false,
           message: `${med.name} requires a doctor prescription. Please select an active prescription.`
+        });
+      }
+      if (med.prescriptionRequired === 1 &&
+          selectedPrescription &&
+          selectedPrescription.shopMedicineId !== null &&
+          Number(selectedPrescription.shopMedicineId) !== med.id &&
+          String(selectedPrescription.medicineName).toLowerCase() !==
+              String(med.name).toLowerCase()) {
+        return res.status(400).json({
+          ok: false,
+          message: `${med.name} is not covered by the selected doctor prescription.`
         });
       }
 
@@ -3388,6 +3519,14 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
          (orderId, shopMedicineId, medicineName, price, quantity, subtotal)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [orderId, vItem.shopMedicineId, vItem.medicineName, vItem.price, vItem.quantity, vItem.subtotal]
+      );
+    }
+
+    if (selectedPrescription) {
+      await query(
+        `UPDATE prescriptions SET status = 'fulfilled', updatedAt = NOW()
+         WHERE id = ? AND patientId = ?`,
+        [selectedPrescription.id, targetPatientId]
       );
     }
 
@@ -3534,11 +3673,17 @@ app.get('/api/orders/shop', authenticateToken, requireRole(['pharmacy', 'admin']
 // Update order status (by Pharmacy owner or Admin)
 app.put('/api/orders/:id/status', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
   const orderId = Number(req.params.id);
-  const { status } = req.body || {};
+  const { status, reason } = req.body || {};
 
-  const validStatuses = ['pending', 'accepted', 'packed', 'ready', 'delivered', 'rejected'];
+  const validStatuses = ['pending', 'accepted', 'packed', 'ready', 'delivered', 'rejected', 'cancelled'];
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    return res.status(400).json({ ok: false, message: 'A valid order ID is required.' });
+  }
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ ok: false, message: 'Invalid order status.' });
+  }
+  if (status === 'rejected' && (!reason || !String(reason).trim())) {
+    return res.status(400).json({ ok: false, message: 'A rejection reason is required.' });
   }
 
   try {
@@ -3557,41 +3702,87 @@ app.put('/api/orders/:id/status', authenticateToken, requireRole(['pharmacy', 'a
     }
 
     const prevStatus = order.status;
+    const allowedNext = {
+      pending: ['accepted', 'rejected', 'cancelled'],
+      accepted: ['packed', 'rejected', 'cancelled'],
+      packed: ['ready'],
+      ready: ['delivered'],
+      delivered: [],
+      rejected: [],
+      cancelled: []
+    };
+    if (!allowedNext[prevStatus]?.includes(status)) {
+      return res.status(409).json({
+        ok: false,
+        message: `Cannot change order status from ${prevStatus} to ${status}.`
+      });
+    }
 
-    // If accepting order, verify inventory and deduct stock automatically
-    if (status === 'accepted' && prevStatus === 'pending') {
-      const items = await query('SELECT * FROM medicine_order_items WHERE orderId = ?', [orderId]);
-      for (const item of items) {
-        const medRows = await query('SELECT * FROM shop_medicines WHERE id = ? LIMIT 1', [item.shopMedicineId]);
-        if (medRows.length > 0) {
-          const med = medRows[0];
-          if (med.stockQuantity < item.quantity) {
-            return res.status(400).json({
-              ok: false,
-              message: `Cannot accept order: Insufficient stock for ${med.name}. Available: ${med.stockQuantity}, required: ${item.quantity}.`
-            });
+    await transaction(async (tx) => {
+      const items = await tx.query(
+        'SELECT * FROM medicine_order_items WHERE orderId = ?',
+        [orderId]
+      );
+      if (status === 'accepted') {
+        for (const item of items) {
+          const medRows = await tx.query(
+            `SELECT name, stockQuantity, expiryDate FROM shop_medicines
+             WHERE id = ? AND shopId = ? FOR UPDATE`,
+            [item.shopMedicineId, shopId]
+          );
+          if (medRows.length === 0 || medRows[0].expiryDate < new Date()) {
+            throw new Error(`Medicine is unavailable or expired: ${item.medicineName}`);
           }
-          // Reduce inventory
-          await query(
-            'UPDATE shop_medicines SET stockQuantity = GREATEST(0, stockQuantity - ?) WHERE id = ?',
-            [item.quantity, item.shopMedicineId]
+          if (medRows[0].stockQuantity < item.quantity) {
+            throw new Error(
+              `Insufficient stock for ${medRows[0].name}. Available: ${medRows[0].stockQuantity}, required: ${item.quantity}.`
+            );
+          }
+          await tx.query(
+            'UPDATE shop_medicines SET stockQuantity = stockQuantity - ? WHERE id = ? AND shopId = ?',
+            [item.quantity, item.shopMedicineId, shopId]
           );
         }
       }
-    }
-
-    // If rejecting an order that was already accepted, restore inventory
-    if (status === 'rejected' && prevStatus === 'accepted') {
-      const items = await query('SELECT * FROM medicine_order_items WHERE orderId = ?', [orderId]);
-      for (const item of items) {
-        await query(
-          'UPDATE shop_medicines SET stockQuantity = stockQuantity + ? WHERE id = ?',
-          [item.quantity, item.shopMedicineId]
-        );
+      if ((status === 'rejected' || status === 'cancelled') &&
+          ['accepted', 'packed', 'ready'].includes(prevStatus)) {
+        for (const item of items) {
+          await tx.query(
+            'UPDATE shop_medicines SET stockQuantity = stockQuantity + ? WHERE id = ? AND shopId = ?',
+            [item.quantity, item.shopMedicineId, shopId]
+          );
+        }
       }
+      const nextNotes = status === 'rejected' && reason
+        ? `${order.notes ? `${order.notes}\n` : ''}Rejection reason: ${String(reason).trim()}`
+        : order.notes;
+      await tx.query(
+        'UPDATE medicine_orders SET status = ?, notes = ?, updatedAt = NOW() WHERE id = ? AND shopId = ?',
+        [status, nextNotes, orderId, shopId]
+      );
+    });
+
+    if (status === 'delivered' && order.prescriptionId) {
+      await query(
+        `UPDATE prescriptions SET status = 'fulfilled', updatedAt = NOW()
+         WHERE id = ? AND status = 'active'`,
+        [order.prescriptionId]
+      );
     }
 
-    await query('UPDATE medicine_orders SET status = ?, updatedAt = NOW() WHERE id = ?', [status, orderId]);
+    const notificationBody = status === 'rejected' && reason
+      ? `Your order was rejected: ${String(reason).trim()}`
+      : `Your order status is now ${status}.`;
+    await query(
+      'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+      [order.patientId, 'Order Status Updated', notificationBody, 'order', false]
+    );
+    if (order.caretakerId) {
+      await query(
+        'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+        [order.caretakerId, 'Monitored Order Updated', notificationBody, 'order', false]
+      );
+    }
 
     await logActivity({
       userId: req.user.id,
@@ -3710,6 +3901,15 @@ app.post('/api/admin/verify-doctor/:id', authenticateToken, requireRole(['admin'
     if (result.affectedRows === 0) {
       return res.status(404).json({ ok: false, message: 'Doctor not found.' });
     }
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'VERIFY_DOCTOR',
+      description: `Set doctor verification for user ID ${doctorId} to ${Boolean(isVerified)}`,
+      status: 'SUCCESS',
+      req
+    });
     res.json({ ok: true, message: `Doctor verification status set to ${isVerified}.` });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -3719,14 +3919,73 @@ app.post('/api/admin/verify-doctor/:id', authenticateToken, requireRole(['admin'
 
 // ----------------- APPOINTMENTS -----------------
 app.post('/api/appointments', authenticateToken, async (req, res) => {
-  const patientId = req.user.id;
   const { doctorId, appointmentDate, appointmentTime, reason } = req.body || {};
+  const isCaretaker = req.user.role === 'caretaker';
+  const patientId = isCaretaker ? Number(req.body?.patientId) : req.user.id;
   
-  if (!doctorId || !appointmentDate || !appointmentTime) {
-    return res.status(400).json({ ok: false, message: 'doctorId, appointmentDate, and appointmentTime are required.' });
+  if (!doctorId || !appointmentDate || !appointmentTime ||
+      !Number.isInteger(patientId) || patientId <= 0) {
+    return res.status(400).json({
+      ok: false,
+      message: !doctorId
+        ? 'doctorId is required.'
+        : !appointmentDate
+          ? 'appointmentDate is required.'
+          : !appointmentTime
+            ? 'appointmentTime is required.'
+            : 'A valid patientId is required.'
+    });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(appointmentDate)) ||
+      !/^\d{2}:\d{2}$/.test(String(appointmentTime))) {
+    return res.status(400).json({
+      ok: false,
+      message: 'appointmentDate must be yyyy-MM-dd and appointmentTime must be HH:mm.'
+    });
   }
   
   try {
+    const doctorConnection = await query(
+      `SELECT 1 FROM doctor_connections
+       WHERE doctorId = ? AND requesterId = ? AND status = 'accepted'
+       LIMIT 1`,
+      [Number(doctorId), patientId]
+    );
+    if (doctorConnection.length === 0) {
+      return res.status(403).json({
+        ok: false,
+        message: 'You can only book an appointment with a connected doctor.'
+      });
+    }
+    if (isCaretaker) {
+      const caretakerConnection = await query(
+        `SELECT 1 FROM caretaker_connections
+         WHERE caretakerId = ? AND patientId = ? AND status = 'connected'
+         LIMIT 1`,
+        [req.user.id, patientId]
+      );
+      if (caretakerConnection.length === 0) {
+        return res.status(403).json({
+          ok: false,
+          message: 'You can only book appointments for a connected patient.'
+        });
+      }
+    }
+
+    const existingSlot = await query(
+      `SELECT id FROM appointments
+       WHERE doctorId = ? AND appointmentDate = ? AND appointmentTime = ?
+         AND status IN ('pending', 'approved')
+       LIMIT 1`,
+      [Number(doctorId), appointmentDate, appointmentTime]
+    );
+    if (existingSlot.length > 0) {
+      return res.status(409).json({
+        ok: false,
+        message: 'That doctor appointment slot is already booked.'
+      });
+    }
+
     const result = await query(
       'INSERT INTO appointments (patientId, doctorId, appointmentDate, appointmentTime, reason) VALUES (?, ?, ?, ?, ?)',
       [patientId, Number(doctorId), appointmentDate, appointmentTime, reason || null]
@@ -3737,6 +3996,12 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
       'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
       [doctorId, 'New Appointment Request', 'You have a new appointment request pending.', 'alert', false]
     );
+    if (isCaretaker) {
+      await query(
+        'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+        [patientId, 'Appointment Booked', 'Your caretaker booked a doctor appointment for you.', 'alert', false]
+      );
+    }
 
     res.json({ ok: true, message: 'Appointment requested successfully.', data: { id: result.insertId } });
   } catch (error) {
@@ -3746,6 +4011,12 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
 
 app.get('/api/appointments/patient', authenticateToken, async (req, res) => {
   const patientId = req.user.id;
+  const patientFilter = req.user.role === 'caretaker'
+    ? `a.patientId IN (
+         SELECT patientId FROM caretaker_connections
+         WHERE caretakerId = ? AND status = 'connected'
+       )`
+    : 'a.patientId = ?';
   try {
     const rows = await query(`
       SELECT a.*, d.fullName as doctorName, dp.specialization, up.profilePicture as doctorPicture
@@ -3753,7 +4024,7 @@ app.get('/api/appointments/patient', authenticateToken, async (req, res) => {
       JOIN users d ON a.doctorId = d.id
       LEFT JOIN doctors dp ON d.id = dp.userId
       LEFT JOIN userProfiles up ON d.id = up.userId
-      WHERE a.patientId = ?
+      WHERE ${patientFilter}
       ORDER BY a.appointmentDate DESC, a.appointmentTime DESC
     `, [patientId]);
     res.json({ ok: true, data: rows });
@@ -3801,37 +4072,97 @@ app.put('/api/appointments/:id/status', authenticateToken, requireRole(['doctor'
       'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
       [patientId, 'Appointment Status Updated', `Your appointment on ${check[0].appointmentDate} was ${status}.`, 'alert', false]
     );
+    const caretakerRows = await query(
+      `SELECT caretakerId FROM caretaker_connections
+       WHERE patientId = ? AND status = 'connected'`,
+      [patientId]
+    );
+    for (const caretaker of caretakerRows) {
+      await query(
+        'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+        [caretaker.caretakerId, 'Appointment Status Updated',
+          `The appointment on ${check[0].appointmentDate} was ${status}.`, 'alert', false]
+      );
+    }
 
     res.json({ ok: true, message: `Appointment status updated to ${status}.` });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
+
+app.put('/api/appointments/:id/cancel', authenticateToken, requireRole(['patient', 'caretaker']), async (req, res) => {
+  const appointmentId = Number(req.params.id);
+  try {
+    const rows = await query(
+      `SELECT a.* FROM appointments a
+       WHERE a.id = ? AND (
+         a.patientId = ? OR
+         ( ? = 'caretaker' AND a.patientId IN (
+           SELECT patientId FROM caretaker_connections
+           WHERE caretakerId = ? AND status = 'connected'
+         ))
+       )`,
+      [appointmentId, req.user.id, req.user.role, req.user.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Appointment not found.' });
+    }
+    if (['completed', 'rejected', 'cancelled'].includes(rows[0].status)) {
+      return res.status(400).json({ ok: false, message: 'This appointment cannot be cancelled.' });
+    }
+    await query(
+      `UPDATE appointments SET status = 'cancelled'
+       WHERE id = ? AND status IN ('pending', 'approved')`,
+      [appointmentId]
+    );
+    await query(
+      'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+      [rows[0].doctorId, 'Appointment Cancelled', 'An appointment was cancelled.', 'alert', false]
+    );
+    res.json({ ok: true, message: 'Appointment cancelled.' });
+  } catch (error) {
+    console.error('Cancelling appointment failed:', error);
+    res.status(500).json({ ok: false, message: error.message });
+  }
+});
 // ----------------- ADMIN PANEL APIs -----------------
 
 // Admin Dashboard Stats
 app.get('/api/admin/dashboard', authenticateToken, requireRole(['admin']), async (req, res) => {
-  try {
-    const usersCount = await query('SELECT role, COUNT(*) as count FROM users GROUP BY role');
-    const activeUsersCount = await query("SELECT COUNT(*) as count FROM users WHERE status = 'active'");
-    const medicinesCount = await query('SELECT COUNT(*) as count FROM medicines');
-    const prescriptionsCount = await query('SELECT COUNT(*) as count FROM prescriptions');
-    const ordersCount = await query('SELECT COUNT(*) as count FROM medicine_orders');
-    
-    res.json({
-      ok: true,
-      stats: {
-        users: usersCount,
-        activeUsers: Number(activeUsersCount[0]?.count || 0),
-        medicines: Number(medicinesCount[0]?.count || 0),
-        prescriptions: Number(prescriptionsCount[0]?.count || 0),
-        orders: Number(ordersCount[0]?.count || 0)
-      }
-    });
-  } catch (error) {
-    console.error('Admin dashboard lookup failed:', error.message);
-    res.status(500).json({ ok: false, message: 'Unable to load dashboard statistics' });
-  }
+  const statQuery = async (name, sql, fallback) => {
+    try {
+      return await query(sql);
+    } catch (error) {
+      console.error(`Admin dashboard ${name} lookup failed:`, error.message);
+      return fallback;
+    }
+  };
+
+  const [
+    usersCount,
+    activeUsersCount,
+    medicinesCount,
+    prescriptionsCount,
+    ordersCount
+  ] = await Promise.all([
+    statQuery('users', 'SELECT role, COUNT(*) as count FROM users GROUP BY role', []),
+    statQuery('active users', "SELECT COUNT(*) as count FROM users WHERE status = 'active'", [{ count: 0 }]),
+    statQuery('medicines', 'SELECT COUNT(*) as count FROM medicines', [{ count: 0 }]),
+    statQuery('prescriptions', 'SELECT COUNT(*) as count FROM prescriptions', [{ count: 0 }]),
+    statQuery('orders', 'SELECT COUNT(*) as count FROM medicine_orders', [{ count: 0 }])
+  ]);
+
+  return res.json({
+    ok: true,
+    stats: {
+      users: usersCount,
+      activeUsers: Number(activeUsersCount[0]?.count || 0),
+      medicines: Number(medicinesCount[0]?.count || 0),
+      prescriptions: Number(prescriptionsCount[0]?.count || 0),
+      orders: Number(ordersCount[0]?.count || 0)
+    }
+  });
 });
 
 app.post('/api/admin/users', authenticateToken, requireRole(['admin']), async (req, res) => {
@@ -3857,19 +4188,19 @@ app.post('/api/admin/users', authenticateToken, requireRole(['admin']), async (r
     const normalizedName = String(fullName || '').trim();
     const normalizedEmail = normalizeEmail(email);
     const normalizedRole = String(role || '').trim().toLowerCase();
-    const normalizedPassword = String(password || '').trim();
+    const normalizedPassword = String(password || '');
 
     if (normalizedName.length < 2 || normalizedName.length > 255) {
       return res.status(400).json({ ok: false, message: 'Full name must be between 2 and 255 characters' });
     }
-    if (!normalizedEmail || (normalizedRole !== 'admin' && !isValidGmail(normalizedEmail))) {
-      return res.status(400).json({ ok: false, message: 'Please enter a valid Gmail address ending with @gmail.com.' });
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ ok: false, message: 'Please enter a valid email address.' });
     }
     if (!ADMIN_USER_ROLES.includes(normalizedRole)) {
       return res.status(400).json({ ok: false, message: 'Unsupported user role' });
     }
-    if (normalizedPassword.length < 6 || normalizedPassword.length > 128) {
-      return res.status(400).json({ ok: false, message: 'Password must be between 6 and 128 characters' });
+    if (normalizedPassword.length < 8 || normalizedPassword.length > 128) {
+      return res.status(400).json({ ok: false, message: 'Password must be between 8 and 128 characters' });
     }
     if (phoneNumber !== null && phoneNumber !== undefined && String(phoneNumber).trim() !== '' &&
         !isValidPhone(String(phoneNumber).trim())) {
@@ -3893,10 +4224,7 @@ app.post('/api/admin/users', authenticateToken, requireRole(['admin']), async (r
         [normalizedName, normalizedEmail, hash, normalizedRole, phoneNumber ? String(phoneNumber).trim() : null, 'active']
       );
       const id = result.insertId;
-      if (normalizedRole === 'patient') {
-        await tx.query('INSERT INTO patients (userId, gender, birthDate, zipCode) VALUES (?, ?, ?, ?)',
-          [id, gender, birthDate ? parseDate(birthDate) : null, zipCode]);
-      } else if (normalizedRole === 'caretaker') {
+      if (normalizedRole === 'caretaker') {
         await tx.query('INSERT INTO caretakers (userId, relationship) VALUES (?, ?)', [id, relationship]);
       } else if (normalizedRole === 'doctor') {
         await tx.query(
@@ -3908,17 +4236,34 @@ app.post('/api/admin/users', authenticateToken, requireRole(['admin']), async (r
           'INSERT INTO medical_shops (userId, shopName, ownerName, phoneNumber, email, address, licenseNumber) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [id, shopName || `${normalizedName}'s Pharmacy`, normalizedName, phoneNumber || null, normalizedEmail, address, licenseNumber || null]
         );
-      } else if (normalizedRole === 'admin') {
-        await tx.query('INSERT INTO admins (userId) VALUES (?)', [id]);
       }
 
       const nameParts = normalizedName.split(/\s+/);
       await tx.query(
-        `INSERT INTO userProfiles (userId, firstName, lastName, email, phoneNumber, gender)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, nameParts[0], nameParts.slice(1).join(' '), normalizedEmail, phoneNumber || null, gender]
+        `INSERT INTO userProfiles (userId, firstName, lastName, email, phoneNumber, gender, birthDate, zipCode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          nameParts[0],
+          nameParts.slice(1).join(' '),
+          normalizedEmail,
+          phoneNumber || null,
+          gender,
+          birthDate ? String(birthDate).trim() : null,
+          zipCode
+        ]
       );
       return id;
+    });
+
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'CREATE_USER',
+      description: `Created ${normalizedRole} user ${normalizedEmail}`,
+      status: 'SUCCESS',
+      req
     });
 
     return res.status(201).json({ ok: true, message: 'User created successfully', userId });
@@ -3962,6 +4307,19 @@ app.put('/api/admin/users/:id', authenticateToken, requireRole(['admin']), async
     if (updates.length === 0) return res.status(400).json({ ok: false, message: 'No supported fields to update' });
     params.push(id);
     const result = await query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+    if (result.affectedRows === 0) {
+      const current = await query('SELECT id FROM users WHERE id = ? LIMIT 1', [id]);
+      if (current.length === 0) return res.status(404).json({ ok: false, message: 'User not found' });
+    }
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'UPDATE_USER',
+      description: `Updated user ID ${id}`,
+      status: 'SUCCESS',
+      req
+    });
     return res.json({ ok: true, message: 'User updated successfully', affectedRows: result.affectedRows });
   } catch (error) {
     console.error('Admin user update failed:', error.message);
@@ -3969,7 +4327,7 @@ app.put('/api/admin/users/:id', authenticateToken, requireRole(['admin']), async
   }
 });
 
-app.post(['/api/admin/reset-password', '/api/users/reset-password'], authenticateTokenOrFallback, async (req, res) => {
+app.post(['/api/admin/reset-password', '/api/users/reset-password'], authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { email, newPassword } = req.body || {};
     if (!email || !newPassword) {
@@ -3983,40 +4341,50 @@ app.post(['/api/admin/reset-password', '/api/users/reset-password'], authenticat
   }
 });
 
-app.put(['/api/admin/users/status', '/api/admin/users-status'], authenticateTokenOrFallback, async (req, res) => {
+app.put(['/api/admin/users/status', '/api/admin/users-status'], authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { email, isActive } = req.body || {};
     if (!email || isActive === undefined) {
       return res.status(400).json({ ok: false, message: 'email and isActive are required' });
     }
-    const status = isActive ? 'active' : 'suspended';
-    await query('UPDATE users SET status = ?, updatedAt = NOW() WHERE email = ?', [status, email.trim().toLowerCase()]);
+    const status = isActive ? 'active' : 'inactive';
+    const result = await query('UPDATE users SET status = ?, updatedAt = NOW() WHERE email = ?', [status, email.trim().toLowerCase()]);
+    if (result.affectedRows === 0) return res.status(404).json({ ok: false, message: 'User not found' });
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'ACTIVATE_DEACTIVATE_USER',
+      description: `Set status of user ${email.trim().toLowerCase()} to ${status}`,
+      status: 'SUCCESS',
+      req
+    });
     res.json({ ok: true, message: `User status set to ${status}` });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
 
-app.delete('/api/admin/users-by-email', authenticateTokenOrFallback, async (req, res) => {
+app.delete('/api/admin/users-by-email', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const email = req.query.email || req.body?.email;
     if (!email) return res.status(400).json({ ok: false, message: 'email is required' });
-    await query('DELETE FROM users WHERE email = ?', [email.trim().toLowerCase()]);
+    const targetEmail = email.trim().toLowerCase();
+    const rows = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [targetEmail]);
+    if (rows.length === 0) return res.status(404).json({ ok: false, message: 'User not found' });
+    if (rows[0].id === req.user.id) return res.status(403).json({ ok: false, message: 'You cannot delete your own account' });
+    const result = await query('DELETE FROM users WHERE email = ?', [targetEmail]);
+    if (result.affectedRows === 0) return res.status(404).json({ ok: false, message: 'User not found' });
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'DELETE_USER',
+      description: `Deleted user ${targetEmail}`,
+      status: 'SUCCESS',
+      req
+    });
     res.json({ ok: true, message: 'User deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-app.put('/api/admin/users/:id', authenticateToken, requireRole('admin'), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { fullName, phoneNumber, status, role } = req.body;
-    await query(
-      'UPDATE users SET fullName = ?, phoneNumber = ?, status = ?, role = ? WHERE id = ?',
-      [fullName, phoneNumber, status, role, id]
-    );
-    res.json({ ok: true, message: 'User updated successfully' });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -4033,6 +4401,18 @@ app.delete('/api/admin/users/:id', authenticateToken, requireRole(['admin']), as
       return res.status(403).json({ ok: false, message: 'Protected system account cannot be deleted' });
     }
     const result = await query('DELETE FROM users WHERE id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, message: 'User not found' });
+    }
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'DELETE_USER',
+      description: `Deleted user ${rows[0].email}`,
+      status: 'SUCCESS',
+      req
+    });
     return res.json({ ok: true, message: 'User deleted successfully', affectedRows: result.affectedRows });
   } catch (error) {
     console.error('Admin user deletion failed:', error.message);
@@ -4042,15 +4422,44 @@ app.delete('/api/admin/users/:id', authenticateToken, requireRole(['admin']), as
 
 // Admin Connections Management
 app.get('/api/admin/connections', authenticateToken, requireRole(['admin']), async (req, res) => {
-  try {
-    const doctorConnections = await query('SELECT dc.*, u1.fullName as doctorName, u2.fullName as requesterName FROM doctor_connections dc JOIN users u1 ON dc.doctorId = u1.id JOIN users u2 ON dc.requesterId = u2.id ORDER BY dc.id DESC');
-    const caretakerConnections = await query('SELECT cc.*, u1.fullName as patientName, u2.fullName as caretakerName FROM caretaker_connections cc JOIN users u1 ON cc.patientId = u1.id JOIN users u2 ON cc.caretakerId = u2.id ORDER BY cc.id DESC');
-    const pharmacyConnections = await query('SELECT pc.*, u1.fullName as patientName, ms.shopName FROM pharmacy_connections pc JOIN users u1 ON pc.patientId = u1.id JOIN medical_shops ms ON pc.shopId = ms.id ORDER BY pc.id DESC');
-    res.json({ ok: true, connections: { doctorConnections, caretakerConnections, pharmacyConnections } });
-  } catch (error) {
-    console.error('Admin connections lookup failed:', error.message);
-    res.status(500).json({ ok: false, message: 'Unable to load connections' });
-  }
+  const connectionQuery = async (name, sql) => {
+    try {
+      return { rows: await query(sql), error: null };
+    } catch (error) {
+      console.error(`Admin ${name} connections lookup failed:`, error.message);
+      return { rows: [], error: `Unable to load ${name} connections` };
+    }
+  };
+
+  const [doctor, caretaker, pharmacy] = await Promise.all([
+    connectionQuery(
+      'doctor',
+      'SELECT dc.*, u1.fullName as doctorName, u2.fullName as requesterName FROM doctor_connections dc JOIN users u1 ON dc.doctorId = u1.id JOIN users u2 ON dc.requesterId = u2.id ORDER BY dc.id DESC'
+    ),
+    connectionQuery(
+      'caretaker',
+      'SELECT cc.*, u1.fullName as patientName, u2.fullName as caretakerName FROM caretaker_connections cc JOIN users u1 ON cc.patientId = u1.id JOIN users u2 ON cc.caretakerId = u2.id ORDER BY cc.id DESC'
+    ),
+    connectionQuery(
+      'pharmacy',
+      'SELECT pc.*, u1.fullName as patientName, ms.shopName FROM pharmacy_connections pc JOIN users u1 ON pc.patientId = u1.id JOIN medical_shops ms ON pc.shopId = ms.id ORDER BY pc.id DESC'
+    )
+  ]);
+
+  const errors = {};
+  if (doctor.error) errors.doctorConnections = doctor.error;
+  if (caretaker.error) errors.caretakerConnections = caretaker.error;
+  if (pharmacy.error) errors.pharmacyConnections = pharmacy.error;
+
+  return res.json({
+    ok: true,
+    connections: {
+      doctorConnections: doctor.rows,
+      caretakerConnections: caretaker.rows,
+      pharmacyConnections: pharmacy.rows
+    },
+    ...(Object.keys(errors).length > 0 ? { errors } : {})
+  });
 });
 
 app.post('/api/admin/connections', authenticateToken, requireRole(['admin']), async (req, res) => {
@@ -4078,6 +4487,15 @@ app.post('/api/admin/connections', authenticateToken, requireRole(['admin']), as
     } else {
       return res.status(400).json({ ok: false, message: 'Invalid connection type' });
     }
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'CREATE_CONNECTION',
+      description: `Created ${type} connection between patient ID ${patient[0].id} and target ID ${Number(targetId)}`,
+      status: 'SUCCESS',
+      req
+    });
     res.json({ ok: true, message: 'Connection created successfully' });
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ ok: false, message: 'Connection already exists' });
@@ -4100,6 +4518,15 @@ app.delete('/api/admin/connections/:type/:id', authenticateToken, requireRole(['
       return res.status(400).json({ ok: false, message: 'Invalid connection type' });
     }
     if (result && result.affectedRows === 0) return res.status(404).json({ ok: false, message: 'Connection not found' });
+    await logActivity({
+      userId: req.user.id,
+      userRole: req.user.role,
+      userEmail: req.user.email,
+      activityType: 'DELETE_CONNECTION',
+      description: `Deleted ${type} connection ID ${id}`,
+      status: 'SUCCESS',
+      req
+    });
     res.json({ ok: true, message: 'Connection deleted successfully' });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -4147,4 +4574,8 @@ async function startServer() {
   }
 }
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer };

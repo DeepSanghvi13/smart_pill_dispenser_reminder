@@ -11,6 +11,9 @@ class Appointment {
   final String? doctorPicture;
   final String? patientName;
   final String? patientPicture;
+  final int? bookedById;
+  final String? bookedByRole;
+  final String? createdAt;
 
   Appointment({
     required this.id,
@@ -25,14 +28,42 @@ class Appointment {
     this.doctorPicture,
     this.patientName,
     this.patientPicture,
+    this.bookedById,
+    this.bookedByRole,
+    this.createdAt,
   });
+
+  static Map<String, dynamic> toRequestJson({
+    required int doctorId,
+    required String appointmentDate,
+    required String appointmentTime,
+    String? reason,
+    int? patientId,
+    int? bookedById,
+    String? bookedByRole,
+  }) {
+    return {
+      'doctorId': doctorId,
+      'appointmentDate': appointmentDate,
+      'appointmentTime': appointmentTime,
+      'reason': reason,
+      if (patientId != null) 'patientId': patientId,
+      if (bookedById != null) 'bookedById': bookedById,
+      if (bookedByRole != null) 'bookedByRole': bookedByRole,
+    };
+  }
 
   factory Appointment.fromJson(Map<String, dynamic> json) {
     return Appointment(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
-      patientId: json['patientId'] is int ? json['patientId'] : int.parse(json['patientId'].toString()),
-      doctorId: json['doctorId'] is int ? json['doctorId'] : int.parse(json['doctorId'].toString()),
-      appointmentDate: json['appointmentDate']?.toString().split('T').first ?? '',
+      patientId: json['patientId'] is int
+          ? json['patientId']
+          : int.parse(json['patientId'].toString()),
+      doctorId: json['doctorId'] is int
+          ? json['doctorId']
+          : int.parse(json['doctorId'].toString()),
+      appointmentDate:
+          json['appointmentDate']?.toString().split('T').first ?? '',
       appointmentTime: json['appointmentTime'] ?? '',
       reason: json['reason'],
       status: json['status'] ?? 'pending',
@@ -41,6 +72,9 @@ class Appointment {
       doctorPicture: json['doctorPicture'],
       patientName: json['patientName'],
       patientPicture: json['patientPicture'],
+      bookedById: int.tryParse(json['bookedById']?.toString() ?? ''),
+      bookedByRole: json['bookedByRole']?.toString(),
+      createdAt: json['createdAt']?.toString(),
     );
   }
 }

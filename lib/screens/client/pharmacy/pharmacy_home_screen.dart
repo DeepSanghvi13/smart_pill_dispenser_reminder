@@ -16,7 +16,8 @@ class PharmacyHomeScreen extends StatefulWidget {
   State<PharmacyHomeScreen> createState() => _PharmacyHomeScreenState();
 }
 
-class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTickerProviderStateMixin {
+class _PharmacyHomeScreenState extends State<PharmacyHomeScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final MedicalShopService _shopService = MedicalShopService();
 
@@ -26,6 +27,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
   List<MedicineOrder> _orders = [];
 
   bool _isLoading = true;
+  String? _ordersError;
+  int? _processingOrderId;
   String _inventorySearch = '';
   String _selectedInventoryCategory = 'All';
   MedicineOrderStatus? _orderStatusFilter;
@@ -64,7 +67,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
       final invFuture = _shopService.getPharmacyInventory();
       final ordersFuture = _shopService.getShopOrders();
 
-      final results = await Future.wait([profFuture, statsFuture, invFuture, ordersFuture]);
+      final results =
+          await Future.wait([profFuture, statsFuture, invFuture, ordersFuture]);
 
       if (mounted) {
         setState(() {
@@ -75,8 +79,15 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
           _isLoading = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e, stackTrace) {
+      debugPrint('Loading pharmacy orders failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          _ordersError = 'Unable to load orders. Please retry.';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -85,156 +96,168 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
     final nameCtrl = TextEditingController(text: existing?.medicineName ?? '');
     String category = existing?.category ?? 'Tablets';
     final dosageCtrl = TextEditingController(text: existing?.dosage ?? '500mg');
-    final priceCtrl = TextEditingController(text: existing != null ? existing.price.toString() : '50.0');
-    final stockCtrl = TextEditingController(text: existing != null ? existing.stockQuantity.toString() : '100');
+    final priceCtrl = TextEditingController(
+        text: existing != null ? existing.price.toString() : '50.0');
+    final stockCtrl = TextEditingController(
+        text: existing != null ? existing.stockQuantity.toString() : '100');
     final batchCtrl = TextEditingController(text: existing?.batchNumber ?? '');
     final mfgCtrl = TextEditingController(text: existing?.manufacturer ?? '');
     final descCtrl = TextEditingController(text: existing?.description ?? '');
     bool reqRx = existing?.requiresPrescription ?? false;
-    DateTime expiryDate = existing?.expiryDate ?? DateTime.now().add(const Duration(days: 180));
+    DateTime expiryDate =
+        existing?.expiryDate ?? DateTime.now().add(const Duration(days: 180));
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(existing == null ? 'Add Medicine to Inventory' : 'Edit Inventory Item'),
+          title: Text(existing == null
+              ? 'Add Medicine to Inventory'
+              : 'Edit Inventory Item'),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Medicine Name *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.medication),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _categories.contains(category) ? category : 'Tablets',
-                  decoration: const InputDecoration(
-                    labelText: 'Category *',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _categories.where((c) => c != 'All').map((c) {
-                    return DropdownMenuItem(value: c, child: Text(c));
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) setDialogState(() => category = val);
-                  },
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: dosageCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Dosage *',
-                          hintText: '500mg',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: priceCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Price (₹) *',
-                          hintText: '99.00',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: stockCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Stock Qty *',
-                          hintText: '50',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: batchCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Batch No.',
-                          hintText: 'BTH-892',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: expiryDate,
-                      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-                      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                    );
-                    if (picked != null) {
-                      setDialogState(() => expiryDate = picked);
-                    }
-                  },
-                  child: InputDecorator(
+                children: [
+                  TextField(
+                    controller: nameCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Expiry Date (DD/MM/YYYY) *',
+                      labelText: 'Medicine Name *',
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.calendar_today),
+                      prefixIcon: Icon(Icons.medication),
                     ),
-                    child: Text(DateFormat('dd/MM/yyyy').format(expiryDate)),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: mfgCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Manufacturer',
-                    hintText: 'e.g. Cipla / Sun Pharma',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue:
+                        _categories.contains(category) ? category : 'Tablets',
+                    decoration: const InputDecoration(
+                      labelText: 'Category *',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _categories.where((c) => c != 'All').map((c) {
+                      return DropdownMenuItem(value: c, child: Text(c));
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => category = val);
+                    },
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descCtrl,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Description / Usage',
-                    hintText: 'e.g. Used for fever and mild pain',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: dosageCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Dosage *',
+                            hintText: '500mg',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: priceCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Price (₹) *',
+                            hintText: '99.00',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  title: const Text('Prescription Required', style: TextStyle(fontSize: 14)),
-                  subtitle: const Text('Customers must attach doctor prescription', style: TextStyle(fontSize: 12)),
-                  value: reqRx,
-                  onChanged: (val) {
-                    setDialogState(() => reqRx = val);
-                  },
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: stockCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Stock Qty *',
+                            hintText: '50',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: batchCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Batch No.',
+                            hintText: 'BTH-892',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: expiryDate,
+                        firstDate:
+                            DateTime.now().subtract(const Duration(days: 30)),
+                        lastDate:
+                            DateTime.now().add(const Duration(days: 365 * 5)),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => expiryDate = picked);
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Expiry Date (DD/MM/YYYY) *',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(DateFormat('dd/MM/yyyy').format(expiryDate)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: mfgCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Manufacturer',
+                      hintText: 'e.g. Cipla / Sun Pharma',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Description / Usage',
+                      hintText: 'e.g. Used for fever and mild pain',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    title: const Text('Prescription Required',
+                        style: TextStyle(fontSize: 14)),
+                    subtitle: const Text(
+                        'Customers must attach doctor prescription',
+                        style: TextStyle(fontSize: 12)),
+                    value: reqRx,
+                    onChanged: (val) {
+                      setDialogState(() => reqRx = val);
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -250,7 +273,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                 if (name.isEmpty || dosage.isEmpty || price <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Please enter a valid name, dosage, and price.'),
+                      content:
+                          Text('Please enter a valid name, dosage, and price.'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -260,39 +284,53 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                 Navigator.pop(ctx);
 
                 final payload = {
-                  'medicineName': name,
+                  'name': name,
                   'category': category,
                   'dosage': dosage,
                   'price': price,
                   'stockQuantity': stock,
                   'expiryDate': DateFormat('yyyy-MM-dd').format(expiryDate),
-                  'batchNumber': batchCtrl.text.trim().isEmpty ? null : batchCtrl.text.trim(),
-                  'manufacturer': mfgCtrl.text.trim().isEmpty ? null : mfgCtrl.text.trim(),
-                  'description': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
-                  'requiresPrescription': reqRx,
+                  'batchNumber': batchCtrl.text.trim().isEmpty
+                      ? null
+                      : batchCtrl.text.trim(),
+                  'manufacturer':
+                      mfgCtrl.text.trim().isEmpty ? null : mfgCtrl.text.trim(),
+                  'description': descCtrl.text.trim().isEmpty
+                      ? null
+                      : descCtrl.text.trim(),
+                  'prescriptionRequired': reqRx,
                 };
 
                 bool ok = false;
-                if (existing == null) {
-                  final created = await _shopService.addMedicineToInventory(payload);
-                  ok = created != null;
-                } else if (existing.id != null) {
-                  ok = await _shopService.updateInventoryMedicine(existing.id!, payload);
+                try {
+                  if (existing == null) {
+                    final created =
+                        await _shopService.addMedicineToInventory(payload);
+                    ok = created != null;
+                  } else if (existing.id != null) {
+                    ok = await _shopService.updateInventoryMedicine(
+                        existing.id!, payload);
+                  }
+                } catch (_) {
+                  ok = false;
                 }
 
                 if (!mounted) return;
                 if (ok) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(existing == null ? 'Medicine added to inventory!' : 'Medicine updated!'),
+                      content: Text(existing == null
+                          ? 'Medicine added to inventory!'
+                          : 'Medicine updated!'),
                       backgroundColor: Colors.green,
                     ),
                   );
                   _loadAllData();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Failed to save medicine. Please check input.'),
+                    SnackBar(
+                      content: Text(_shopService.errorMessage ??
+                          'Failed to save medicine. Please check input.'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -311,7 +349,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Medicine'),
-        content: Text('Are you sure you want to delete "${med.medicineName}" from your shop inventory?'),
+        content: Text(
+            'Are you sure you want to delete "${med.medicineName}" from your shop inventory?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -325,7 +364,9 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                 if (!mounted) return;
                 if (ok) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Medicine removed from inventory'), backgroundColor: Colors.red),
+                    const SnackBar(
+                        content: Text('Medicine removed from inventory'),
+                        backgroundColor: Colors.red),
                   );
                   _loadAllData();
                 }
@@ -340,21 +381,62 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
   }
 
   // Update order status
-  Future<void> _updateOrderStatus(MedicineOrder order, MedicineOrderStatus newStatus) async {
+  Future<void> _updateOrderStatus(
+      MedicineOrder order, MedicineOrderStatus newStatus) async {
     if (order.id == null) return;
-    final ok = await _shopService.updateOrderStatus(order.id!, newStatus.name);
+    String? rejectionReason;
+    if (newStatus == MedicineOrderStatus.rejected) {
+      final controller = TextEditingController();
+      rejectionReason = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Reject order'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Reason'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isNotEmpty) Navigator.pop(context, value);
+              },
+              child: const Text('Reject'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (rejectionReason == null) return;
+    }
+    if (_processingOrderId != null) return;
+    setState(() => _processingOrderId = order.id);
+    final result = await _shopService
+        .updateOrderStatus(order.id!, newStatus.name, reason: rejectionReason);
     if (!mounted) return;
-    if (ok) {
+    setState(() => _processingOrderId = null);
+    if (result['ok'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Order #${order.id} status updated to ${newStatus.name.toUpperCase()}'),
+          content: Text(
+              'Order #${order.id} status updated to ${newStatus.name.toUpperCase()}'),
           backgroundColor: Colors.green,
         ),
       );
       _loadAllData();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update order status.'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(result['message']?.toString() ??
+              result['error']?.toString() ??
+              'Failed to update order status.'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -416,9 +498,15 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
   Widget _buildInventoryTab(ThemeData theme) {
     final filtered = _inventory.where((item) {
       final matchesSearch = _inventorySearch.isEmpty ||
-          item.medicineName.toLowerCase().contains(_inventorySearch.toLowerCase()) ||
-          (item.manufacturer != null && item.manufacturer!.toLowerCase().contains(_inventorySearch.toLowerCase()));
-      final matchesCategory = _selectedInventoryCategory == 'All' || item.category == _selectedInventoryCategory;
+          item.medicineName
+              .toLowerCase()
+              .contains(_inventorySearch.toLowerCase()) ||
+          (item.manufacturer != null &&
+              item.manufacturer!
+                  .toLowerCase()
+                  .contains(_inventorySearch.toLowerCase()));
+      final matchesCategory = _selectedInventoryCategory == 'All' ||
+          item.category == _selectedInventoryCategory;
       return matchesSearch && matchesCategory;
     }).toList();
 
@@ -429,16 +517,23 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
           // Stat chips row
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.3),
             child: Row(
               children: [
-                _buildStatMiniCard('Total', '${_stats?['totalMedicines'] ?? _inventory.length}', Colors.blue),
+                _buildStatMiniCard(
+                    'Total',
+                    '${_stats?['totalMedicines'] ?? _inventory.length}',
+                    Colors.blue),
                 const SizedBox(width: 8),
-                _buildStatMiniCard('Low Stock', '${_stats?['lowStockCount'] ?? 0}', Colors.orange),
+                _buildStatMiniCard('Low Stock',
+                    '${_stats?['lowStockCount'] ?? 0}', Colors.orange),
                 const SizedBox(width: 8),
-                _buildStatMiniCard('Expired', '${_stats?['expiredCount'] ?? 0}', Colors.red),
+                _buildStatMiniCard(
+                    'Expired', '${_stats?['expiredCount'] ?? 0}', Colors.red),
                 const SizedBox(width: 8),
-                _buildStatMiniCard('Pending Orders', '${_stats?['pendingOrdersCount'] ?? 0}', Colors.teal),
+                _buildStatMiniCard('Pending Orders',
+                    '${_stats?['pendingOrdersCount'] ?? 0}', Colors.teal),
               ],
             ),
           ),
@@ -450,10 +545,14 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
               decoration: InputDecoration(
                 hintText: 'Search inventory medicines...',
                 prefixIcon: const Icon(Icons.search),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                 filled: true,
-                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                fillColor: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.3),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none),
               ),
               onChanged: (val) {
                 setState(() => _inventorySearch = val);
@@ -477,7 +576,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                   label: Text(cat),
                   labelStyle: TextStyle(
                     fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                     color: isSelected ? theme.colorScheme.onPrimary : null,
                   ),
                   selectedColor: theme.colorScheme.primary,
@@ -498,11 +598,13 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade400),
+                        Icon(Icons.inventory_2_outlined,
+                            size: 64, color: Colors.grey.shade400),
                         const SizedBox(height: 12),
                         Text(
                           'No medicines found in inventory',
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                          style: TextStyle(
+                              color: Colors.grey.shade600, fontSize: 15),
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
@@ -518,7 +620,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                       if (constraints.maxWidth >= 650) {
                         return GridView.builder(
                           padding: const EdgeInsets.all(16),
-                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 480,
                             mainAxisExtent: 185,
                             crossAxisSpacing: 12,
@@ -560,14 +663,16 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
           children: [
             Text(
               value,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 16, color: color),
             ),
             const SizedBox(height: 2),
             Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                  fontSize: 10, color: color, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -575,7 +680,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
     );
   }
 
-  Widget _buildInventoryCard(BuildContext context, ShopMedicine item, ThemeData theme) {
+  Widget _buildInventoryCard(
+      BuildContext context, ShopMedicine item, ThemeData theme) {
     final isOutOfStock = item.isOutOfStock;
     final isExpired = item.isExpired;
 
@@ -602,7 +708,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                     color: theme.colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.medication, color: theme.colorScheme.primary, size: 24),
+                  child: Icon(Icons.medication,
+                      color: theme.colorScheme.primary, size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -611,11 +718,13 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                     children: [
                       Text(
                         item.medicineName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Text(
                         '${item.category} • ${item.dosage}',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                        style: TextStyle(
+                            color: Colors.grey.shade600, fontSize: 13),
                       ),
                     ],
                   ),
@@ -638,7 +747,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
               runSpacing: 4,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: isOutOfStock
                         ? Colors.red.withValues(alpha: 0.1)
@@ -655,7 +765,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: isExpired
                         ? Colors.red.withValues(alpha: 0.1)
@@ -669,7 +780,9 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                     style: TextStyle(
                       color: isExpired
                           ? Colors.red
-                          : (item.isExpiringSoon ? Colors.orange.shade800 : Colors.blue.shade800),
+                          : (item.isExpiringSoon
+                              ? Colors.orange.shade800
+                              : Colors.blue.shade800),
                       fontWeight: FontWeight.bold,
                       fontSize: 11,
                     ),
@@ -677,14 +790,18 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                 ),
                 if (item.requiresPrescription)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.deepPurple.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Text(
                       'Rx Required',
-                      style: TextStyle(color: Colors.deepPurple, fontSize: 11, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: Colors.deepPurple,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
               ],
@@ -696,18 +813,22 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  item.batchNumber != null ? 'Batch: ${item.batchNumber}' : 'Mfg: ${item.manufacturer ?? 'N/A'}',
+                  item.batchNumber != null
+                      ? 'Batch: ${item.batchNumber}'
+                      : 'Mfg: ${item.manufacturer ?? 'N/A'}',
                   style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
                 ),
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit_outlined, color: Colors.blue, size: 20),
+                      icon: const Icon(Icons.edit_outlined,
+                          color: Colors.blue, size: 20),
                       onPressed: () => _showAddEditMedicineDialog(item),
                       tooltip: 'Edit',
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.red, size: 20),
                       onPressed: () => _confirmDeleteMedicine(item),
                       tooltip: 'Delete',
                     ),
@@ -740,73 +861,84 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
               children: [
                 _buildOrderStatusFilterChip('All Orders', null),
                 const SizedBox(width: 8),
-                _buildOrderStatusFilterChip('Pending', MedicineOrderStatus.pending),
+                _buildOrderStatusFilterChip(
+                    'Pending', MedicineOrderStatus.pending),
                 const SizedBox(width: 8),
-                _buildOrderStatusFilterChip('Accepted', MedicineOrderStatus.accepted),
+                _buildOrderStatusFilterChip(
+                    'Accepted', MedicineOrderStatus.accepted),
                 const SizedBox(width: 8),
-                _buildOrderStatusFilterChip('Packed', MedicineOrderStatus.packed),
+                _buildOrderStatusFilterChip(
+                    'Packed', MedicineOrderStatus.packed),
                 const SizedBox(width: 8),
                 _buildOrderStatusFilterChip('Ready', MedicineOrderStatus.ready),
                 const SizedBox(width: 8),
-                _buildOrderStatusFilterChip('Delivered', MedicineOrderStatus.delivered),
+                _buildOrderStatusFilterChip(
+                    'Delivered', MedicineOrderStatus.delivered),
+                const SizedBox(width: 8),
+                _buildOrderStatusFilterChip(
+                    'Rejected', MedicineOrderStatus.rejected),
+                const SizedBox(width: 8),
+                _buildOrderStatusFilterChip(
+                    'Cancelled', MedicineOrderStatus.cancelled),
               ],
             ),
           ),
 
           Expanded(
-            child: filtered.isEmpty
+            child: _ordersError != null && _orders.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.shade400),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No orders in this category',
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                        Text(_ordersError!,
+                            style: const TextStyle(color: Colors.red)),
+                        TextButton.icon(
+                          onPressed: _loadAllData,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
                         ),
                       ],
                     ),
                   )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (constraints.maxWidth >= 650) {
-                        return GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 520,
-                            mainAxisExtent: 220,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, idx) {
-                            final order = filtered[idx];
-                            return _buildPharmacyOrderCard(context, order, theme);
-                          },
-                        );
-                      }
-                      return ListView.builder(
+                : filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long_outlined,
+                                size: 64, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No orders in this category',
+                              style: TextStyle(
+                                  color: Colors.grey.shade600, fontSize: 15),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: filtered.length,
                         itemBuilder: (context, idx) {
                           final order = filtered[idx];
                           return _buildPharmacyOrderCard(context, order, theme);
                         },
-                      );
-                    },
-                  ),
+                      ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildOrderStatusFilterChip(String label, MedicineOrderStatus? status) {
+  Widget _buildOrderStatusFilterChip(
+      String label, MedicineOrderStatus? status) {
     final isSelected = _orderStatusFilter == status;
+    final count = status == null
+        ? _orders.length
+        : _orders.where((order) => order.orderStatus == status).length;
     return FilterChip(
       selected: isSelected,
-      label: Text(label),
+      label: Text('$label ($count)'),
       showCheckmark: false,
       onSelected: (_) {
         setState(() => _orderStatusFilter = status);
@@ -814,7 +946,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
     );
   }
 
-  Widget _buildPharmacyOrderCard(BuildContext context, MedicineOrder order, ThemeData theme) {
+  Widget _buildPharmacyOrderCard(
+      BuildContext context, MedicineOrder order, ThemeData theme) {
     Color statusColor;
     switch (order.orderStatus) {
       case MedicineOrderStatus.pending:
@@ -835,6 +968,9 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
       case MedicineOrderStatus.rejected:
         statusColor = Colors.red;
         break;
+      case MedicineOrderStatus.cancelled:
+        statusColor = Colors.grey;
+        break;
     }
 
     return Card(
@@ -849,33 +985,44 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Order #${order.id}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Order #${order.id}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     order.statusDisplayName,
-                    style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                    style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Text('Customer: ${order.patientName ?? order.patientId}', style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text('Customer: ${order.patientName ?? order.patientId}',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             if (order.caretakerId != null)
-              Text('Placed by Caretaker: ${order.caretakerName ?? order.caretakerId}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+              Text(
+                  'Placed by Caretaker: ${order.caretakerName ?? order.caretakerId}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             const SizedBox(height: 4),
-            Text('Address: ${order.deliveryAddress}', style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+            Text('Address: ${order.deliveryAddress}',
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
             const SizedBox(height: 8),
 
             // Items summary
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+                color: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -885,8 +1032,18 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('${item.medicineName} (${item.dosage}) x ${item.quantity}', style: const TextStyle(fontSize: 12)),
-                        Text('₹${item.totalPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        Expanded(
+                          child: Text(
+                            item.dosage == null || item.dosage!.trim().isEmpty
+                                ? '${item.medicineName} x ${item.quantity}'
+                                : '${item.medicineName} (${item.dosage}) x ${item.quantity}',
+                            style: const TextStyle(fontSize: 12),
+                            softWrap: true,
+                          ),
+                        ),
+                        Text('₹${item.totalPrice.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   );
@@ -898,10 +1055,15 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(order.formattedOrderDate, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                Text(order.formattedOrderDate,
+                    style:
+                        TextStyle(color: Colors.grey.shade500, fontSize: 11)),
                 Text(
                   'Total: ₹${order.totalAmount.toStringAsFixed(2)}',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.primary),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: theme.colorScheme.primary),
                 ),
               ],
             ),
@@ -912,39 +1074,57 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (order.orderStatus == MedicineOrderStatus.pending) ...[
+                if (_processingOrderId == order.id)
+                  const CircularProgressIndicator()
+                else if (order.orderStatus == MedicineOrderStatus.pending) ...[
                   ElevatedButton.icon(
                     icon: const Icon(Icons.check, size: 16),
                     label: const Text('Accept Order'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                    onPressed: () => _updateOrderStatus(order, MedicineOrderStatus.accepted),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white),
+                    onPressed: () =>
+                        _updateOrderStatus(order, MedicineOrderStatus.accepted),
                   ),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.close, size: 16, color: Colors.red),
-                    label: const Text('Reject', style: TextStyle(color: Colors.red)),
-                    style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
-                    onPressed: () => _updateOrderStatus(order, MedicineOrderStatus.rejected),
+                    label: const Text('Reject',
+                        style: TextStyle(color: Colors.red)),
+                    style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red)),
+                    onPressed: () =>
+                        _updateOrderStatus(order, MedicineOrderStatus.rejected),
                   ),
-                ] else if (order.orderStatus == MedicineOrderStatus.accepted) ...[
+                ] else if (order.orderStatus ==
+                    MedicineOrderStatus.accepted) ...[
                   ElevatedButton.icon(
                     icon: const Icon(Icons.inventory_2, size: 16),
                     label: const Text('Mark as Packed'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-                    onPressed: () => _updateOrderStatus(order, MedicineOrderStatus.packed),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.indigo,
+                        foregroundColor: Colors.white),
+                    onPressed: () =>
+                        _updateOrderStatus(order, MedicineOrderStatus.packed),
                   ),
                 ] else if (order.orderStatus == MedicineOrderStatus.packed) ...[
                   ElevatedButton.icon(
                     icon: const Icon(Icons.local_shipping, size: 16),
                     label: const Text('Mark Ready for Delivery/Pickup'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
-                    onPressed: () => _updateOrderStatus(order, MedicineOrderStatus.ready),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        foregroundColor: Colors.white),
+                    onPressed: () =>
+                        _updateOrderStatus(order, MedicineOrderStatus.ready),
                   ),
                 ] else if (order.orderStatus == MedicineOrderStatus.ready) ...[
                   ElevatedButton.icon(
                     icon: const Icon(Icons.done_all, size: 16),
                     label: const Text('Mark as Delivered'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                    onPressed: () => _updateOrderStatus(order, MedicineOrderStatus.delivered),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white),
+                    onPressed: () => _updateOrderStatus(
+                        order, MedicineOrderStatus.delivered),
                   ),
                 ],
               ],
@@ -965,47 +1145,57 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
             constraints: const BoxConstraints(maxWidth: 700),
             child: Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundColor: theme.colorScheme.primary,
-                  child: const Icon(Icons.storefront, size: 36, color: Colors.white),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 36,
+                      backgroundColor: theme.colorScheme.primary,
+                      child: const Icon(Icons.storefront,
+                          size: 36, color: Colors.white),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _profile?.shopName ?? 'Pharmacy Store',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 20),
+                    ),
+                    Text(
+                      _profile?.ownerName != null
+                          ? 'Owner: ${_profile!.ownerName}'
+                          : auth.currentUser ?? '',
+                      style:
+                          TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                    ),
+                    const Divider(height: 32),
+                    _buildProfileDetailRow(Icons.phone, 'Contact Phone',
+                        _profile?.phoneNumber ?? 'Not provided'),
+                    const SizedBox(height: 12),
+                    _buildProfileDetailRow(Icons.location_on, 'Address',
+                        _profile?.address ?? 'Not provided'),
+                    const SizedBox(height: 12),
+                    _buildProfileDetailRow(Icons.badge, 'Drug License No.',
+                        _profile?.licenseNumber ?? 'Not provided'),
+                    const SizedBox(height: 12),
+                    _buildProfileDetailRow(Icons.receipt, 'GST / Tax ID',
+                        _profile?.gstNumber ?? 'Not provided'),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit Shop Details'),
+                      onPressed: () => _showEditShopProfileDialog(),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  _profile?.shopName ?? 'Pharmacy Store',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-                ),
-                Text(
-                  _profile?.ownerName != null ? 'Owner: ${_profile!.ownerName}' : auth.currentUser ?? '',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                ),
-                const Divider(height: 32),
-                _buildProfileDetailRow(Icons.phone, 'Contact Phone', _profile?.phoneNumber ?? 'Not provided'),
-                const SizedBox(height: 12),
-                _buildProfileDetailRow(Icons.location_on, 'Address', _profile?.address ?? 'Not provided'),
-                const SizedBox(height: 12),
-                _buildProfileDetailRow(Icons.badge, 'Drug License No.', _profile?.licenseNumber ?? 'Not provided'),
-                const SizedBox(height: 12),
-                _buildProfileDetailRow(Icons.receipt, 'GST / Tax ID', _profile?.gstNumber ?? 'Not provided'),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.edit),
-                  label: const Text('Edit Shop Details'),
-                  onPressed: () => _showEditShopProfileDialog(),
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    ),
-  ],
-);
+      ],
+    );
   }
 
   Widget _buildProfileDetailRow(IconData icon, String label, String value) {
@@ -1016,8 +1206,11 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(label,
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+            Text(value,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
           ],
         ),
       ],
@@ -1026,7 +1219,8 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
 
   void _showEditShopProfileDialog() {
     final shopNameCtrl = TextEditingController(text: _profile?.shopName ?? '');
-    final ownerNameCtrl = TextEditingController(text: _profile?.ownerName ?? '');
+    final ownerNameCtrl =
+        TextEditingController(text: _profile?.ownerName ?? '');
     final phoneCtrl = TextEditingController(text: _profile?.phoneNumber ?? '');
     final addressCtrl = TextEditingController(text: _profile?.address ?? '');
     final licCtrl = TextEditingController(text: _profile?.licenseNumber ?? '');
@@ -1041,41 +1235,51 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: shopNameCtrl,
-                decoration: const InputDecoration(labelText: 'Shop / Pharmacy Name *', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ownerNameCtrl,
-                decoration: const InputDecoration(labelText: 'Owner Full Name', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneCtrl,
-                decoration: const InputDecoration(labelText: 'Contact Phone Number', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: addressCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Shop Address', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: licCtrl,
-                decoration: const InputDecoration(labelText: 'Drug License Number', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: gstCtrl,
-                decoration: const InputDecoration(labelText: 'GST Number', border: OutlineInputBorder()),
-              ),
-            ],
+              children: [
+                TextField(
+                  controller: shopNameCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Shop / Pharmacy Name *',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ownerNameCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Owner Full Name',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Contact Phone Number',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: addressCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                      labelText: 'Shop Address', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: licCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Drug License Number',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: gstCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'GST Number', border: OutlineInputBorder()),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1086,7 +1290,9 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
               final shopName = shopNameCtrl.text.trim();
               if (shopName.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Shop Name is required.'), backgroundColor: Colors.red),
+                  const SnackBar(
+                      content: Text('Shop Name is required.'),
+                      backgroundColor: Colors.red),
                 );
                 return;
               }
@@ -1105,7 +1311,9 @@ class _PharmacyHomeScreenState extends State<PharmacyHomeScreen> with SingleTick
               if (updated != null) {
                 setState(() => _profile = updated);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Pharmacy profile updated!'), backgroundColor: Colors.green),
+                  const SnackBar(
+                      content: Text('Pharmacy profile updated!'),
+                      backgroundColor: Colors.green),
                 );
               }
             },

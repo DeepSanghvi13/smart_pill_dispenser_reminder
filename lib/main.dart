@@ -25,15 +25,15 @@ Future<void> main() async {
   // Initialize database service (Hive local boxes)
   try {
     await DatabaseService().initializeHiveBoxes();
-    
+
     // Load theme settings from Hive
     final settingsBox = HiveService().settingsBox;
     final savedTheme = settingsBox.get('theme_mode') as String?;
     if (savedTheme != null) {
-      themeNotifier.value = ThemeMode.values.firstWhere(
+      await setThemeMode(ThemeMode.values.firstWhere(
         (e) => e.name == savedTheme,
         orElse: () => ThemeMode.light,
-      );
+      ));
     }
   } catch (e) {
     debugPrint('Database initialization error: $e');
@@ -116,7 +116,8 @@ class MyApp extends StatelessWidget {
               colorSchemeSeed: const Color(0xFF0D4F8B),
               brightness: Brightness.light,
               inputDecorationTheme: InputDecorationTheme(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: Colors.grey.shade50.withValues(alpha: 0.3),
               ),
@@ -126,7 +127,8 @@ class MyApp extends StatelessWidget {
               colorSchemeSeed: const Color(0xFF0D4F8B),
               brightness: Brightness.dark,
               inputDecorationTheme: InputDecorationTheme(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: Colors.grey.shade900.withValues(alpha: 0.3),
               ),

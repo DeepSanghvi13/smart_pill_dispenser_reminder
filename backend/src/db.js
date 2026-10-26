@@ -50,6 +50,9 @@ async function connectMySQL() {
     await conn.query(`ALTER TABLE users MODIFY COLUMN role ENUM('patient', 'caretaker', 'doctor', 'pharmacy', 'admin') NOT NULL DEFAULT 'patient'`);
   } catch (_) {}
   try {
+    await conn.query(`ALTER TABLE medicine_orders MODIFY COLUMN status ENUM('pending', 'accepted', 'packed', 'ready', 'delivered', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending'`);
+  } catch (_) {}
+  try {
     await conn.query(`ALTER TABLE userProfiles ADD COLUMN profilePicture VARCHAR(500) DEFAULT NULL`);
   } catch (_) {}
   try {

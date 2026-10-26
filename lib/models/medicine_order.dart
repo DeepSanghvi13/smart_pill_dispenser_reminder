@@ -6,14 +6,17 @@ enum MedicineOrderStatus {
   packed('Packed'),
   ready('Ready'),
   delivered('Delivered'),
-  rejected('Rejected');
+  rejected('Rejected'),
+  cancelled('Cancelled');
 
   final String label;
   const MedicineOrderStatus(this.label);
 
   static MedicineOrderStatus fromString(String val) {
     return MedicineOrderStatus.values.firstWhere(
-      (e) => e.name.toLowerCase() == val.toLowerCase() || e.label.toLowerCase() == val.toLowerCase(),
+      (e) =>
+          e.name.toLowerCase() == val.toLowerCase() ||
+          e.label.toLowerCase() == val.toLowerCase(),
       orElse: () => MedicineOrderStatus.pending,
     );
   }
@@ -70,14 +73,16 @@ class OrderItem {
       orderId: map['orderId'] as int?,
       shopMedicineId: map['shopMedicineId'] as int? ?? 0,
       medicineName: map['medicineName'] as String? ?? 'Medicine',
-      dosage: map['dosage'] as String?,
+      dosage: (map['dosage'] ?? map['strength'])?.toString(),
       price: double.tryParse(map['price']?.toString() ?? '0') ?? 0.0,
       quantity: int.tryParse(map['quantity']?.toString() ?? '1') ?? 1,
       subtotal: double.tryParse(map['subtotal']?.toString() ?? '0') ?? 0.0,
       imageUrl: map['imageUrl'] as String?,
       category: map['category'] as String?,
       currentStock: int.tryParse(map['currentStock']?.toString() ?? ''),
-      expiryDate: map['expiryDate'] != null ? DateTime.tryParse(map['expiryDate'].toString()) : null,
+      expiryDate: map['expiryDate'] != null
+          ? DateTime.tryParse(map['expiryDate'].toString())
+          : null,
     );
   }
 }
@@ -171,17 +176,20 @@ class MedicineOrder {
 
   factory MedicineOrder.fromMap(Map<String, dynamic> map) {
     final rawItems = map['items'] as List<dynamic>? ?? [];
-    final parsedItems = rawItems.map((i) => OrderItem.fromMap(Map<String, dynamic>.from(i as Map))).toList();
+    final parsedItems = rawItems
+        .map((i) => OrderItem.fromMap(Map<String, dynamic>.from(i as Map)))
+        .toList();
 
     return MedicineOrder(
       id: map['id'] as int?,
       orderNumber: map['orderNumber'] as String? ?? 'ORD-0000',
-      patientId: map['patientId'] as int? ?? 0,
-      caretakerId: map['caretakerId'] as int?,
-      shopId: map['shopId'] as int? ?? 0,
-      prescriptionId: map['prescriptionId'] as int?,
-      totalAmount: double.tryParse(map['totalAmount']?.toString() ?? '0') ?? 0.0,
-      status: map['status'] as String? ?? 'pending',
+      patientId: int.tryParse(map['patientId']?.toString() ?? '') ?? 0,
+      caretakerId: int.tryParse(map['caretakerId']?.toString() ?? ''),
+      shopId: int.tryParse(map['shopId']?.toString() ?? '') ?? 0,
+      prescriptionId: int.tryParse(map['prescriptionId']?.toString() ?? ''),
+      totalAmount:
+          double.tryParse(map['totalAmount']?.toString() ?? '0') ?? 0.0,
+      status: map['status']?.toString() ?? 'pending',
       deliveryAddress: map['deliveryAddress'] as String?,
       paymentMethod: map['paymentMethod'] as String? ?? 'Cash on Delivery',
       notes: map['notes'] as String?,
@@ -200,8 +208,12 @@ class MedicineOrder {
       prescribedDoctorName: map['prescribedDoctorName'] as String?,
       prescribedDoctorPhone: map['prescribedDoctorPhone'] as String?,
       items: parsedItems,
-      createdAt: map['createdAt'] != null ? DateTime.tryParse(map['createdAt'].toString()) : null,
-      updatedAt: map['updatedAt'] != null ? DateTime.tryParse(map['updatedAt'].toString()) : null,
+      createdAt: map['createdAt'] != null
+          ? DateTime.tryParse(map['createdAt'].toString())
+          : null,
+      updatedAt: map['updatedAt'] != null
+          ? DateTime.tryParse(map['updatedAt'].toString())
+          : null,
     );
   }
 }

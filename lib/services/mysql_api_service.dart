@@ -1,13 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'hive_service.dart';
+import '../core/app_config.dart';
 import '../models/alarm_log.dart';
 import '../models/caretaker.dart';
 import '../models/medicine.dart';
 import '../models/user_profile.dart';
+import '../models/appointment.dart';
 import '../models/reminder.dart';
 
 class MySQLApiService {
@@ -15,9 +17,6 @@ class MySQLApiService {
 
   factory MySQLApiService() => _instance;
   MySQLApiService._internal();
-
-  static const String _pcLanIp = '192.168.29.240';
-  static const int _port = 3000;
 
   String? _resolvedBaseUrl;
 
@@ -51,11 +50,13 @@ class MySQLApiService {
     if (_resolvedBaseUrl != null) return _resolvedBaseUrl!;
     final customUrl = getCustomServerUrl();
     if (customUrl != null && customUrl.isNotEmpty) return customUrl;
-    if (kIsWeb) return 'http://localhost:$_port';
+    if (kIsWeb) return AppConfig.backendBaseUrl;
     try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:$_port';
+      if (Platform.isAndroid) {
+        return AppConfig.backendBaseUrl.replaceFirst('localhost', '10.0.2.2');
+      }
     } catch (_) {}
-    return 'http://localhost:$_port';
+    return AppConfig.backendBaseUrl;
   }
 
   String get currentBaseUrl => baseUrl;
@@ -77,7 +78,8 @@ class MySQLApiService {
 
   String get _currentUserId {
     try {
-      return HiveService().settingsBox.get('current_user_session') as String? ?? 'guest';
+      return HiveService().settingsBox.get('current_user_session') as String? ??
+          'guest';
     } catch (_) {
       return 'guest';
     }
@@ -121,8 +123,8 @@ class MySQLApiService {
     }
     if (kIsWeb) {
       candidates.addAll([
-        'http://localhost:$_port',
-        'http://127.0.0.1:$_port',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
       ]);
     } else {
       bool isAndroid = false;
@@ -132,16 +134,16 @@ class MySQLApiService {
 
       if (isAndroid) {
         candidates.addAll([
-          'http://10.0.2.2:$_port',
-          'http://127.0.0.1:$_port',
-          'http://localhost:$_port',
-          'http://$_pcLanIp:$_port',
+          'http://10.0.2.2:3000',
+          'http://127.0.0.1:3000',
+          'http://localhost:3000',
+          'http://localhost:3000',
         ]);
       } else {
         candidates.addAll([
-          'http://localhost:$_port',
-          'http://127.0.0.1:$_port',
-          'http://$_pcLanIp:$_port',
+          'http://localhost:3000',
+          'http://127.0.0.1:3000',
+          'http://localhost:3000',
         ]);
       }
     }
@@ -180,7 +182,8 @@ class MySQLApiService {
   Future<bool> isEmailRegistered(String email) async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/api/auth/exists?email=${Uri.encodeComponent(email)}'))
+          .get(Uri.parse(
+              '$baseUrl/api/auth/exists?email=${Uri.encodeComponent(email)}'))
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         return (jsonDecode(res.body)['exists'] as bool?) ?? false;
@@ -230,14 +233,17 @@ class MySQLApiService {
         }
         return null; // success
       }
-      return body['message'] as String? ?? 'Registration failed (${res.statusCode})';
+      return body['message'] as String? ??
+          'Registration failed (${res.statusCode})';
     } catch (e) {
       return 'Server unreachable at $baseUrl: $e';
     }
   }
 
-  Future<String?> registerUserWithMessage(String email, String password) async =>
-      registerUser(email: email, password: password, fullName: email, role: 'patient');
+  Future<String?> registerUserWithMessage(
+          String email, String password) async =>
+      registerUser(
+          email: email, password: password, fullName: email, role: 'patient');
 
   Future<Map<String, dynamic>?> loginUser(String email, String password) async {
     final isConnected = await checkServerConnection();
@@ -325,7 +331,9 @@ class MySQLApiService {
 
   Future<bool> deleteMedicineFromServer(int id, {String? userId}) async {
     try {
-      final ownerId = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId;
+      final ownerId = (userId != null && userId.trim().isNotEmpty)
+          ? userId.trim()
+          : _currentUserId;
       final res = await http
           .delete(
             Uri.parse('$baseUrl/api/medicines/$id?userId=$ownerId'),
@@ -348,7 +356,9 @@ class MySQLApiService {
           .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
-        return list.map((m) => Medicine.fromMap(Map<String, dynamic>.from(m as Map))).toList();
+        return list
+            .map((m) => Medicine.fromMap(Map<String, dynamic>.from(m as Map)))
+            .toList();
       }
       return [];
     } catch (_) {
@@ -357,24 +367,24 @@ class MySQLApiService {
   }
 
   Map<String, dynamic> _medicinePayload(Medicine m) => {
-      'userId': m.userId.trim().isNotEmpty ? m.userId.trim() : _currentUserId,
-      'id': m.id,
-      'name': m.name,
-      'type': m.type,
-      'dosage': m.dosage,
-      'quantity': m.quantity,
-      'frequency': m.frequency,
-      'time': m.time,
-      'startDate': m.startDate.toIso8601String(),
-      'endDate': m.endDate.toIso8601String(),
-      'expiryDate': m.resolvedExpiryDate.toIso8601String(),
-      'notes': m.notes,
-      'status': m.status,
-      'isScanned': m.isScanned,
-      'scannedText': m.scannedText,
-      'imagePath': m.imagePath,
-      'healthCondition': m.healthCondition,
-    };
+        'userId': m.userId.trim().isNotEmpty ? m.userId.trim() : _currentUserId,
+        'id': m.id,
+        'name': m.name,
+        'type': m.type,
+        'dosage': m.dosage,
+        'quantity': m.quantity,
+        'frequency': m.frequency,
+        'time': m.time,
+        'startDate': m.startDate.toIso8601String(),
+        'endDate': m.endDate.toIso8601String(),
+        'expiryDate': m.resolvedExpiryDate.toIso8601String(),
+        'notes': m.notes,
+        'status': m.status,
+        'isScanned': m.isScanned,
+        'scannedText': m.scannedText,
+        'imagePath': m.imagePath,
+        'healthCondition': m.healthCondition,
+      };
 
   // ---- Reminders ----
 
@@ -388,7 +398,9 @@ class MySQLApiService {
           .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
-        return list.map((r) => Reminder.fromMap(Map<String, dynamic>.from(r as Map))).toList();
+        return list
+            .map((r) => Reminder.fromMap(Map<String, dynamic>.from(r as Map)))
+            .toList();
       }
       return [];
     } catch (_) {
@@ -396,7 +408,8 @@ class MySQLApiService {
     }
   }
 
-  Future<int?> createOrUpdateReminderOnServer(Reminder reminder, {String? userId}) async {
+  Future<int?> createOrUpdateReminderOnServer(Reminder reminder,
+      {String? userId}) async {
     try {
       final res = await http
           .post(
@@ -416,7 +429,9 @@ class MySQLApiService {
 
   Future<bool> deleteReminderFromServer(int id, {String? userId}) async {
     try {
-      final ownerId = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId;
+      final ownerId = (userId != null && userId.trim().isNotEmpty)
+          ? userId.trim()
+          : _currentUserId;
       final res = await http
           .delete(
             Uri.parse('$baseUrl/api/reminders/$id?userId=$ownerId'),
@@ -430,20 +445,24 @@ class MySQLApiService {
   }
 
   Map<String, dynamic> _reminderPayload(Reminder r, {String? userId}) => {
-    'id': r.id,
-    'userId': (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId,
-    'medicineId': r.medicineId,
-    'time': r.time,
-    'daysOfWeek': r.daysOfWeek,
-    'isActive': r.isActive,
-    'lastNotifiedAt': r.lastNotifiedAt?.toIso8601String(),
-  };
+        'id': r.id,
+        'userId': (userId != null && userId.trim().isNotEmpty)
+            ? userId.trim()
+            : _currentUserId,
+        'medicineId': r.medicineId,
+        'time': r.time,
+        'daysOfWeek': r.daysOfWeek,
+        'isActive': r.isActive,
+        'lastNotifiedAt': r.lastNotifiedAt?.toIso8601String(),
+      };
 
   // ---- Alarm Logs ----
 
   Future<bool> logAlarmToServer(AlarmLog log, {String? userId}) async {
     try {
-      final ownerId = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId;
+      final ownerId = (userId != null && userId.trim().isNotEmpty)
+          ? userId.trim()
+          : _currentUserId;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/alarm-logs'),
@@ -478,7 +497,9 @@ class MySQLApiService {
           .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
-        return list.map((a) => AlarmLog.fromMap(Map<String, dynamic>.from(a as Map))).toList();
+        return list
+            .map((a) => AlarmLog.fromMap(Map<String, dynamic>.from(a as Map)))
+            .toList();
       }
       return [];
     } catch (_) {
@@ -490,7 +511,9 @@ class MySQLApiService {
 
   Future<bool> deleteAccount({String? userId}) async {
     try {
-      final ownerId = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId;
+      final ownerId = (userId != null && userId.trim().isNotEmpty)
+          ? userId.trim()
+          : _currentUserId;
       final res = await http
           .delete(
             Uri.parse('$baseUrl/api/users/account?userId=$ownerId'),
@@ -537,7 +560,8 @@ class MySQLApiService {
     try {
       final res = await http
           .delete(
-            Uri.parse('$baseUrl/api/admin/users-by-email?email=${Uri.encodeComponent(email)}'),
+            Uri.parse(
+                '$baseUrl/api/admin/users-by-email?email=${Uri.encodeComponent(email)}'),
             headers: _headers,
           )
           .timeout(const Duration(seconds: 10));
@@ -570,7 +594,8 @@ class MySQLApiService {
 
       request.files.add(multipartFile);
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 15));
+      final streamedResponse =
+          await request.send().timeout(const Duration(seconds: 15));
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
@@ -579,14 +604,16 @@ class MySQLApiService {
           'ok': true,
           'profilePicture': body['profilePicture'] as String?,
           'photoUrl': body['photoUrl'] as String?,
-          'message': body['message'] as String? ?? 'Photo uploaded successfully',
+          'message':
+              body['message'] as String? ?? 'Photo uploaded successfully',
         };
       } else {
         try {
           final body = jsonDecode(response.body) as Map<String, dynamic>;
           return {
             'ok': false,
-            'message': body['message'] as String? ?? 'Upload failed (${response.statusCode})',
+            'message': body['message'] as String? ??
+                'Upload failed (${response.statusCode})',
           };
         } catch (_) {
           return {
@@ -606,7 +633,8 @@ class MySQLApiService {
   Future<bool> deleteProfilePhoto() async {
     try {
       final res = await http
-          .delete(Uri.parse('$baseUrl/api/user-profile/photo'), headers: _headers)
+          .delete(Uri.parse('$baseUrl/api/user-profile/photo'),
+              headers: _headers)
           .timeout(const Duration(seconds: 10));
       return res.statusCode == 200;
     } catch (_) {
@@ -616,7 +644,9 @@ class MySQLApiService {
 
   Future<bool> saveUserProfileToServer(UserProfile profile) async {
     try {
-      final userEmail = profile.email.trim().isNotEmpty ? profile.email.trim() : _currentUserId;
+      final userEmail = profile.email.trim().isNotEmpty
+          ? profile.email.trim()
+          : _currentUserId;
       final parts = profile.fullName.trim().split(' ');
       final res = await http
           .post(
@@ -629,6 +659,11 @@ class MySQLApiService {
               'email': profile.email,
               'gender': profile.gender,
               'phoneNumber': profile.mobileNumber,
+              'emergencyContact': profile.emergencyContact,
+              'bloodGroup': profile.bloodGroup,
+              'weight': profile.weight,
+              'height': profile.height,
+              'medicalConditions': profile.medicalConditions,
               'profilePicture': profile.profilePicture,
             }),
           )
@@ -656,6 +691,12 @@ class MySQLApiService {
           mobileNumber: d['phoneNumber']?.toString(),
           gender: d['gender']?.toString(),
           profilePicture: d['profilePicture']?.toString(),
+          emergencyContact: d['emergencyContact']?.toString(),
+          bloodGroup: d['bloodGroup']?.toString(),
+          weight: d['weight']?.toString(),
+          height: d['height']?.toString(),
+          medicalConditions: d['medicalConditions']?.toString(),
+          age: d['age'] is num ? (d['age'] as num).toInt() : null,
         );
       }
       return null;
@@ -672,7 +713,8 @@ class MySQLApiService {
           .post(
             Uri.parse('$baseUrl/api/settings'),
             headers: _headers,
-            body: jsonEncode({'userId': _currentUserId, 'key': key, 'value': value}),
+            body: jsonEncode(
+                {'userId': _currentUserId, 'key': key, 'value': value}),
           )
           .timeout(const Duration(seconds: 5));
       return res.statusCode == 200;
@@ -791,7 +833,9 @@ class MySQLApiService {
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
-        return list.map((c) => Caretaker.fromMap(Map<String, dynamic>.from(c as Map))).toList();
+        return list
+            .map((c) => Caretaker.fromMap(Map<String, dynamic>.from(c as Map)))
+            .toList();
       }
       return [];
     } catch (_) {
@@ -834,7 +878,8 @@ class MySQLApiService {
               'userProfile': userProfile != null
                   ? {
                       'firstName': parts.isNotEmpty ? parts.first : '',
-                      'lastName': parts.length > 1 ? parts.sublist(1).join(' ') : '',
+                      'lastName':
+                          parts.length > 1 ? parts.sublist(1).join(' ') : '',
                       'gender': userProfile.gender,
                       'phoneNumber': userProfile.mobileNumber,
                       'email': userProfile.email,
@@ -892,7 +937,9 @@ class MySQLApiService {
             headers: _headers,
           )
           .timeout(const Duration(seconds: 5));
-      if (res.statusCode == 200) return jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
       return null;
     } catch (_) {
       return null;
@@ -945,13 +992,22 @@ class MySQLApiService {
     try {
       final queryParams = <String, String>{};
       if (name != null && name.isNotEmpty) queryParams['name'] = name;
-      if (specialization != null && specialization.isNotEmpty) queryParams['specialization'] = specialization;
-      if (hospital != null && hospital.isNotEmpty) queryParams['hospital'] = hospital;
-      if (location != null && location.isNotEmpty) queryParams['location'] = location;
+      if (specialization != null && specialization.isNotEmpty) {
+        queryParams['specialization'] = specialization;
+      }
+      if (hospital != null && hospital.isNotEmpty) {
+        queryParams['hospital'] = hospital;
+      }
+      if (location != null && location.isNotEmpty) {
+        queryParams['location'] = location;
+      }
       if (search != null && search.isNotEmpty) queryParams['search'] = search;
 
-      final uri = Uri.parse('$baseUrl/api/doctors').replace(queryParameters: queryParams.isEmpty ? null : queryParams);
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      final uri = Uri.parse('$baseUrl/api/doctors')
+          .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         final list = body['data'] as List<dynamic>? ?? [];
@@ -975,7 +1031,8 @@ class MySQLApiService {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {
         'ok': body['ok'] == true,
-        'message': body['message'] as String? ?? (res.statusCode == 200 ? 'Request sent' : 'Request failed'),
+        'message': body['message'] as String? ??
+            (res.statusCode == 200 ? 'Request sent' : 'Request failed'),
         'data': body['data'],
       };
     } catch (e) {
@@ -983,10 +1040,14 @@ class MySQLApiService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getDoctorRequests({String status = 'pending'}) async {
+  Future<List<Map<String, dynamic>>> getDoctorRequests(
+      {String status = 'pending'}) async {
     try {
-      final uri = Uri.parse('$baseUrl/api/doctor-connections/requests?status=$status');
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      final uri =
+          Uri.parse('$baseUrl/api/doctor-connections/requests?status=$status');
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         final list = body['data'] as List<dynamic>? ?? [];
@@ -1037,7 +1098,8 @@ class MySQLApiService {
   Future<List<Map<String, dynamic>>> getMyDoctors() async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/api/doctor-connections/my-doctors'), headers: _headers)
+          .get(Uri.parse('$baseUrl/api/doctor-connections/my-doctors'),
+              headers: _headers)
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -1053,7 +1115,8 @@ class MySQLApiService {
   Future<List<Map<String, dynamic>>> getDoctorPatients() async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/api/doctor-connections/my-patients'), headers: _headers)
+          .get(Uri.parse('$baseUrl/api/doctor-connections/my-patients'),
+              headers: _headers)
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -1069,7 +1132,8 @@ class MySQLApiService {
   Future<List<Map<String, dynamic>>> getDoctorCaretakers() async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/api/doctor-connections/my-caretakers'), headers: _headers)
+          .get(Uri.parse('$baseUrl/api/doctor-connections/my-caretakers'),
+              headers: _headers)
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -1085,7 +1149,8 @@ class MySQLApiService {
   Future<Map<String, dynamic>?> getDoctorConnections() async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/api/doctor-connections/my-connections'), headers: _headers)
+          .get(Uri.parse('$baseUrl/api/doctor-connections/my-connections'),
+              headers: _headers)
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
@@ -1114,7 +1179,8 @@ class MySQLApiService {
   Future<Map<String, dynamic>?> getDoctorProfile(dynamic userId) async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/api/doctor/profile/$userId'), headers: _headers)
+          .get(Uri.parse('$baseUrl/api/doctor/profile/$userId'),
+              headers: _headers)
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
@@ -1128,7 +1194,8 @@ class MySQLApiService {
   Future<bool> removeDoctorConnection(int connectionId) async {
     try {
       final res = await http
-          .delete(Uri.parse('$baseUrl/api/doctor-connections/$connectionId'), headers: _headers)
+          .delete(Uri.parse('$baseUrl/api/doctor-connections/$connectionId'),
+              headers: _headers)
           .timeout(const Duration(seconds: 6));
       return res.statusCode == 200;
     } catch (_) {
@@ -1139,13 +1206,18 @@ class MySQLApiService {
 
   Future<Map<String, dynamic>?> getSystemHealth() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/health'), headers: _headers).timeout(const Duration(seconds: 5));
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/health'), headers: _headers)
+          .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>?;
       }
-      return null;
-    } catch (_) {
-      return null;
+      return {
+        'ok': false,
+        'message': 'Health endpoint returned HTTP ${res.statusCode}.'
+      };
+    } catch (e) {
+      return {'ok': false, 'message': 'Backend unavailable at $baseUrl.'};
     }
   }
 
@@ -1157,7 +1229,9 @@ class MySQLApiService {
       final uri = userId != null
           ? Uri.parse('$baseUrl/api/pharmacy/profile?userId=$userId')
           : Uri.parse('$baseUrl/api/pharmacy/profile');
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
       }
@@ -1187,7 +1261,9 @@ class MySQLApiService {
       final uri = userId != null
           ? Uri.parse('$baseUrl/api/pharmacy/dashboard-stats?userId=$userId')
           : Uri.parse('$baseUrl/api/pharmacy/dashboard-stats');
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         return jsonDecode(res.body)['data'] as Map<String, dynamic>?;
       }
@@ -1203,7 +1279,9 @@ class MySQLApiService {
       final uri = userId != null
           ? Uri.parse('$baseUrl/api/pharmacy/inventory?userId=$userId')
           : Uri.parse('$baseUrl/api/pharmacy/inventory');
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -1216,6 +1294,8 @@ class MySQLApiService {
 
   Future<int?> addPharmacyMedicine(Map<String, dynamic> medicineData) async {
     try {
+      debugPrint(
+          'POST $baseUrl/api/pharmacy/inventory body: ${jsonEncode(medicineData)}');
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/pharmacy/inventory'),
@@ -1223,16 +1303,33 @@ class MySQLApiService {
             body: jsonEncode(medicineData),
           )
           .timeout(const Duration(seconds: 6));
+      debugPrint(
+          'POST /api/pharmacy/inventory response ${res.statusCode}: ${res.body}');
       if (res.statusCode == 200) {
-        return jsonDecode(res.body)['id'] as int?;
+        final id = jsonDecode(res.body)['id'];
+        return id is num ? id.toInt() : int.tryParse(id?.toString() ?? '');
       }
-      return null;
-    } catch (_) {
-      return null;
+      throw StateError(_apiErrorMessage(res));
+    } catch (e, stackTrace) {
+      debugPrint('Failed to add pharmacy medicine: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
     }
   }
 
-  Future<bool> updatePharmacyMedicine(int id, Map<String, dynamic> medicineData) async {
+  String _apiErrorMessage(http.Response response) {
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return body['message']?.toString() ??
+          body['error']?.toString() ??
+          'Request failed with HTTP ${response.statusCode}.';
+    } catch (_) {
+      return 'Request failed with HTTP ${response.statusCode}.';
+    }
+  }
+
+  Future<bool> updatePharmacyMedicine(
+      int id, Map<String, dynamic> medicineData) async {
     try {
       final res = await http
           .put(
@@ -1250,7 +1347,8 @@ class MySQLApiService {
   Future<bool> deletePharmacyMedicine(int id) async {
     try {
       final res = await http
-          .delete(Uri.parse('$baseUrl/api/pharmacy/inventory/$id'), headers: _headers)
+          .delete(Uri.parse('$baseUrl/api/pharmacy/inventory/$id'),
+              headers: _headers)
           .timeout(const Duration(seconds: 6));
       return res.statusCode == 200;
     } catch (_) {
@@ -1259,15 +1357,23 @@ class MySQLApiService {
   }
 
   // Medical Shop Catalog (Public / Patient / Caretaker)
-  Future<List<Map<String, dynamic>>> getShopCatalog({String? search, String? category, int? shopId}) async {
+  Future<List<Map<String, dynamic>>> getShopCatalog(
+      {String? search, String? category, int? shopId}) async {
     try {
       final queryParams = <String, String>{};
       if (search != null && search.isNotEmpty) queryParams['search'] = search;
-      if (category != null && category.isNotEmpty && category != 'All') queryParams['category'] = category;
-      if (shopId != null && shopId > 0) queryParams['shopId'] = shopId.toString();
+      if (category != null && category.isNotEmpty && category != 'All') {
+        queryParams['category'] = category;
+      }
+      if (shopId != null && shopId > 0) {
+        queryParams['shopId'] = shopId.toString();
+      }
 
-      final uri = Uri.parse('$baseUrl/api/shop/catalog').replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      final uri = Uri.parse('$baseUrl/api/shop/catalog').replace(
+          queryParameters: queryParams.isNotEmpty ? queryParams : null);
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -1279,28 +1385,49 @@ class MySQLApiService {
   }
 
   // Doctor Prescriptions
-  Future<Map<String, dynamic>> createPrescription(Map<String, dynamic> prescriptionData) async {
+  Future<Map<String, dynamic>> createPrescription(
+      Map<String, dynamic> prescriptionData) async {
+    final url = '$baseUrl/api/prescriptions';
+    debugPrint('POST $url');
+    debugPrint('Prescription request headers: ${_headers.keys}');
+    debugPrint('Prescription request body: ${jsonEncode(prescriptionData)}');
     try {
       final res = await http
           .post(
-            Uri.parse('$baseUrl/api/prescriptions'),
+            Uri.parse(url),
             headers: _headers,
             body: jsonEncode(prescriptionData),
           )
           .timeout(const Duration(seconds: 6));
-      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
-      return decoded;
+      debugPrint('Prescription response status: ${res.statusCode}');
+      debugPrint('Prescription response body: ${res.body}');
+      final decoded = jsonDecode(res.body);
+      return decoded is Map<String, dynamic>
+          ? decoded
+          : {'ok': false, 'message': 'Invalid prescription response.'};
     } catch (e) {
+      debugPrint('Prescription request failed: $e');
+      debugPrintStack();
       return {'ok': false, 'message': 'Network error: $e'};
     }
   }
 
-  Future<List<Map<String, dynamic>>> getMyPrescriptions({int? patientId}) async {
+  Future<List<Map<String, dynamic>>> getMyPrescriptions(
+      {dynamic patientId}) async {
     try {
+      int? resolvedPatientId;
+      if (patientId != null) {
+        resolvedPatientId =
+            patientId is int ? patientId : int.tryParse(patientId.toString());
+        resolvedPatientId ??= await resolveUserIdByEmail(patientId.toString());
+      }
       final uri = patientId != null
-          ? Uri.parse('$baseUrl/api/prescriptions/my-prescriptions?patientId=$patientId')
+          ? Uri.parse(
+              '$baseUrl/api/prescriptions/my-prescriptions?patientId=$resolvedPatientId')
           : Uri.parse('$baseUrl/api/prescriptions/my-prescriptions');
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -1314,7 +1441,8 @@ class MySQLApiService {
   Future<List<Map<String, dynamic>>> getDoctorPrescriptions() async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/api/prescriptions/doctor'), headers: _headers)
+          .get(Uri.parse('$baseUrl/api/prescriptions/doctor'),
+              headers: _headers)
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
@@ -1327,7 +1455,8 @@ class MySQLApiService {
   }
 
   // Orders
-  Future<Map<String, dynamic>> placeOrder(Map<String, dynamic> orderData) async {
+  Future<Map<String, dynamic>> placeOrder(
+      Map<String, dynamic> orderData) async {
     try {
       final res = await http
           .post(
@@ -1363,7 +1492,9 @@ class MySQLApiService {
       final uri = userId != null
           ? Uri.parse('$baseUrl/api/orders/shop?userId=$userId')
           : Uri.parse('$baseUrl/api/orders/shop');
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -1374,18 +1505,28 @@ class MySQLApiService {
     }
   }
 
-  Future<bool> updateOrderStatus(int orderId, String status) async {
+  Future<Map<String, dynamic>> updateOrderStatus(int orderId, String status,
+      {String? reason}) async {
+    final url = '$baseUrl/api/orders/$orderId/status';
+    final body = {'status': status, if (reason != null) 'reason': reason};
+    debugPrint('PUT $url');
+    debugPrint('Order status request body: ${jsonEncode(body)}');
     try {
       final res = await http
-          .put(
-            Uri.parse('$baseUrl/api/orders/$orderId/status'),
-            headers: _headers,
-            body: jsonEncode({'status': status}),
-          )
-          .timeout(const Duration(seconds: 6));
-      return res.statusCode == 200;
-    } catch (_) {
-      return false;
+          .put(Uri.parse(url), headers: _headers, body: jsonEncode(body))
+          .timeout(
+            const Duration(seconds: 6),
+          );
+      debugPrint('Order status response status: ${res.statusCode}');
+      debugPrint('Order status response body: ${res.body}');
+      final decoded = jsonDecode(res.body);
+      return decoded is Map<String, dynamic>
+          ? decoded
+          : {'ok': false, 'message': 'Invalid order status response.'};
+    } catch (e, stackTrace) {
+      debugPrint('Order status request failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return {'ok': false, 'message': 'Network error: $e'};
     }
   }
 
@@ -1403,20 +1544,28 @@ class MySQLApiService {
     }
   }
 
-  Future<Map<String, dynamic>?> getOrderById(int orderId) => getOrderDetails(orderId);
+  Future<Map<String, dynamic>?> getOrderById(int orderId) =>
+      getOrderDetails(orderId);
 
   Future<bool> requestPrescriptionRenewal(int prescriptionId) async {
     try {
-      final res = await http.post(Uri.parse('$baseUrl/api/prescriptions/$prescriptionId/renew'), headers: _headers).timeout(const Duration(seconds: 6));
+      final res = await http
+          .post(Uri.parse('$baseUrl/api/prescriptions/$prescriptionId/renew'),
+              headers: _headers)
+          .timeout(const Duration(seconds: 6));
       return res.statusCode == 200;
     } catch (_) {
       return false;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getDoctorFeedback({dynamic patientId = 'me'}) async {
+  Future<List<Map<String, dynamic>>> getDoctorFeedback(
+      {dynamic patientId = 'me'}) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/doctor-feedback/$patientId'), headers: _headers).timeout(const Duration(seconds: 6));
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/doctor-feedback/$patientId'),
+              headers: _headers)
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         return List<Map<String, dynamic>>.from(body['data'] ?? []);
@@ -1433,40 +1582,114 @@ class MySQLApiService {
     required String appointmentDate,
     required String appointmentTime,
     String? reason,
+    int? patientId,
+    int? bookedById,
+    String? bookedByRole,
   }) async {
+    final url = '$baseUrl/api/appointments';
+    final body = Appointment.toRequestJson(
+      doctorId: doctorId,
+      appointmentDate: appointmentDate,
+      appointmentTime: appointmentTime,
+      reason: reason,
+      patientId: patientId,
+      bookedById: bookedById,
+      bookedByRole: bookedByRole,
+    );
+    debugPrint('POST $url');
+    debugPrint('Appointment request body: ${jsonEncode(body)}');
     try {
       final res = await http.post(
-        Uri.parse('$baseUrl/api/appointments'),
+        Uri.parse(url),
         headers: _headers,
-        body: jsonEncode({
-          'doctorId': doctorId,
-          'appointmentDate': appointmentDate,
-          'appointmentTime': appointmentTime,
-          'reason': reason,
-        }),
+        body: jsonEncode(body),
       );
-      return jsonDecode(res.body) as Map<String, dynamic>;
-    } catch (e) {
+      debugPrint('Appointment response status: ${res.statusCode}');
+      debugPrint('Appointment response body: ${res.body}');
+      final decoded = jsonDecode(res.body);
+      return decoded is Map<String, dynamic>
+          ? decoded
+          : {'ok': false, 'message': 'Invalid appointment response.'};
+    } catch (e, stackTrace) {
+      debugPrint('Appointment request failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
       return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getCaretakerPatients() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/caretaker/patients'),
+      headers: _headers,
+    );
+    final body = jsonDecode(res.body);
+    if (res.statusCode != 200 || body is! Map<String, dynamic>) {
+      throw Exception(body is Map
+          ? body['message'] ?? body['error']
+          : 'Unable to load patients');
+    }
+    return List<Map<String, dynamic>>.from(body['data'] ?? []);
+  }
+
+  Future<int?> resolveUserIdByEmail(String email) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/users/resolve-id'),
+      headers: _headers,
+      body: jsonEncode({'email': email}),
+    );
+    final body = jsonDecode(res.body);
+    if (res.statusCode != 200 || body is! Map<String, dynamic>) {
+      throw Exception(body is Map
+          ? body['message'] ?? body['error']
+          : 'Unable to resolve user');
+    }
+    return int.tryParse(body['userId']?.toString() ?? '');
+  }
+
+  Future<void> syncCaretakerPatient(int patientId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/caretaker/patients/sync'),
+      headers: _headers,
+      body: jsonEncode({'patientId': patientId}),
+    );
+    if (res.statusCode != 200) {
+      final body = jsonDecode(res.body);
+      throw Exception(body is Map
+          ? body['message'] ?? body['error']
+          : 'Unable to sync patient');
     }
   }
 
   Future<List<Map<String, dynamic>>> getPatientAppointments() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/appointments/patient'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/appointments/patient'),
+          headers: _headers);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         return List<Map<String, dynamic>>.from(body['data'] ?? []);
       }
+
       return [];
     } catch (_) {
       return [];
     }
+  }
+
+  Future<Map<String, dynamic>> cancelAppointment(int appointmentId) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/appointments/$appointmentId/cancel'),
+      headers: _headers,
+    );
+    final body = jsonDecode(res.body);
+    return body is Map<String, dynamic>
+        ? body
+        : {'ok': false, 'message': 'Invalid cancellation response.'};
   }
 
   Future<List<Map<String, dynamic>>> getDoctorAppointments() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/appointments/doctor'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/appointments/doctor'),
+          headers: _headers);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         return List<Map<String, dynamic>>.from(body['data'] ?? []);
@@ -1477,7 +1700,8 @@ class MySQLApiService {
     }
   }
 
-  Future<Map<String, dynamic>> updateAppointmentStatus(int appointmentId, String status) async {
+  Future<Map<String, dynamic>> updateAppointmentStatus(
+      int appointmentId, String status) async {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/appointments/$appointmentId/status'),
@@ -1493,7 +1717,8 @@ class MySQLApiService {
   // Admin APIs
   Future<Map<String, dynamic>> adminGetConnections() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/admin/connections'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/admin/connections'),
+          headers: _headers);
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
@@ -1503,7 +1728,8 @@ class MySQLApiService {
     }
   }
 
-  Future<Map<String, dynamic>> adminCreateConnection(String type, int patientId, int targetId) async {
+  Future<Map<String, dynamic>> adminCreateConnection(
+      String type, int patientId, int targetId) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/admin/connections'),
@@ -1520,7 +1746,8 @@ class MySQLApiService {
     }
   }
 
-  Future<Map<String, dynamic>> adminDeleteConnection(String type, int id) async {
+  Future<Map<String, dynamic>> adminDeleteConnection(
+      String type, int id) async {
     try {
       final res = await http.delete(
         Uri.parse('$baseUrl/api/admin/connections/$type/$id'),
@@ -1532,32 +1759,118 @@ class MySQLApiService {
     }
   }
 
-  Future<Map<String, dynamic>> adminGetUsers([String? role, String? search, int page = 1, int limit = 25]) async {
+  Future<Map<String, dynamic>> adminGetUsers(
+      [String? role, String? search, int page = 1, int limit = 25]) async {
     try {
       final params = <String, String>{'page': '$page', 'limit': '$limit'};
       if (role != null && role.isNotEmpty) params['role'] = role;
       if (search != null && search.isNotEmpty) params['search'] = search;
-      final url = Uri.parse('$baseUrl/api/admin/users').replace(queryParameters: params);
+      final url = Uri.parse('$baseUrl/api/admin/users')
+          .replace(queryParameters: params);
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
-      return {'ok': false, 'users': []};
+      return {
+        'ok': false,
+        'users': [],
+        'message': 'Server returned HTTP ${res.statusCode}.'
+      };
     } catch (e) {
-      return {'ok': false, 'users': [], 'message': 'Network error: $e'};
+      return {
+        'ok': false,
+        'users': _localAdminUsers(role, search, page, limit),
+        'pagination': _localUserPagination(role, search, page, limit),
+        'source': 'local',
+        'message': 'Backend unavailable. Showing local users.'
+      };
     }
   }
 
   Future<Map<String, dynamic>> adminGetDashboardStats() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/admin/dashboard'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/admin/dashboard'),
+          headers: _headers);
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
-      return {'ok': false, 'message': 'Failed to load dashboard stats'};
+      return {
+        'ok': false,
+        'message': 'Server returned HTTP ${res.statusCode}.'
+      };
     } catch (e) {
-      return {'ok': false, 'message': 'Network error: $e'};
+      return {
+        'ok': true,
+        'source': 'local',
+        'message': 'Backend unavailable. Showing local data.',
+        'stats': _localDashboardStats(),
+      };
     }
+  }
+
+  List<Map<String, dynamic>> _localAdminUsers(
+      String? role, String? search, int page, int limit) {
+    final normalizedRole = role?.trim().toLowerCase();
+    final normalizedSearch = search?.trim().toLowerCase() ?? '';
+    final filtered = HiveService().usersBox.values.where((user) {
+      final matchesRole = normalizedRole == null ||
+          normalizedRole.isEmpty ||
+          normalizedRole == 'all' ||
+          user.role == normalizedRole;
+      final matchesSearch = normalizedSearch.isEmpty ||
+          user.fullName.toLowerCase().contains(normalizedSearch) ||
+          user.email.toLowerCase().contains(normalizedSearch);
+      return matchesRole && matchesSearch;
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final start = (page - 1) * limit;
+    if (start >= filtered.length) return [];
+    final end = (start + limit).clamp(0, filtered.length);
+    return filtered
+        .sublist(start, end)
+        .map((user) => {
+              'id': null,
+              'fullName': user.fullName,
+              'email': user.email,
+              'phoneNumber': null,
+              'role': user.role,
+              'status': user.isActive ? 'active' : 'inactive',
+              'createdAt': user.createdAt.toIso8601String(),
+              'updatedAt': user.updatedAt.toIso8601String(),
+            })
+        .toList();
+  }
+
+  Map<String, dynamic> _localUserPagination(
+      String? role, String? search, int page, int limit) {
+    final users = _localAdminUsers(role, search, 1, 100000);
+    return {
+      'page': page,
+      'limit': limit,
+      'total': users.length,
+      'totalPages': users.isEmpty ? 0 : (users.length / limit).ceil(),
+    };
+  }
+
+  Map<String, dynamic> _localDashboardStats() {
+    final users = HiveService().usersBox.values.toList();
+    int count(String role) => users.where((user) => user.role == role).length;
+    return {
+      'users': [
+        for (final role in [
+          'patient',
+          'caretaker',
+          'doctor',
+          'pharmacy',
+          'admin'
+        ])
+          {'role': role, 'count': count(role)}
+      ],
+      'activeUsers': users.where((user) => user.isActive).length,
+      'medicines': HiveService().medicinesBox.length,
+      'prescriptions': 0,
+      'orders': 0,
+    };
   }
 
   Future<Map<String, dynamic>> adminCreateUser({
@@ -1576,7 +1889,8 @@ class MySQLApiService {
           'email': email,
           'password': password,
           'role': role,
-          if (phoneNumber != null && phoneNumber.isNotEmpty) 'phoneNumber': phoneNumber,
+          if (phoneNumber != null && phoneNumber.isNotEmpty)
+            'phoneNumber': phoneNumber,
         }),
       );
       return jsonDecode(res.body) as Map<String, dynamic>;
@@ -1622,7 +1936,8 @@ class MySQLApiService {
     }
   }
 
-  Future<Map<String, dynamic>> adminResetUserPassword(int id, String password) async {
+  Future<Map<String, dynamic>> adminResetUserPassword(
+      int id, String password) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/admin/users/$id/reset-password'),

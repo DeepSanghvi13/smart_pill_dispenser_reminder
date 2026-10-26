@@ -28,8 +28,10 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   void _loadSettings() {
     final settingsBox = HiveService().settingsBox;
     setState(() {
-      _notificationsEnabled = settingsBox.get('admin_notifications_enabled', defaultValue: true) as bool;
-      _backupEnabled = settingsBox.get('admin_backup_enabled', defaultValue: true) as bool;
+      _notificationsEnabled = settingsBox.get('admin_notifications_enabled',
+          defaultValue: true) as bool;
+      _backupEnabled =
+          settingsBox.get('admin_backup_enabled', defaultValue: true) as bool;
     });
   }
 
@@ -39,7 +41,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     setState(() {
       _notificationsEnabled = value;
     });
-    await _db.adminLogActivity('System Settings: Notifications configured to $value');
+    await _db.adminLogActivity(
+        'System Settings: Notifications configured to $value');
   }
 
   Future<void> _toggleBackup(bool value) async {
@@ -48,7 +51,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     setState(() {
       _backupEnabled = value;
     });
-    await _db.adminLogActivity('System Settings: Auto backup configured to $value');
+    await _db
+        .adminLogActivity('System Settings: Auto backup configured to $value');
   }
 
   Future<void> _triggerBackup() async {
@@ -64,7 +68,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               children: [
                 CircularProgressIndicator(),
                 SizedBox(height: 16),
-                Text('Compiling database backup...', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Compiling database backup...',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -73,15 +78,20 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     );
 
     await Future.delayed(const Duration(seconds: 2)); // Mock delay
-    await _db.adminLogActivity('System Maintenance: Manual database backup completed successfully');
-    
+    await HiveService()
+        .settingsBox
+        .put('last_backup_at', DateTime.now().toIso8601String());
+    await _db.adminLogActivity(
+        'System Maintenance: Manual database backup completed successfully');
+
     if (mounted) {
       Navigator.pop(context); // Dismiss loading overlay
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Backup Completed'),
-          content: const Text('A secure snapshot of your Hive local boxes has been compiled and saved locally.'),
+          content: const Text(
+              'A secure snapshot of your Hive local boxes has been compiled and saved locally.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -95,8 +105,6 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = themeNotifier.value == ThemeMode.dark;
-
     return AdminLayout(
       title: 'System Settings',
       activeRoute: AppRoutes.adminSettings,
@@ -107,7 +115,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               children: [
                 // Card 1: Theme and styling
                 Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -115,19 +124,26 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                       children: [
                         const Text(
                           'Visual & Accessibility Theme',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         const SizedBox(height: 8),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Dark Theme Interface'),
-                          subtitle: const Text('Switch the admin portal to a dark, high-contrast palette'),
-                          value: isDark,
-                          onChanged: (val) async {
-                            themeNotifier.value = val ? ThemeMode.dark : ThemeMode.light;
-                            await HiveService().settingsBox.put('theme_mode', themeNotifier.value.name);
-                            await _db.adminLogActivity('Visual theme toggled to: ${themeNotifier.value.name}');
-                          },
+                        ValueListenableBuilder<ThemeMode>(
+                          valueListenable: themeNotifier,
+                          builder: (context, themeMode, _) => SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Dark Theme Interface'),
+                            subtitle: const Text(
+                                'Switch the admin portal to a dark, high-contrast palette'),
+                            value: themeMode == ThemeMode.dark,
+                            onChanged: (val) async {
+                              final mode =
+                                  val ? ThemeMode.dark : ThemeMode.light;
+                              await setThemeMode(mode);
+                              await _db.adminLogActivity(
+                                  'Visual theme toggled to: ${mode.name}');
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -137,7 +153,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
                 // Card 2: Notifications settings
                 Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -145,13 +162,15 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                       children: [
                         const Text(
                           'Notification Configuration',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         const SizedBox(height: 8),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Receive Administrative Alerts'),
-                          subtitle: const Text('Display alerts for missed patient schedules or device logs'),
+                          subtitle: const Text(
+                              'Display alerts for missed patient schedules or device logs'),
                           value: _notificationsEnabled,
                           onChanged: _toggleNotifications,
                         ),
@@ -163,7 +182,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
                 // Card 3: Data backup
                 Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -171,13 +191,16 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                       children: [
                         const Text(
                           'Database Maintenance & Backups',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         const SizedBox(height: 8),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Scheduled Hourly Database Backups'),
-                          subtitle: const Text('Automatically back up patients, medicines, and connections locally'),
+                          title:
+                              const Text('Scheduled Hourly Database Backups'),
+                          subtitle: const Text(
+                              'Automatically back up patients, medicines, and connections locally'),
                           value: _backupEnabled,
                           onChanged: _toggleBackup,
                         ),
@@ -191,8 +214,12 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                             const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Manual Database Backup', style: TextStyle(fontWeight: FontWeight.w600)),
-                                Text('Compile database snapshot instantly', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('Manual Database Backup',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w600)),
+                                Text('Compile database snapshot instantly',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey)),
                               ],
                             ),
                             ElevatedButton.icon(
@@ -210,7 +237,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
                 // Card 4: About
                 Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   child: const Padding(
                     padding: EdgeInsets.all(20),
                     child: Column(
@@ -218,30 +246,43 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                       children: [
                         Text(
                           'System Version Details',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         SizedBox(height: 16),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Software Version', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                            Text('v2.1.0-Release', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('Software Version',
+                                style: TextStyle(
+                                    fontSize: 13, color: Colors.grey)),
+                            Text('v2.1.0-Release',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13)),
                           ],
                         ),
                         SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Local Database Engine', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                            Text('Hive NoSQL + SQLite', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('Local Database Engine',
+                                style: TextStyle(
+                                    fontSize: 13, color: Colors.grey)),
+                            Text('Hive NoSQL + SQLite',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13)),
                           ],
                         ),
                         SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Operating Mode', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                            Text('Administrative Sandbox', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('Operating Mode',
+                                style: TextStyle(
+                                    fontSize: 13, color: Colors.grey)),
+                            Text('Administrative Sandbox',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13)),
                           ],
                         ),
                       ],

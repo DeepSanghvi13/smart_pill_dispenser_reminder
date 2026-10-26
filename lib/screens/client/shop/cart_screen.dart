@@ -5,6 +5,7 @@ import '../../../providers/cart_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
 import '../../../services/medical_shop_service.dart';
+import '../../../routes/app_routes.dart';
 import '../../../core/responsive.dart';
 
 class CartScreen extends StatefulWidget {
@@ -24,7 +25,23 @@ class _CartScreenState extends State<CartScreen> {
   List<Prescription> _prescriptions = [];
   int? _selectedPrescriptionId;
   bool _isLoadingPrescriptions = false;
+  String? _prescriptionError;
   bool _isSubmitting = false;
+
+  List<Prescription> _matchingPrescriptions(CartProvider cart) {
+    final names = cart.itemList
+        .where((item) => item.medicine.requiresPrescription)
+        .map((item) => item.medicine.medicineName.trim().toLowerCase())
+        .toSet();
+    return _prescriptions
+        .where((p) =>
+            p.isActive &&
+            (p.shopMedicineId == null ||
+                cart.itemList
+                    .any((item) => item.medicine.id == p.shopMedicineId)) &&
+            names.contains(p.medicineName.trim().toLowerCase()))
+        .toList();
+  }
 
   @override
   void initState() {
@@ -58,13 +75,21 @@ class _CartScreenState extends State<CartScreen> {
         if (mounted) {
           setState(() {
             _prescriptions = list;
+            _prescriptionError = null;
             if (list.isNotEmpty) {
               _selectedPrescriptionId = list.first.id;
             }
           });
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _prescriptionError =
+              'Unable to load prescriptions. Check your connection and retry.';
+        });
+      }
+    }
     if (mounted) {
       setState(() => _isLoadingPrescriptions = false);
     }
@@ -89,10 +114,13 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
-    if (cart.requiresPrescription && _selectedPrescriptionId == null) {
+    if (cart.requiresPrescription &&
+        !_matchingPrescriptions(cart)
+            .any((p) => p.id == _selectedPrescriptionId)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('One or more medicines require a valid doctor prescription. Please select one.'),
+          content: Text(
+              'One or more medicines require a valid doctor prescription. Please select one.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -102,7 +130,9 @@ class _CartScreenState extends State<CartScreen> {
     final effectivePatientId = widget.patientEmail ?? auth.currentUser;
     if (effectivePatientId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to identify patient.'), backgroundColor: Colors.red),
+        const SnackBar(
+            content: Text('Unable to identify patient.'),
+            backgroundColor: Colors.red),
       );
       return;
     }
@@ -114,7 +144,9 @@ class _CartScreenState extends State<CartScreen> {
         patientId: effectivePatientId,
         deliveryAddress: address,
         prescriptionId: _selectedPrescriptionId,
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
       );
 
       if (!mounted) return;
@@ -183,7 +215,8 @@ class _CartScreenState extends State<CartScreen> {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: const Text('Clear Cart'),
-                    content: const Text('Are you sure you want to remove all items from your cart?'),
+                    content: const Text(
+                        'Are you sure you want to remove all items from your cart?'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
@@ -194,7 +227,8 @@ class _CartScreenState extends State<CartScreen> {
                           cart.clear();
                           Navigator.pop(ctx);
                         },
-                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        style:
+                            TextButton.styleFrom(foregroundColor: Colors.red),
                         child: const Text('Clear'),
                       ),
                     ],
@@ -209,7 +243,8 @@ class _CartScreenState extends State<CartScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey.shade400),
+                  Icon(Icons.shopping_cart_outlined,
+                      size: 80, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
                   Text(
                     'Your cart is empty',
@@ -238,299 +273,387 @@ class _CartScreenState extends State<CartScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                // Patient notice for Caretaker
-                if (isCaretaker)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.person, color: theme.colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Ordering for patient: ${widget.patientEmail ?? 'Active Patient'}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.primary,
-                              fontSize: 13,
+                    // Patient notice for Caretaker
+                    if (isCaretaker)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer
+                              .withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: theme.colorScheme.primary
+                                  .withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.person,
+                                color: theme.colorScheme.primary),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Ordering for patient: ${widget.patientEmail ?? 'Active Patient'}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+
+                    // Items list
+                    Text(
+                      'Order Items (${cart.itemCount})',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    ...cart.itemList.map((item) {
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(Icons.medication,
+                                    color: theme.colorScheme.primary, size: 24),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.medicine.medicineName,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '₹${item.medicine.price.toStringAsFixed(2)} each',
+                                      style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 12),
+                                    ),
+                                    if (item.medicine.requiresPrescription)
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.deepPurple
+                                              .withValues(alpha: 0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          'Prescription Required',
+                                          style: TextStyle(
+                                              color: Colors.deepPurple.shade700,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              // Qty controls
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        size: 20),
+                                    onPressed: () =>
+                                        cart.decrementItem(item.medicine.id),
+                                  ),
+                                  Text(
+                                    '${item.quantity}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline,
+                                        size: 20),
+                                    onPressed: () {
+                                      if (item.quantity <
+                                          item.medicine.stockQuantity) {
+                                        cart.addItem(item.medicine);
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Max stock limit reached.')),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                '₹${item.totalPrice.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      );
+                    }),
+                    const SizedBox(height: 16),
 
-                // Items list
-                Text(
-                  'Order Items (${cart.itemCount})',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                ...cart.itemList.map((item) {
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(Icons.medication, color: theme.colorScheme.primary, size: 24),
+                    // Prescription Selection if needed
+                    if (cart.requiresPrescription) ...[
+                      Builder(builder: (context) {
+                        final matching = _matchingPrescriptions(cart);
+                        return Card(
+                          color:
+                              Colors.deepPurple.shade50.withValues(alpha: 0.4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(color: Colors.deepPurple.shade200),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  item.medicine.medicineName,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.medical_services_outlined,
+                                        color: Colors.deepPurple),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Doctor Prescription Required',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.deepPurple.shade900,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '₹${item.medicine.price.toStringAsFixed(2)} each',
-                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Your cart includes prescription medications. Please attach a valid prescription issued by your doctor.',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.black87),
                                 ),
-                                if (item.medicine.requiresPrescription)
+                                const SizedBox(height: 12),
+                                if (_isLoadingPrescriptions)
+                                  const Center(
+                                      child: CircularProgressIndicator())
+                                else if (_prescriptionError != null &&
+                                    _prescriptions.isEmpty)
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(_prescriptionError!,
+                                          style: const TextStyle(
+                                              color: Colors.red, fontSize: 12)),
+                                      TextButton.icon(
+                                        onPressed: _loadInitialData,
+                                        icon: const Icon(Icons.refresh),
+                                        label: const Text('Retry'),
+                                      ),
+                                    ],
+                                  )
+                                else if (matching.isEmpty)
                                   Container(
-                                    margin: const EdgeInsets.only(top: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: Colors.deepPurple.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
+                                      color: Colors.red.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Text(
-                                      'Prescription Required',
-                                      style: TextStyle(color: Colors.deepPurple.shade700, fontSize: 10, fontWeight: FontWeight.bold),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'No valid prescription matches the prescription medicines in this cart.',
+                                          style: TextStyle(
+                                              color: Colors.red, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        TextButton.icon(
+                                          onPressed: () => Navigator.pushNamed(
+                                            context,
+                                            AppRoutes.myDoctors,
+                                          ),
+                                          icon: const Icon(
+                                              Icons.medical_services_outlined),
+                                          label: const Text(
+                                              'Request prescription from doctor'),
+                                        ),
+                                      ],
                                     ),
+                                  )
+                                else
+                                  DropdownButtonFormField<int>(
+                                    initialValue: matching.any((p) =>
+                                            p.id == _selectedPrescriptionId)
+                                        ? _selectedPrescriptionId
+                                        : null,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Select Prescription',
+                                      border: OutlineInputBorder(),
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                    ),
+                                    items: matching.map((p) {
+                                      return DropdownMenuItem(
+                                        value: p.id,
+                                        child: Text(
+                                          'Dr. ${p.doctorName ?? 'Doctor'} - ${p.medicineName} (${p.diagnosis ?? 'Prescription'})',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _selectedPrescriptionId = val;
+                                      });
+                                    },
                                   ),
                               ],
                             ),
                           ),
-                          // Qty controls
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                onPressed: () => cart.decrementItem(item.medicine.id),
-                              ),
-                              Text(
-                                '${item.quantity}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline, size: 20),
-                                onPressed: () {
-                                  if (item.quantity < item.medicine.stockQuantity) {
-                                    cart.addItem(item.medicine);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Max stock limit reached.')),
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                          Text(
-                            '₹${item.totalPrice.toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Delivery Info
+                    Text(
+                      'Delivery Details',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _addressController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Delivery Address *',
+                        hintText:
+                            'Enter full street address, apartment, and city',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                  );
-                }),
-                const SizedBox(height: 16),
-
-                // Prescription Selection if needed
-                if (cart.requiresPrescription) ...[
-                  Card(
-                    color: Colors.deepPurple.shade50.withValues(alpha: 0.4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: Colors.deepPurple.shade200),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _notesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Special Delivery Instructions (Optional)',
+                        hintText: 'e.g. Leave with security, call upon arrival',
+                        prefixIcon: Icon(Icons.notes),
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.medical_services_outlined, color: Colors.deepPurple),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Doctor Prescription Required',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.deepPurple.shade900,
-                                  fontSize: 14,
+                    const SizedBox(height: 20),
+
+                    // Bill Summary
+                    Card(
+                      elevation: 0,
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.4),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Items Total'),
+                                Text('₹${cart.totalAmount.toStringAsFixed(2)}'),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Delivery Fee'),
+                                Text('FREE',
+                                    style: TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const Divider(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Total Payable',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Your cart includes prescription medications. Please attach a valid prescription issued by your doctor.',
-                            style: TextStyle(fontSize: 12, color: Colors.black87),
-                          ),
-                          const SizedBox(height: 12),
-                          if (_isLoadingPrescriptions)
-                            const Center(child: CircularProgressIndicator())
-                          else if (_prescriptions.isEmpty)
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                'No doctor prescriptions found for this patient. Please have your doctor prescribe through their portal before ordering.',
-                                style: TextStyle(color: Colors.red, fontSize: 12),
-                              ),
-                            )
-                          else
-                            DropdownButtonFormField<int>(
-                              initialValue: _selectedPrescriptionId,
-                              decoration: const InputDecoration(
-                                labelText: 'Select Prescription',
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                              items: _prescriptions.map((p) {
-                                return DropdownMenuItem(
-                                  value: p.id,
-                                  child: Text(
-                                    'Dr. ${p.doctorName ?? 'Doctor'} - ${p.medicineName} (${p.diagnosis ?? 'Prescription'})',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 13),
+                                Text(
+                                  '₹${cart.totalAmount.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: theme.colorScheme.primary,
                                   ),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                setState(() {
-                                  _selectedPrescriptionId = val;
-                                });
-                              },
+                                ),
+                              ],
                             ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                    const SizedBox(height: 24),
 
-                // Delivery Info
-                Text(
-                  'Delivery Details',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _addressController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Delivery Address *',
-                    hintText: 'Enter full street address, apartment, and city',
-                    prefixIcon: Icon(Icons.location_on_outlined),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _notesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Special Delivery Instructions (Optional)',
-                    hintText: 'e.g. Leave with security, call upon arrival',
-                    prefixIcon: Icon(Icons.notes),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Bill Summary
-                Card(
-                  elevation: 0,
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Items Total'),
-                            Text('₹${cart.totalAmount.toStringAsFixed(2)}'),
-                          ],
+                    // Checkout Button
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
                         ),
-                        const SizedBox(height: 8),
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Delivery Fee'),
-                            Text('FREE', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        const Divider(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Total Payable',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                            Text(
-                              '₹${cart.totalAmount.toStringAsFixed(2)}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                                color: theme.colorScheme.primary,
+                        onPressed: _isSubmitting
+                            ? null
+                            : () => _handleCheckout(cart, auth),
+                        child: _isSubmitting
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
+                            : Text(
+                                'Place Order (₹${cart.totalAmount.toStringAsFixed(2)})',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 32),
+                  ],
                 ),
-                const SizedBox(height: 24),
-
-                // Checkout Button
-                SizedBox(
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    onPressed: _isSubmitting ? null : () => _handleCheckout(cart, auth),
-                    child: _isSubmitting
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(
-                            'Place Order (₹${cart.totalAmount.toStringAsFixed(2)})',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-              ],
+              ),
             ),
-          ),
-        ),
     );
   }
 }

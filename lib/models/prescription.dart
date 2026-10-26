@@ -94,11 +94,15 @@ class Prescription {
     };
   }
 
+  Map<String, dynamic> toJson() => toMap();
+
   factory Prescription.fromMap(Map<String, dynamic> map) {
+    int? parseInt(dynamic value) =>
+        value is int ? value : int.tryParse(value?.toString() ?? '');
     return Prescription(
-      id: map['id'] as int?,
-      doctorId: map['doctorId'] as int? ?? 0,
-      patientId: map['patientId'] as int? ?? 0,
+      id: parseInt(map['id']),
+      doctorId: parseInt(map['doctorId']) ?? parseInt(map['doctor_id']) ?? 0,
+      patientId: parseInt(map['patientId']) ?? parseInt(map['patient_id']) ?? 0,
       medicineName: map['medicineName'] as String? ?? '',
       dosage: map['dosage'] as String? ?? '',
       frequency: map['frequency'] as String? ?? '',
@@ -109,7 +113,7 @@ class Prescription {
       validUntil: map['validUntil'] != null
           ? DateTime.tryParse(map['validUntil'].toString())
           : null,
-      shopMedicineId: map['shopMedicineId'] as int?,
+      shopMedicineId: parseInt(map['shopMedicineId']),
       status: map['status'] as String? ?? 'active',
       isRenewable: map['isRenewable'] == 1 || map['isRenewable'] == true,
       renewalsLeft: int.tryParse(map['renewalsLeft']?.toString() ?? '0') ?? 0,
@@ -124,8 +128,8 @@ class Prescription {
           double.tryParse(map['shopMedicinePrice']?.toString() ?? ''),
       shopMedicineStock:
           int.tryParse(map['shopMedicineStock']?.toString() ?? ''),
-      shopMedicineAvailable:
-          map['shopMedicineAvailable'] == 1 || map['shopMedicineAvailable'] == true,
+      shopMedicineAvailable: map['shopMedicineAvailable'] == 1 ||
+          map['shopMedicineAvailable'] == true,
       createdAt: map['createdAt'] != null
           ? DateTime.tryParse(map['createdAt'].toString())
           : null,

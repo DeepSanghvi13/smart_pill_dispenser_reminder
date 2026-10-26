@@ -71,11 +71,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             // Order Items
             Text(
               'Items (${_order.items.length})',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -88,10 +90,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                color: theme.colorScheme.primary
+                                    .withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(Icons.medication, color: theme.colorScheme.primary, size: 20),
+                              child: Icon(Icons.medication,
+                                  color: theme.colorScheme.primary, size: 20),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -100,18 +104,23 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                 children: [
                                   Text(
                                     item.medicineName,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14),
                                   ),
                                   Text(
                                     '${item.category ?? 'Medicine'} • ${item.dosage ?? ''} • ₹${item.unitPrice.toStringAsFixed(2)} x ${item.quantity}',
-                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                    style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 12),
                                   ),
                                 ],
                               ),
                             ),
                             Text(
                               '₹${item.totalPrice.toStringAsFixed(2)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -123,7 +132,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       children: [
                         const Text(
                           'Total Amount',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         Text(
                           '₹${_order.totalAmount.toStringAsFixed(2)}',
@@ -145,11 +155,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             if (_order.shopName != null) ...[
               Text(
                 'Pharmacy Information',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.store)),
                   title: Text(_order.shopName!),
@@ -159,7 +171,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                           icon: const Icon(Icons.phone, color: Colors.green),
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Pharmacy Phone: ${_order.shopPhone}')),
+                              SnackBar(
+                                  content: Text(
+                                      'Pharmacy Phone: ${_order.shopPhone}')),
                             );
                           },
                         )
@@ -172,11 +186,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             // Delivery & Order Metadata
             Text(
               'Order & Delivery Info',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -186,20 +202,32 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     const SizedBox(height: 8),
                     _buildInfoRow('Placed At', _order.formattedOrderDate),
                     const SizedBox(height: 8),
-                    _buildInfoRow('Patient', _order.patientName ?? '${_order.patientId}'),
+                    _buildInfoRow(
+                        'Patient', _order.patientName ?? '${_order.patientId}'),
                     if (_order.caretakerId != null) ...[
                       const SizedBox(height: 8),
-                      _buildInfoRow('Ordered By Caretaker', _order.caretakerName ?? '${_order.caretakerId}'),
+                      _buildInfoRow('Ordered By Caretaker',
+                          _order.caretakerName ?? '${_order.caretakerId}'),
                     ],
                     const Divider(height: 20),
-                    const Text('Delivery Address:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    const Text('Delivery Address:',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
                     const SizedBox(height: 4),
-                    Text(_order.deliveryAddress ?? 'No address provided', style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                    Text(_order.deliveryAddress ?? 'No address provided',
+                        style: TextStyle(
+                            color: Colors.grey.shade700, fontSize: 13)),
                     if (_order.notes != null && _order.notes!.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      const Text('Notes:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text('Notes:',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13)),
                       const SizedBox(height: 4),
-                      Text(_order.notes!, style: TextStyle(color: Colors.grey.shade700, fontSize: 13, fontStyle: FontStyle.italic)),
+                      Text(_order.notes!,
+                          style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic)),
                     ],
                   ],
                 ),
@@ -241,6 +269,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         color = Colors.red;
         icon = Icons.cancel_outlined;
         break;
+      case MedicineOrderStatus.cancelled:
+        color = Colors.grey;
+        icon = Icons.cancel_outlined;
+        break;
     }
 
     return Card(
@@ -265,7 +297,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 children: [
                   Text(
                     _order.statusDisplayName,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: color),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -315,7 +350,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       {'status': MedicineOrderStatus.delivered, 'label': 'Delivered'},
     ];
 
-    final currentIdx = steps.indexWhere((s) => s['status'] == _order.orderStatus);
+    final currentIdx =
+        steps.indexWhere((s) => s['status'] == _order.orderStatus);
     final activeStep = currentIdx >= 0 ? currentIdx : 0;
 
     return Card(
@@ -342,8 +378,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     ),
                     child: Center(
                       child: isCompleted
-                          ? const Icon(Icons.check, size: 16, color: Colors.white)
-                          : Text('${idx + 1}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ? const Icon(Icons.check,
+                              size: 16, color: Colors.white)
+                          : Text('${idx + 1}',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey)),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -352,8 +391,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                      color: isCompleted ? theme.colorScheme.primary : Colors.grey,
+                      fontWeight:
+                          isCurrent ? FontWeight.bold : FontWeight.normal,
+                      color:
+                          isCompleted ? theme.colorScheme.primary : Colors.grey,
                     ),
                   ),
                 ],
@@ -369,8 +410,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(label,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+        Text(value,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
       ],
     );
   }

@@ -14,7 +14,7 @@ class DoctorService extends ChangeNotifier {
   List<DoctorModel> _myDoctors = [];
   List<Map<String, dynamic>> _myPatients = [];
   List<Map<String, dynamic>> _myCaretakers = [];
-  
+
   List<Appointment> _patientAppointments = [];
   List<Appointment> _doctorAppointments = [];
 
@@ -26,15 +26,16 @@ class DoctorService extends ChangeNotifier {
   List<DoctorModel> get myDoctors => _myDoctors;
   List<Map<String, dynamic>> get myPatients => _myPatients;
   List<Map<String, dynamic>> get myCaretakers => _myCaretakers;
-  
+
   List<Appointment> get patientAppointments => _patientAppointments;
   List<Appointment> get doctorAppointments => _doctorAppointments;
-  
+
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
   void _safeNotifyListeners() {
-    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
         notifyListeners();
       });
@@ -44,19 +45,23 @@ class DoctorService extends ChangeNotifier {
   }
 
   /// Search doctors strictly from the backend database (No hardcoded/dummy doctors)
-  Future<void> searchDoctors({String query = '', String specialization = 'All'}) async {
+  Future<void> searchDoctors(
+      {String query = '', String specialization = 'All'}) async {
     _isLoading = true;
     _errorMessage = null;
     _safeNotifyListeners();
 
     try {
-      final specFilter = (specialization == 'All' || specialization.isEmpty) ? null : specialization;
+      final specFilter = (specialization == 'All' || specialization.isEmpty)
+          ? null
+          : specialization;
       final serverResults = await MySQLApiService().searchDoctors(
         search: query.isEmpty ? null : query,
         specialization: specFilter,
       );
 
-      _searchResults = serverResults.map((map) => DoctorModel.fromMap(map)).toList();
+      _searchResults =
+          serverResults.map((map) => DoctorModel.fromMap(map)).toList();
       _errorMessage = null;
     } catch (e) {
       _searchResults = [];
@@ -73,7 +78,8 @@ class DoctorService extends ChangeNotifier {
   }
 
   /// Send connection request to doctor (Patient or Caretaker -> Doctor)
-  Future<String?> sendConnectionRequest(int? doctorId, {String? doctorEmail}) async {
+  Future<String?> sendConnectionRequest(int? doctorId,
+      {String? doctorEmail}) async {
     if (doctorId == null || doctorId <= 0) {
       return 'Valid Doctor ID is required.';
     }
@@ -84,7 +90,8 @@ class DoctorService extends ChangeNotifier {
         // Update local status in search results
         final idx = _searchResults.indexWhere((d) => d.id == doctorId);
         if (idx != -1) {
-          _searchResults[idx] = _searchResults[idx].copyWith(connectionStatus: 'pending');
+          _searchResults[idx] =
+              _searchResults[idx].copyWith(connectionStatus: 'pending');
           _safeNotifyListeners();
         }
         return null; // Success
@@ -123,7 +130,8 @@ class DoctorService extends ChangeNotifier {
 
     try {
       final rawList = await MySQLApiService().getDoctorRequests();
-      _incomingRequests = rawList.map((map) => DoctorConnectionItem.fromMap(map)).toList();
+      _incomingRequests =
+          rawList.map((map) => DoctorConnectionItem.fromMap(map)).toList();
     } catch (_) {
       _incomingRequests = [];
     } finally {
@@ -165,7 +173,8 @@ class DoctorService extends ChangeNotifier {
   /// Remove/Delete a connection request (Doctor removes request)
   Future<bool> removeRequest(int connectionId) async {
     try {
-      final success = await MySQLApiService().removeDoctorConnection(connectionId);
+      final success =
+          await MySQLApiService().removeDoctorConnection(connectionId);
       if (success) {
         await loadAllDoctorData();
         return true;
@@ -218,7 +227,8 @@ class DoctorService extends ChangeNotifier {
   /// Remove or cancel doctor connection (Patient, Caretaker, or Doctor)
   Future<bool> removeConnection(int connectionId) async {
     try {
-      final success = await MySQLApiService().removeDoctorConnection(connectionId);
+      final success =
+          await MySQLApiService().removeDoctorConnection(connectionId);
       if (success) {
         await Future.wait([
           loadMyDoctors(),
@@ -233,7 +243,15 @@ class DoctorService extends ChangeNotifier {
   }
   // ---- Appointments ----
 
-  Future<String?> bookAppointment(int doctorId, String date, String time, String reason) async {
+  Future<String?> bookAppointment(
+    int doctorId,
+    String date,
+    String time,
+    String reason, {
+    int? patientId,
+    int? bookedById,
+    String? bookedByRole,
+  }) async {
     _isLoading = true;
     _safeNotifyListeners();
     try {
@@ -242,11 +260,15 @@ class DoctorService extends ChangeNotifier {
         appointmentDate: date,
         appointmentTime: time,
         reason: reason,
+        patientId: patientId,
+        bookedById: bookedById,
+        bookedByRole: bookedByRole,
       );
       if (res['ok'] == true) {
         return null; // Success
       }
-      return res['message'] as String? ?? 'Failed to book appointment.';
+      return (res['message'] ?? res['error']) as String? ??
+          'Failed to book appointment.';
     } catch (e) {
       return 'Error: $e';
     } finally {
@@ -262,7 +284,8 @@ class DoctorService extends ChangeNotifier {
     }
     try {
       final rawList = await MySQLApiService().getPatientAppointments();
-      _patientAppointments = rawList.map((m) => Appointment.fromJson(m)).toList();
+      _patientAppointments =
+          rawList.map((m) => Appointment.fromJson(m)).toList();
     } catch (_) {
       _patientAppointments = [];
     } finally {
@@ -280,7 +303,8 @@ class DoctorService extends ChangeNotifier {
     }
     try {
       final rawList = await MySQLApiService().getDoctorAppointments();
-      _doctorAppointments = rawList.map((m) => Appointment.fromJson(m)).toList();
+      _doctorAppointments =
+          rawList.map((m) => Appointment.fromJson(m)).toList();
     } catch (_) {
       _doctorAppointments = [];
     } finally {
@@ -291,21 +315,38 @@ class DoctorService extends ChangeNotifier {
     }
   }
 
-  Future<String?> updateAppointmentStatus(int appointmentId, String status) async {
+  Future<String?> updateAppointmentStatus(
+      int appointmentId, String status) async {
     _isLoading = true;
     _safeNotifyListeners();
     try {
-      final res = await MySQLApiService().updateAppointmentStatus(appointmentId, status);
+      final res = await MySQLApiService()
+          .updateAppointmentStatus(appointmentId, status);
       if (res['ok'] == true) {
         await loadDoctorAppointments(silent: true);
         return null;
       }
+
       return res['message'] as String? ?? 'Failed to update status.';
     } catch (e) {
       return 'Error: $e';
     } finally {
       _isLoading = false;
       _safeNotifyListeners();
+    }
+  }
+
+  Future<String?> cancelAppointment(int appointmentId) async {
+    try {
+      final res = await MySQLApiService().cancelAppointment(appointmentId);
+      if (res['ok'] == true) {
+        await loadPatientAppointments();
+        return null;
+      }
+      return (res['message'] ?? res['error']) as String? ??
+          'Unable to cancel appointment.';
+    } catch (e) {
+      return 'Error: $e';
     }
   }
 }

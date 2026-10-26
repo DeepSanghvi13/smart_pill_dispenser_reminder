@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS `medicine_orders` (
   `shopId` INT NOT NULL,
   `prescriptionId` INT DEFAULT NULL,
   `totalAmount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `status` ENUM('pending', 'accepted', 'packed', 'ready', 'delivered', 'rejected') NOT NULL DEFAULT 'pending',
+  `status` ENUM('pending', 'accepted', 'packed', 'ready', 'delivered', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
   `deliveryAddress` TEXT DEFAULT NULL,
   `paymentMethod` VARCHAR(50) DEFAULT 'Cash on Delivery',
   `notes` TEXT DEFAULT NULL,

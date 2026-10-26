@@ -39,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         final auth = context.read<AuthService>();
         final provider = context.read<MedicineProvider>();
-        
+
         if (auth.isCaretaker) {
           // Initialize Caretaker active patient to first connected patient
           final patients = auth.getConnectedPatients();
@@ -56,7 +56,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Widget _buildCurrentPage(List<Medicine> medicines, String userName, String? profilePic, bool isCaretaker) {
+  Widget _buildCurrentPage(List<Medicine> medicines, String userName,
+      String? profilePic, bool isCaretaker) {
     if (_currentIndex == 3) {
       return const ManageScreen();
     }
@@ -121,7 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       if (id != null && id > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Medicine added successfully'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('Medicine added successfully'),
+              backgroundColor: Colors.green),
         );
       }
     }
@@ -146,7 +149,9 @@ class _HomeScreenState extends State<HomeScreen> {
         if (!mounted) return;
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Medicine updated successfully'), backgroundColor: Colors.green),
+            const SnackBar(
+                content: Text('Medicine updated successfully'),
+                backgroundColor: Colors.green),
           );
         }
       }
@@ -165,7 +170,8 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete Medicine'),
-        content: const Text('Are you sure you want to delete this medicine and cancel its notifications?'),
+        content: const Text(
+            'Are you sure you want to delete this medicine and cancel its notifications?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -177,7 +183,9 @@ class _HomeScreenState extends State<HomeScreen> {
               if (!mounted) return;
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Medicine deleted'), backgroundColor: Colors.red),
+                const SnackBar(
+                    content: Text('Medicine deleted'),
+                    backgroundColor: Colors.red),
               );
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -229,15 +237,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           drawer: const AppDrawer(),
           appBar: AppBar(
-            title: Text(
-              _currentIndex == 0 
-                  ? (isCare ? 'Caregiver Dashboard' : 'MedReminder') 
-                  : _currentIndex == 1
-                      ? 'Updates'
-                      : _currentIndex == 2 
-                          ? 'My Medications' 
-                          : 'Settings'
-            ),
+            title: Text(_currentIndex == 0
+                ? (isCare ? 'Caregiver Dashboard' : 'MedReminder')
+                : _currentIndex == 1
+                    ? 'Updates'
+                    : _currentIndex == 2
+                        ? 'My Medications'
+                        : 'Settings'),
             actions: [
               if (_currentIndex == 0 && !isCare)
                 IconButton(
@@ -316,7 +322,8 @@ class HomeBody extends StatelessWidget {
       try {
         final parsed = format.parse(clean);
         final now = DateTime.now();
-        return DateTime(now.year, now.month, now.day, parsed.hour, parsed.minute);
+        return DateTime(
+            now.year, now.month, now.day, parsed.hour, parsed.minute);
       } catch (_) {}
     }
 
@@ -340,7 +347,8 @@ class HomeBody extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
 
     final todayMedicines = medicines.where((m) {
-      final start = DateTime(m.startDate.year, m.startDate.month, m.startDate.day);
+      final start =
+          DateTime(m.startDate.year, m.startDate.month, m.startDate.day);
       final end = DateTime(m.endDate.year, m.endDate.month, m.endDate.day);
       return !today.isBefore(start) && !today.isAfter(end);
     }).toList();
@@ -377,7 +385,8 @@ class HomeBody extends StatelessWidget {
           Card(
             elevation: 0,
             color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Row(
@@ -409,11 +418,13 @@ class HomeBody extends StatelessWidget {
                   CircleAvatar(
                     radius: 36,
                     backgroundColor: theme.colorScheme.primary,
-                    backgroundImage: profilePic != null && profilePic!.isNotEmpty
-                        ? FileImage(File(profilePic!))
-                        : null,
+                    backgroundImage:
+                        profilePic != null && profilePic!.isNotEmpty
+                            ? FileImage(File(profilePic!))
+                            : null,
                     child: profilePic == null
-                        ? const Icon(Icons.person, size: 36, color: Colors.white)
+                        ? const Icon(Icons.person,
+                            size: 36, color: Colors.white)
                         : null,
                   ),
                 ],
@@ -454,7 +465,8 @@ class HomeBody extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           'Some medicines have passed their expiry date. Check the Medications tab.',
-                          style: TextStyle(color: Colors.red.shade800, fontSize: 12),
+                          style: TextStyle(
+                              color: Colors.red.shade800, fontSize: 12),
                         ),
                       ],
                     ),
@@ -464,34 +476,40 @@ class HomeBody extends StatelessWidget {
             ),
           ],
 
-          _buildQuickSummary(context, upcoming.length, completed.length, missed.length),
+          _buildQuickSummary(
+              context, upcoming.length, completed.length, missed.length),
           const SizedBox(height: 24),
 
-          _buildCategoryHeader(context, "Upcoming Medicines", upcoming.length, Colors.blue),
+          _buildCategoryHeader(
+              context, "Upcoming Medicines", upcoming.length, Colors.blue),
           if (upcoming.isEmpty)
             _buildEmptyState("No upcoming medications left for today.")
           else
             ...upcoming.map((m) => _buildMedicineActionCard(context, m, theme)),
           const SizedBox(height: 20),
 
-          _buildCategoryHeader(context, "Missed / Skipped", missed.length, Colors.red),
+          _buildCategoryHeader(
+              context, "Missed / Skipped", missed.length, Colors.red),
           if (missed.isEmpty)
             _buildEmptyState("No missed medications today. Good job!")
           else
             ...missed.map((m) => _buildMedicineActionCard(context, m, theme)),
           const SizedBox(height: 20),
 
-          _buildCategoryHeader(context, "Completed", completed.length, Colors.green),
+          _buildCategoryHeader(
+              context, "Completed", completed.length, Colors.green),
           if (completed.isEmpty)
             _buildEmptyState("Take your first medication to see it here!")
           else
-            ...completed.map((m) => _buildMedicineActionCard(context, m, theme)),
+            ...completed
+                .map((m) => _buildMedicineActionCard(context, m, theme)),
           const SizedBox(height: 24),
 
           if (recentMedicines.isNotEmpty) ...[
             Text(
               'Recent Additions',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -503,7 +521,8 @@ class HomeBody extends StatelessWidget {
                   final m = recentMedicines[idx];
                   return Card(
                     margin: const EdgeInsets.only(right: 12, bottom: 4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
                     child: Container(
                       width: 140,
                       padding: const EdgeInsets.all(12),
@@ -522,14 +541,17 @@ class HomeBody extends StatelessWidget {
                             m.dosage,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                            style: TextStyle(
+                                color: Colors.grey.shade600, fontSize: 12),
                           ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.access_time, size: 12, color: theme.colorScheme.primary),
+                              Icon(Icons.access_time,
+                                  size: 12, color: theme.colorScheme.primary),
                               const SizedBox(width: 4),
-                              Text(m.time, style: const TextStyle(fontSize: 10)),
+                              Text(m.time,
+                                  style: const TextStyle(fontSize: 10)),
                             ],
                           ),
                         ],
@@ -595,7 +617,8 @@ class HomeBody extends StatelessWidget {
       children: [
         Text(
           'Quick Actions',
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          style: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         LayoutBuilder(
@@ -712,7 +735,8 @@ class HomeBody extends StatelessWidget {
     );
   }
 
-  Widget _summaryItem(BuildContext context, String label, String value, Color color) {
+  Widget _summaryItem(
+      BuildContext context, String label, String value, Color color) {
     return Expanded(
       child: Card(
         elevation: 0,
@@ -726,10 +750,12 @@ class HomeBody extends StatelessWidget {
             children: [
               Text(
                 value,
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+                style: TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.bold, color: color),
               ),
               const SizedBox(height: 4),
-              Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(label,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ],
           ),
         ),
@@ -737,7 +763,8 @@ class HomeBody extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryHeader(BuildContext context, String title, int count, Color color) {
+  Widget _buildCategoryHeader(
+      BuildContext context, String title, int count, Color color) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -759,7 +786,8 @@ class HomeBody extends StatelessWidget {
             ),
             child: Text(
               count.toString(),
-              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
         ],
@@ -785,7 +813,8 @@ class HomeBody extends StatelessWidget {
     );
   }
 
-  Widget _buildMedicineActionCard(BuildContext context, Medicine m, ThemeData theme) {
+  Widget _buildMedicineActionCard(
+      BuildContext context, Medicine m, ThemeData theme) {
     final status = m.getDailyStatus();
     final isExp = m.isExpired;
     final isExpSoon = m.isExpiringSoon;
@@ -808,13 +837,13 @@ class HomeBody extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: (isExp ? Colors.red : theme.colorScheme.primary).withValues(alpha: 0.08),
+                color: (isExp ? Colors.red : theme.colorScheme.primary)
+                    .withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: _categoryIcon(m.category),
             ),
             const SizedBox(width: 16),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -833,15 +862,18 @@ class HomeBody extends StatelessWidget {
                       ),
                       if (isExp || isExpSoon)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: (isExp ? Colors.red : Colors.orange).withValues(alpha: 0.12),
+                            color: (isExp ? Colors.red : Colors.orange)
+                                .withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             isExp ? 'Expired' : 'Expiring Soon',
                             style: TextStyle(
-                              color: isExp ? Colors.red : Colors.orange.shade800,
+                              color:
+                                  isExp ? Colors.red : Colors.orange.shade800,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
@@ -860,14 +892,16 @@ class HomeBody extends StatelessWidget {
                       m.notes!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey.shade500, fontSize: 11, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic),
                     ),
                   ],
                 ],
               ),
             ),
             const SizedBox(width: 8),
-
             if (status == 'taken')
               const Icon(Icons.check_circle, color: Colors.green, size: 28)
             else if (status == 'skipped')
@@ -897,7 +931,8 @@ class HomeBody extends StatelessWidget {
   Widget _categoryIcon(MedicineCategory category) {
     switch (category) {
       case MedicineCategory.syrup:
-        return const Icon(Icons.medication_liquid, size: 24, color: Colors.teal);
+        return const Icon(Icons.medication_liquid,
+            size: 24, color: Colors.teal);
       case MedicineCategory.injection:
         return const Icon(Icons.vaccines, size: 24, color: Colors.redAccent);
       case MedicineCategory.tablets:
@@ -935,7 +970,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
     super.dispose();
   }
 
-  void _showAddPatientDialog(BuildContext context, AuthService auth, MedicineProvider provider) {
+  void showAddPatientDialog(
+      BuildContext context, AuthService auth, MedicineProvider provider) {
     int methodIndex = 0; // 0 = SDP Code, 1 = Email & Phone
 
     showDialog(
@@ -951,8 +987,14 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                   children: [
                     SegmentedButton<int>(
                       segments: const [
-                        ButtonSegment(value: 0, label: Text('SDP Code'), icon: Icon(Icons.qr_code)),
-                        ButtonSegment(value: 1, label: Text('Email & Phone'), icon: Icon(Icons.email_outlined)),
+                        ButtonSegment(
+                            value: 0,
+                            label: Text('SDP Code'),
+                            icon: Icon(Icons.qr_code)),
+                        ButtonSegment(
+                            value: 1,
+                            label: Text('Email & Phone'),
+                            icon: Icon(Icons.email_outlined)),
                       ],
                       selected: {methodIndex},
                       onSelectionChanged: (val) {
@@ -1033,7 +1075,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                       if (!AppValidators.isValidGmail(email)) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Please enter a valid Gmail address ending with @gmail.com.'),
+                            content: Text(
+                                'Please enter a valid Gmail address ending with @gmail.com.'),
                             backgroundColor: Colors.red,
                           ),
                         );
@@ -1043,7 +1086,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                       if (!AppValidators.isValidPhone(phone)) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Phone number must be exactly 10 digits.'),
+                            content:
+                                Text('Phone number must be exactly 10 digits.'),
                             backgroundColor: Colors.red,
                           ),
                         );
@@ -1059,11 +1103,16 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                       _phoneController.clear();
                       if (error != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(error), backgroundColor: Colors.red),
+                          SnackBar(
+                              content: Text(error),
+                              backgroundColor: Colors.red),
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Successfully connected to patient!'), backgroundColor: Colors.green),
+                          const SnackBar(
+                              content:
+                                  Text('Successfully connected to patient!'),
+                              backgroundColor: Colors.green),
                         );
                         // Update active patient
                         final list = auth.getConnectedPatients();
@@ -1106,7 +1155,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
     if (parsedTime == null) return 'Upcoming';
 
     final now = DateTime.now();
-    final medTime = DateTime(now.year, now.month, now.day, parsedTime.hour, parsedTime.minute);
+    final medTime = DateTime(
+        now.year, now.month, now.day, parsedTime.hour, parsedTime.minute);
     final diff = now.difference(medTime).inMinutes;
 
     if (diff < 0) {
@@ -1161,14 +1211,16 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
     UserProfile? activePatient;
     if (activePatientEmail != null) {
       try {
-        activePatient = connectedPatients.firstWhere((p) => p.email == activePatientEmail);
+        activePatient =
+            connectedPatients.firstWhere((p) => p.email == activePatientEmail);
       } catch (_) {}
     }
 
     final notifications = HiveService()
         .notificationsBox
         .values
-        .where((n) => activePatientEmail == null || n['patientId'] == activePatientEmail)
+        .where((n) =>
+            activePatientEmail == null || n['patientId'] == activePatientEmail)
         .toList()
         .reversed
         .toList();
@@ -1177,7 +1229,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
     final today = DateTime(now.year, now.month, now.day);
 
     final todayMedicines = provider.medicines.where((m) {
-      final start = DateTime(m.startDate.year, m.startDate.month, m.startDate.day);
+      final start =
+          DateTime(m.startDate.year, m.startDate.month, m.startDate.day);
       final end = DateTime(m.endDate.year, m.endDate.month, m.endDate.day);
       return !today.isBefore(start) && !today.isAfter(end);
     }).toList();
@@ -1214,12 +1267,13 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
             children: [
               Text(
                 'Monitored Patients',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               TextButton.icon(
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add Patient'),
-                onPressed: () => _showAddPatientDialog(context, auth, provider),
+                onPressed: () => showAddPatientDialog(context, auth, provider),
               ),
             ],
           ),
@@ -1228,16 +1282,19 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
             Card(
               elevation: 0,
               color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    Icon(Icons.people_outline, size: 48, color: theme.colorScheme.primary),
+                    Icon(Icons.people_outline,
+                        size: 48, color: theme.colorScheme.primary),
                     const SizedBox(height: 12),
                     const Text(
                       'No Patients Connected Yet',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -1249,7 +1306,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                     ElevatedButton.icon(
                       icon: const Icon(Icons.link),
                       label: const Text('Connect Patient'),
-                      onPressed: () => _showAddPatientDialog(context, auth, provider),
+                      onPressed: () =>
+                          showAddPatientDialog(context, auth, provider),
                     ),
                   ],
                 ),
@@ -1276,13 +1334,18 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                             radius: 30,
                             backgroundColor: isSelected
                                 ? theme.colorScheme.primary
-                                : theme.colorScheme.primary.withValues(alpha: 0.1),
+                                : theme.colorScheme.primary
+                                    .withValues(alpha: 0.1),
                             child: CircleAvatar(
                               radius: 27,
                               backgroundColor: Colors.white,
-                              backgroundImage: AppImageHelper.getImageProvider(patient.profilePicture),
-                              child: AppImageHelper.getImageProvider(patient.profilePicture) == null
-                                  ? Icon(Icons.person, color: theme.colorScheme.primary)
+                              backgroundImage: AppImageHelper.getImageProvider(
+                                  patient.profilePicture),
+                              child: AppImageHelper.getImageProvider(
+                                          patient.profilePicture) ==
+                                      null
+                                  ? Icon(Icons.person,
+                                      color: theme.colorScheme.primary)
                                   : null,
                             ),
                           ),
@@ -1291,8 +1354,12 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                             patient.fullName.split(' ').first,
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected ? theme.colorScheme.primary : Colors.grey.shade700,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                  : Colors.grey.shade700,
                             ),
                           ),
                         ],
@@ -1308,16 +1375,23 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
             // Patient details banner
             Card(
               elevation: 0,
-              color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              color:
+                  theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 28,
-                      backgroundImage: AppImageHelper.getImageProvider(activePatient.profilePicture),
-                      child: AppImageHelper.getImageProvider(activePatient.profilePicture) == null ? const Icon(Icons.person) : null,
+                      backgroundImage: AppImageHelper.getImageProvider(
+                          activePatient.profilePicture),
+                      child: AppImageHelper.getImageProvider(
+                                  activePatient.profilePicture) ==
+                              null
+                          ? const Icon(Icons.person)
+                          : null,
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -1326,12 +1400,14 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                         children: [
                           Text(
                             activePatient.fullName,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Age: ${activePatient.age ?? 'N/A'} • Blood: ${activePatient.bloodGroup ?? 'N/A'}',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                            'Age: ${activePatient.age?.toString() ?? 'Not provided'} • Blood: ${activePatient.bloodGroup ?? 'Not provided'}',
+                            style: TextStyle(
+                                color: Colors.grey.shade600, fontSize: 12),
                           ),
                           if (activePatient.medicalConditions != null) ...[
                             const SizedBox(height: 4),
@@ -1339,7 +1415,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                               'Conditions: ${activePatient.medicalConditions}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                              style: TextStyle(
+                                  color: Colors.grey.shade500, fontSize: 11),
                             ),
                           ],
                         ],
@@ -1359,19 +1436,26 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                               children: [
                                 Text('Name: ${activePatient!.fullName}'),
                                 const SizedBox(height: 8),
-                                Text('Age: ${activePatient.age ?? 'N/A'}'),
+                                Text(
+                                    'Age: ${activePatient.age?.toString() ?? 'Not provided'}'),
                                 const SizedBox(height: 8),
-                                Text('Gender: ${activePatient.gender ?? 'N/A'}'),
+                                Text(
+                                    'Gender: ${activePatient.gender ?? 'Not provided'}'),
                                 const SizedBox(height: 8),
-                                Text('Blood Group: ${activePatient.bloodGroup ?? 'N/A'}'),
+                                Text(
+                                    'Blood Group: ${activePatient.bloodGroup ?? 'Not provided'}'),
                                 const SizedBox(height: 8),
-                                Text('Weight: ${activePatient.weight ?? 'N/A'} kg'),
+                                Text(
+                                    'Weight: ${activePatient.weight ?? 'Not provided'}${activePatient.weight == null ? '' : ' kg'}'),
                                 const SizedBox(height: 8),
-                                Text('Height: ${activePatient.height ?? 'N/A'} cm'),
+                                Text(
+                                    'Height: ${activePatient.height ?? 'Not provided'}${activePatient.height == null ? '' : ' cm'}'),
                                 const SizedBox(height: 8),
-                                Text('Emergency Contact: ${activePatient.emergencyContact ?? 'N/A'}'),
+                                Text(
+                                    'Emergency Contact: ${activePatient.emergencyContact ?? 'Not provided'}'),
                                 const SizedBox(height: 8),
-                                Text('Medical Conditions: ${activePatient.medicalConditions ?? 'None'}'),
+                                Text(
+                                    'Medical Conditions: ${activePatient.medicalConditions ?? 'Not provided'}'),
                               ],
                             ),
                             actions: [
@@ -1393,7 +1477,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
             // Today schedule status
             Text(
               "Today's Medication Tracker",
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             if (todayMedicines.isEmpty)
@@ -1405,13 +1490,17 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: _getStatusColor(status).withValues(alpha: 0.1),
-                      child: Icon(_getStatusIcon(status), color: _getStatusColor(status)),
+                      backgroundColor:
+                          _getStatusColor(status).withValues(alpha: 0.1),
+                      child: Icon(_getStatusIcon(status),
+                          color: _getStatusColor(status)),
                     ),
-                    title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    title: Text(m.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text('${m.dosage} • ${m.time}'),
                     trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: _getStatusColor(status).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -1419,10 +1508,9 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                       child: Text(
                         status,
                         style: TextStyle(
-                          color: _getStatusColor(status), 
-                          fontWeight: FontWeight.bold, 
-                          fontSize: 12
-                        ),
+                            color: _getStatusColor(status),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
                       ),
                     ),
                     onTap: () {
@@ -1438,11 +1526,13 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                             children: [
                               Text(
                                 m.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 20),
                               ),
                               const SizedBox(height: 24),
                               ListTile(
-                                leading: const Icon(Icons.edit, color: Colors.blue),
+                                leading:
+                                    const Icon(Icons.edit, color: Colors.blue),
                                 title: const Text('Edit Medication'),
                                 onTap: () {
                                   Navigator.pop(context);
@@ -1450,7 +1540,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                                 },
                               ),
                               ListTile(
-                                leading: const Icon(Icons.delete, color: Colors.red),
+                                leading:
+                                    const Icon(Icons.delete, color: Colors.red),
                                 title: const Text('Delete Medication'),
                                 onTap: () {
                                   Navigator.pop(context);
@@ -1471,7 +1562,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
           // Missed & Alerts Log
           Text(
             'Caregiver Alerts Log',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           if (notifications.isEmpty)
@@ -1480,21 +1572,27 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
             ...notifications.take(5).map((n) {
               final isAnn = n['type'] == 'announcement';
               return Card(
-                color: isAnn ? Colors.indigo.shade50.withValues(alpha: 0.4) : Colors.red.shade50.withValues(alpha: 0.4),
+                color: isAnn
+                    ? Colors.indigo.shade50.withValues(alpha: 0.4)
+                    : Colors.red.shade50.withValues(alpha: 0.4),
                 margin: const EdgeInsets.only(bottom: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: isAnn ? Colors.indigo.shade100 : Colors.red.shade100),
+                  side: BorderSide(
+                      color:
+                          isAnn ? Colors.indigo.shade100 : Colors.red.shade100),
                 ),
                 child: ListTile(
                   leading: isAnn
                       ? const Icon(Icons.campaign, color: Colors.indigo)
-                      : const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                      : const Icon(Icons.warning_amber_rounded,
+                          color: Colors.red),
                   title: Text(
                     isAnn
                         ? '${n['title']}'
                         : '${n['patientName']} missed ${n['medicineName']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: Text(
                     isAnn
@@ -1530,7 +1628,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
       children: [
         Text(
           'Quick Actions',
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          style: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         SingleChildScrollView(
@@ -1542,7 +1641,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                 icon: Icons.people_alt_outlined,
                 label: 'My Patients',
                 color: Colors.blue,
-                onTap: () => _showAddPatientDialog(context, auth, provider),
+                onTap: () => showAddPatientDialog(context, auth, provider),
               ),
               const SizedBox(width: 8),
               _quickActionButton(
@@ -1550,7 +1649,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                 icon: Icons.local_pharmacy_outlined,
                 label: 'Medical Shop',
                 color: Colors.indigo,
-                onTap: () => Navigator.pushNamed(context, AppRoutes.medicalShop),
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.medicalShop),
               ),
               const SizedBox(width: 8),
               _quickActionButton(
@@ -1578,7 +1678,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                   final count = HiveService().notificationsBox.length;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Caregiver Alerts: $count notifications in log.'),
+                      content: Text(
+                          'Caregiver Alerts: $count notifications in log.'),
                       duration: const Duration(seconds: 2),
                     ),
                   );
@@ -1724,8 +1825,10 @@ class MedicineSearchDelegate extends SearchDelegate {
                       : Icons.medication,
               color: Theme.of(context).colorScheme.primary,
             ),
-            title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('${m.dosage} • ${m.quantity} • ${m.time} • ${m.frequency}'),
+            title: Text(m.name,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(
+                '${m.dosage} • ${m.quantity} • ${m.time} • ${m.frequency}'),
             trailing: IconButton(
               icon: const Icon(Icons.chevron_right),
               onPressed: () {

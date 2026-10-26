@@ -36,7 +36,8 @@ class MedicalShopService extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   void _safeNotifyListeners() {
-    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
       SchedulerBinding.instance.addPostFrameCallback((_) => notifyListeners());
     } else {
       notifyListeners();
@@ -45,7 +46,8 @@ class MedicalShopService extends ChangeNotifier {
 
   // ============= CATALOG (Patient & Caretaker) =============
 
-  Future<List<ShopMedicine>> getCatalog({String? search, String? category, int? shopId}) async {
+  Future<List<ShopMedicine>> getCatalog(
+      {String? search, String? category, int? shopId}) async {
     _isLoading = true;
     _safeNotifyListeners();
     try {
@@ -79,8 +81,10 @@ class MedicalShopService extends ChangeNotifier {
         return _shopProfile;
       }
       return null;
-    } catch (_) {
-      return null;
+    } catch (e, stackTrace) {
+      debugPrint('Creating prescription failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
     }
   }
 
@@ -116,7 +120,8 @@ class MedicalShopService extends ChangeNotifier {
     }
   }
 
-  Future<ShopMedicine?> addMedicineToInventory(Map<String, dynamic> data) async {
+  Future<ShopMedicine?> addMedicineToInventory(
+      Map<String, dynamic> data) async {
     try {
       final id = await MySQLApiService().addPharmacyMedicine(data);
       if (id != null && id > 0) {
@@ -125,12 +130,15 @@ class MedicalShopService extends ChangeNotifier {
         return ShopMedicine.fromMap({...data, 'id': id});
       }
       return null;
-    } catch (_) {
-      return null;
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Bad state: ', '');
+      notifyListeners();
+      rethrow;
     }
   }
 
-  Future<bool> updateInventoryMedicine(int id, Map<String, dynamic> data) async {
+  Future<bool> updateInventoryMedicine(
+      int id, Map<String, dynamic> data) async {
     try {
       final success = await MySQLApiService().updatePharmacyMedicine(id, data);
       if (success) {
@@ -197,9 +205,13 @@ class MedicalShopService extends ChangeNotifier {
       });
       if (res['ok'] == true && res['prescription'] != null) {
         await getDoctorPrescriptions();
-        return Prescription.fromMap(res['prescription'] as Map<String, dynamic>);
+        return Prescription.fromMap(
+            res['prescription'] as Map<String, dynamic>);
       }
-      return null;
+      throw Exception(
+        (res['message'] ?? res['error'] ?? 'Failed to issue prescription')
+            .toString(),
+      );
     } catch (_) {
       return null;
     }
@@ -208,18 +220,24 @@ class MedicalShopService extends ChangeNotifier {
   Future<List<Prescription>> getDoctorPrescriptions() async {
     try {
       final rawList = await MySQLApiService().getDoctorPrescriptions();
-      _doctorPrescriptions = rawList.map((p) => Prescription.fromMap(p)).toList();
+      _doctorPrescriptions =
+          rawList.map((p) => Prescription.fromMap(p)).toList();
       _safeNotifyListeners();
       return _doctorPrescriptions;
-    } catch (_) {
-      return [];
+    } catch (e, stackTrace) {
+      debugPrint('Loading doctor prescriptions failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
     }
   }
 
-  Future<List<Prescription>> getPrescriptionsForPatient(dynamic patientId) async {
+  Future<List<Prescription>> getPrescriptionsForPatient(
+      dynamic patientId) async {
     try {
-      final rawList = await MySQLApiService().getMyPrescriptions(patientId: patientId);
-      _activePrescriptions = rawList.map((p) => Prescription.fromMap(p)).toList();
+      final rawList =
+          await MySQLApiService().getMyPrescriptions(patientId: patientId);
+      _activePrescriptions =
+          rawList.map((p) => Prescription.fromMap(p)).toList();
       _safeNotifyListeners();
       return _activePrescriptions;
     } catch (_) {
@@ -281,17 +299,18 @@ class MedicalShopService extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateOrderStatus(int orderId, String newStatus) async {
+  Future<Map<String, dynamic>> updateOrderStatus(int orderId, String newStatus,
+      {String? reason}) async {
     try {
-      final success = await MySQLApiService().updateOrderStatus(orderId, newStatus);
-      if (success) {
+      final result = await MySQLApiService()
+          .updateOrderStatus(orderId, newStatus, reason: reason);
+      if (result['ok'] == true) {
         await getShopOrders();
         await getPharmacyStats();
-        return true;
       }
-      return false;
+      return result;
     } catch (_) {
-      return false;
+      return {'ok': false, 'message': 'Unable to update order status.'};
     }
   }
 }

@@ -85,9 +85,14 @@ class DoctorModel {
   }
 
   factory DoctorModel.fromMap(Map<String, dynamic> map) {
+    final resolvedId = map['id'] ?? map['doctorId'] ?? map['userId'];
     return DoctorModel(
-      id: map['id'] is int ? map['id'] as int : int.tryParse(map['id']?.toString() ?? ''),
-      userId: map['userId'] is int ? map['userId'] as int : int.tryParse(map['userId']?.toString() ?? ''),
+      id: resolvedId is int
+          ? resolvedId
+          : int.tryParse(resolvedId?.toString() ?? ''),
+      userId: map['userId'] is int
+          ? map['userId'] as int
+          : int.tryParse(map['userId']?.toString() ?? ''),
       fullName: map['fullName']?.toString() ?? '',
       email: map['email']?.toString() ?? '',
       phoneNumber: map['phoneNumber']?.toString(),
@@ -97,7 +102,15 @@ class DoctorModel {
       experience: map['experience']?.toString() ?? '',
       location: map['location']?.toString() ?? '',
       profilePicture: map['profilePicture']?.toString(),
-      connectionStatus: map['connectionStatus']?.toString() ?? 'none',
+      connectionStatus: (map['connectionStatus'] ?? map['status'])
+                  ?.toString()
+                  .toLowerCase() ==
+              'connected'
+          ? 'accepted'
+          : (map['connectionStatus'] ?? map['status'])
+                  ?.toString()
+                  .toLowerCase() ??
+              'none',
       connectionId: map['connectionId'] is int
           ? map['connectionId'] as int
           : int.tryParse(map['connectionId']?.toString() ?? ''),
@@ -193,9 +206,15 @@ class DoctorConnectionItem {
     }
 
     return DoctorConnectionItem(
-      id: map['id'] is int ? map['id'] as int : int.tryParse(map['id']?.toString() ?? '0') ?? 0,
-      doctorId: map['doctorId'] is int ? map['doctorId'] as int : int.tryParse(map['doctorId']?.toString() ?? '0') ?? 0,
-      requesterId: map['requesterId'] is int ? map['requesterId'] as int : int.tryParse(map['requesterId']?.toString() ?? '0') ?? 0,
+      id: map['id'] is int
+          ? map['id'] as int
+          : int.tryParse(map['id']?.toString() ?? '0') ?? 0,
+      doctorId: map['doctorId'] is int
+          ? map['doctorId'] as int
+          : int.tryParse(map['doctorId']?.toString() ?? '0') ?? 0,
+      requesterId: map['requesterId'] is int
+          ? map['requesterId'] as int
+          : int.tryParse(map['requesterId']?.toString() ?? '0') ?? 0,
       requesterRole: map['requesterRole']?.toString() ?? 'patient',
       requesterName: map['requesterName']?.toString() ?? 'Unknown User',
       requesterEmail: map['requesterEmail']?.toString() ?? '',

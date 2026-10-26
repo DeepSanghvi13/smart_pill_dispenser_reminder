@@ -27,6 +27,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   List<Map<String, dynamic>> _users = [];
   String _role = 'All';
   String? _error;
+  String? _sourceMessage;
   bool _loading = true;
   int _page = 1;
   int _totalPages = 0;
@@ -47,6 +48,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _sourceMessage = null;
     });
     final response = await _api.adminGetUsers(
       _role == 'All' ? null : _role,
@@ -59,8 +61,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final users = response['users'] as List<dynamic>? ?? const [];
       final pagination = response['pagination'] as Map<String, dynamic>?;
       setState(() {
-        _users = users.map((user) => Map<String, dynamic>.from(user as Map)).toList();
+        _users = users
+            .map((user) => Map<String, dynamic>.from(user as Map))
+            .toList();
         _totalPages = (pagination?['totalPages'] as num?)?.toInt() ?? 0;
+        _sourceMessage = response['source'] == 'local'
+            ? response['message'] as String?
+            : null;
         _loading = false;
       });
     } else {
@@ -86,6 +93,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<void> _editUser(Map<String, dynamic> user) async {
+    if (user['id'] is! num) {
+      await _showResult({
+        'ok': false,
+        'message':
+            'Local users cannot be edited until the backend is available.'
+      }, 'User update failed');
+      return;
+    }
     final result = await _showUserDialog(user: user);
     if (result == null) return;
     final response = await _api.adminUpdateUser(
@@ -99,8 +114,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<void> _toggleStatus(Map<String, dynamic> user, bool active) async {
+    final id = user['id'];
+    if (id is! num) {
+      await _showResult({
+        'ok': false,
+        'message':
+            'Local users cannot be changed until the backend is available.'
+      }, 'Status update failed');
+      return;
+    }
     final response = await _api.adminSetUserStatus(
-      (user['id'] as num).toInt(),
+      id.toInt(),
       active ? 'active' : 'inactive',
     );
     if (response['ok'] != true) {
@@ -114,9 +138,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete user?'),
-        content: Text('This permanently deletes ${user['email']}. Related records follow database foreign-key policies.'),
+        content: Text(
+            'This permanently deletes ${user['email']}. Related records follow database foreign-key policies.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
@@ -126,6 +153,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
     );
     if (confirmed != true) return;
+    if (user['id'] is! num) {
+      await _showResult({
+        'ok': false,
+        'message':
+            'Local users cannot be deleted until the backend is available.'
+      }, 'User deletion failed');
+      return;
+    }
     final response = await _api.adminDeleteUser((user['id'] as num).toInt());
     await _showResult(response, 'User deleted');
     if (response['ok'] == true) _loadUsers();
@@ -143,18 +178,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           decoration: const InputDecoration(labelText: 'New password'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Reset')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Reset')),
         ],
       ),
     );
     controller.dispose();
     if (password == null) return;
-    final response = await _api.adminResetUserPassword((user['id'] as num).toInt(), password);
+    final response = await _api.adminResetUserPassword(
+        (user['id'] as num).toInt(), password);
     _showResult(response, 'Password reset');
   }
 
-  Future<void> _showResult(Map<String, dynamic> response, String successMessage) async {
+  Future<void> _showResult(
+      Map<String, dynamic> response, String successMessage) async {
     if (!mounted) return;
     final message = response['ok'] == true
         ? successMessage
@@ -165,10 +206,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     ));
   }
 
-  Future<Map<String, dynamic>?> _showUserDialog({Map<String, dynamic>? user}) async {
-    final name = TextEditingController(text: user?['fullName'] as String? ?? '');
+  Future<Map<String, dynamic>?> _showUserDialog(
+      {Map<String, dynamic>? user}) async {
+    final name =
+        TextEditingController(text: user?['fullName'] as String? ?? '');
     final email = TextEditingController(text: user?['email'] as String? ?? '');
-    final phone = TextEditingController(text: user?['phoneNumber'] as String? ?? '');
+    final phone =
+        TextEditingController(text: user?['phoneNumber'] as String? ?? '');
     final password = TextEditingController();
     String role = user?['role'] as String? ?? 'patient';
     final result = await showDialog<Map<String, dynamic>>(
@@ -181,7 +225,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               width: 420,
               child: Column(
                 children: [
-                  TextField(controller: name, decoration: const InputDecoration(labelText: 'Full name')),
+                  TextField(
+                      controller: name,
+                      decoration:
+                          const InputDecoration(labelText: 'Full name')),
                   TextField(
                     controller: email,
                     enabled: user == null,
@@ -196,14 +243,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   TextField(
                     controller: phone,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'Phone (optional)'),
+                    decoration:
+                        const InputDecoration(labelText: 'Phone (optional)'),
                   ),
                   DropdownButtonFormField<String>(
                     initialValue: role,
                     decoration: const InputDecoration(labelText: 'Role'),
                     items: _roles
                         .where((item) => item != 'All')
-                        .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                        .map((item) =>
+                            DropdownMenuItem(value: item, child: Text(item)))
                         .toList(),
                     onChanged: (value) {
                       if (value != null) setDialogState(() => role = value);
@@ -214,13 +263,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             FilledButton(
               onPressed: () => Navigator.pop(context, {
                 'fullName': name.text.trim(),
                 'email': email.text.trim(),
                 'password': password.text,
-                'phoneNumber': phone.text.trim().isEmpty ? null : phone.text.trim(),
+                'phoneNumber':
+                    phone.text.trim().isEmpty ? null : phone.text.trim(),
                 'role': role,
               }),
               child: Text(user == null ? 'Create' : 'Save'),
@@ -261,13 +313,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     decoration: InputDecoration(
                       labelText: 'Search name, email, or phone',
                       prefixIcon: const Icon(Icons.search),
-                      suffixIcon: IconButton(onPressed: _loadUsers, icon: const Icon(Icons.refresh)),
+                      suffixIcon: IconButton(
+                          onPressed: _loadUsers,
+                          icon: const Icon(Icons.refresh)),
                     ),
                   ),
                 ),
                 DropdownButton<String>(
                   value: _role,
-                  items: _roles.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+                  items: _roles
+                      .map((item) =>
+                          DropdownMenuItem(value: item, child: Text(item)))
+                      .toList(),
                   onChanged: (value) {
                     if (value == null) return;
                     setState(() {
@@ -288,13 +345,32 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(20),
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              child: Column(
+                children: [
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                      onPressed: _loadUsers, child: const Text('Retry')),
+                ],
+              ),
+            ),
+          if (_sourceMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(_sourceMessage!,
+                  style: TextStyle(color: Colors.orange.shade800)),
             ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _users.isEmpty
-                    ? const Center(child: Text('No users found.'))
+                    ? Center(
+                        child: Text(
+                          _error == null
+                              ? 'No users found for the current filters.'
+                              : 'No local users are available.',
+                        ),
+                      )
                     : SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: SingleChildScrollView(
@@ -310,16 +386,31 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             rows: _users.map((user) {
                               final active = user['status'] == 'active';
                               return DataRow(cells: [
-                                DataCell(Text(user['fullName'] as String? ?? '')),
+                                DataCell(
+                                    Text(user['fullName'] as String? ?? '')),
                                 DataCell(Text(user['email'] as String? ?? '')),
-                                DataCell(Text((user['role'] as String? ?? '').toUpperCase())),
-                                DataCell(Switch(value: active, onChanged: (value) => _toggleStatus(user, value))),
+                                DataCell(Text((user['role'] as String? ?? '')
+                                    .toUpperCase())),
+                                DataCell(Switch(
+                                    value: active,
+                                    onChanged: (value) =>
+                                        _toggleStatus(user, value))),
                                 DataCell(Row(children: [
-                                  IconButton(onPressed: () => _editUser(user), icon: const Icon(Icons.edit)),
-                                  IconButton(onPressed: () => _resetPassword(user), icon: const Icon(Icons.lock_reset)),
                                   IconButton(
-                                    onPressed: () => _deleteUser(user),
-                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                      onPressed: () => _editUser(user),
+                                      icon: const Icon(Icons.edit)),
+                                  IconButton(
+                                    onPressed: user['id'] is num
+                                        ? () => _resetPassword(user)
+                                        : null,
+                                    icon: const Icon(Icons.lock_reset),
+                                  ),
+                                  IconButton(
+                                    onPressed: user['id'] is num
+                                        ? () => _deleteUser(user)
+                                        : null,
+                                    icon: const Icon(Icons.delete_outline,
+                                        color: Colors.red),
                                   ),
                                 ])),
                               ]);

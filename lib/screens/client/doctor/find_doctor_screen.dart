@@ -108,243 +108,260 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
           maxWidth: 1100,
           child: Column(
             children: [
-          // Search & Filter Header
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search by doctor name, specialization, hospital...',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 18),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _fetchDoctors();
-                                  },
-                                )
-                              : null,
-                          filled: true,
-                          fillColor: theme.colorScheme.primary.withValues(alpha: 0.05),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        onChanged: (val) {
-                          _fetchDoctors();
-                        },
-                        onSubmitted: (_) => _fetchDoctors(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(
-                        _verifiedOnly ? Icons.verified : Icons.verified_outlined,
-                        color: _verifiedOnly ? Colors.blue : Colors.grey,
-                      ),
-                      tooltip: 'Verified Doctors Only',
-                      onPressed: () {
-                        setState(() {
-                          _verifiedOnly = !_verifiedOnly;
-                        });
-                        _fetchDoctors();
-                      },
+              // Search & Filter Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-
-                // Specialization Filter Chips
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _specializations.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final spec = _specializations[index];
-                      final isSelected = _selectedSpecialization == spec;
-                      return ChoiceChip(
-                        label: Text(
-                          spec,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText:
+                                  'Search by doctor name, specialization, hospital...',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _searchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _fetchDoctors();
+                                      },
+                                    )
+                                  : null,
+                              filled: true,
+                              fillColor: theme.colorScheme.primary
+                                  .withValues(alpha: 0.05),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            onChanged: (val) {
+                              _fetchDoctors();
+                            },
+                            onSubmitted: (_) => _fetchDoctors(),
                           ),
                         ),
-                        selected: isSelected,
-                        selectedColor: theme.colorScheme.primaryContainer,
-                        labelStyle: TextStyle(
-                          color: isSelected ? theme.colorScheme.primary : Colors.grey.shade700,
-                        ),
-                        onSelected: (selected) {
-                          if (selected) {
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: Icon(
+                            _verifiedOnly
+                                ? Icons.verified
+                                : Icons.verified_outlined,
+                            color: _verifiedOnly ? Colors.blue : Colors.grey,
+                          ),
+                          tooltip: 'Verified Doctors Only',
+                          onPressed: () {
                             setState(() {
-                              _selectedSpecialization = spec;
+                              _verifiedOnly = !_verifiedOnly;
                             });
                             _fetchDoctors();
-                          }
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Doctors List View
-          Expanded(
-            child: AnimatedBuilder(
-              animation: doctorService,
-              builder: (context, _) {
-                if (doctorService.isLoading && doctorService.searchResults.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (doctorService.errorMessage != null) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
-                          const SizedBox(height: 16),
-                          Text(
-                            doctorService.errorMessage!,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red.shade700,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Try Again'),
-                            onPressed: _fetchDoctors,
-                          ),
-                        ],
-                      ),
+                          },
+                        ),
+                      ],
                     ),
-                  );
-                }
+                    const SizedBox(height: 12),
 
-                final doctors = doctorService.searchResults;
-
-                if (doctors.isEmpty) {
-                  final isSearching = _searchController.text.isNotEmpty || _selectedSpecialization != 'All';
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.person_search_outlined,
-                            size: 72,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            isSearching ? 'No matching doctors found.' : 'No doctors are currently registered.',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade700,
+                    // Specialization Filter Chips
+                    SizedBox(
+                      height: 38,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _specializations.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final spec = _specializations[index];
+                          final isSelected = _selectedSpecialization == spec;
+                          return ChoiceChip(
+                            label: Text(
+                              spec,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            isSearching
-                                ? 'Try adjusting your search query or filter.'
-                                : 'Registered doctors will appear here automatically.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                          ),
-                          if (isSearching) ...[
-                            const SizedBox(height: 16),
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Reset Search'),
-                              onPressed: () {
-                                _searchController.clear();
+                            selected: isSelected,
+                            selectedColor: theme.colorScheme.primaryContainer,
+                            labelStyle: TextStyle(
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                  : Colors.grey.shade700,
+                            ),
+                            onSelected: (selected) {
+                              if (selected) {
                                 setState(() {
-                                  _selectedSpecialization = 'All';
+                                  _selectedSpecialization = spec;
                                 });
                                 _fetchDoctors();
-                              },
-                            ),
-                          ],
-                        ],
+                              }
+                            },
+                          );
+                        },
                       ),
                     ),
-                  );
-                }
+                  ],
+                ),
+              ),
 
-                return RefreshIndicator(
-                  onRefresh: _fetchDoctors,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (constraints.maxWidth >= 650) {
-                        return GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 520,
-                            mainAxisExtent: 200,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
+              // Doctors List View
+              Expanded(
+                child: AnimatedBuilder(
+                  animation: doctorService,
+                  builder: (context, _) {
+                    if (doctorService.isLoading &&
+                        doctorService.searchResults.isEmpty) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (doctorService.errorMessage != null) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error_outline,
+                                  size: 64, color: Colors.red.shade400),
+                              const SizedBox(height: 16),
+                              Text(
+                                doctorService.errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red.shade700,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Try Again'),
+                                onPressed: _fetchDoctors,
+                              ),
+                            ],
                           ),
-                          itemCount: doctors.length,
-                          itemBuilder: (context, index) {
-                            final doc = doctors[index];
-                            return _buildDoctorCard(context, doc);
-                          },
-                        );
-                      }
-                      return ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: doctors.length,
-                        itemBuilder: (context, index) {
-                          final doc = doctors[index];
-                          return _buildDoctorCard(context, doc);
-                        },
+                        ),
                       );
-                    },
-                  ),
-                );
-              },
-            ),
+                    }
+
+                    final doctors = doctorService.searchResults;
+
+                    if (doctors.isEmpty) {
+                      final isSearching = _searchController.text.isNotEmpty ||
+                          _selectedSpecialization != 'All';
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.person_search_outlined,
+                                size: 72,
+                                color: Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                isSearching
+                                    ? 'No matching doctors found.'
+                                    : 'No doctors are currently registered.',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                isSearching
+                                    ? 'Try adjusting your search query or filter.'
+                                    : 'Registered doctors will appear here automatically.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    color: Colors.grey.shade600, fontSize: 13),
+                              ),
+                              if (isSearching) ...[
+                                const SizedBox(height: 16),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Reset Search'),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _selectedSpecialization = 'All';
+                                    });
+                                    _fetchDoctors();
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    return RefreshIndicator(
+                      onRefresh: _fetchDoctors,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          if (constraints.maxWidth >= 650) {
+                            return GridView.builder(
+                              padding: const EdgeInsets.all(16),
+                              gridDelegate:
+                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 520,
+                                mainAxisExtent: 280,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
+                              itemCount: doctors.length,
+                              itemBuilder: (context, index) {
+                                final doc = doctors[index];
+                                return _buildDoctorCard(context, doc);
+                              },
+                            );
+                          }
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: doctors.length,
+                            itemBuilder: (context, index) {
+                              final doc = doctors[index];
+                              return _buildDoctorCard(context, doc);
+                            },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
   }
 
   Widget _buildDoctorCard(BuildContext context, DoctorModel doctor) {
     final theme = Theme.of(context);
-    final isConnectingThis = _connectingDoctorKey == (doctor.id?.toString() ?? doctor.email);
+    final isConnectingThis =
+        _connectingDoctorKey == (doctor.id?.toString() ?? doctor.email);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -388,15 +405,18 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
                           ),
                           if (doctor.isVerified) ...[
                             const SizedBox(width: 4),
-                            const Icon(Icons.verified, color: Colors.blue, size: 16),
+                            const Icon(Icons.verified,
+                                color: Colors.blue, size: 16),
                           ],
                         ],
                       ),
                       const SizedBox(height: 4),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                          color:
+                              theme.colorScheme.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -421,12 +441,14 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
             if (doctor.hospitalName.isNotEmpty) ...[
               Row(
                 children: [
-                  Icon(Icons.local_hospital_outlined, size: 16, color: Colors.grey.shade600),
+                  Icon(Icons.local_hospital_outlined,
+                      size: 16, color: Colors.grey.shade600),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       doctor.hospitalName,
-                      style: TextStyle(color: Colors.grey.shade800, fontSize: 13),
+                      style:
+                          TextStyle(color: Colors.grey.shade800, fontSize: 13),
                     ),
                   ),
                 ],
@@ -437,7 +459,8 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
             if (doctor.location.isNotEmpty) ...[
               Row(
                 children: [
-                  Icon(Icons.location_on_outlined, size: 16, color: Colors.grey.shade600),
+                  Icon(Icons.location_on_outlined,
+                      size: 16, color: Colors.grey.shade600),
                   const SizedBox(width: 8),
                   Text(
                     doctor.location,
@@ -451,7 +474,8 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
             if (doctor.experience.isNotEmpty) ...[
               Row(
                 children: [
-                  Icon(Icons.work_outline, size: 16, color: Colors.grey.shade600),
+                  Icon(Icons.work_outline,
+                      size: 16, color: Colors.grey.shade600),
                   const SizedBox(width: 8),
                   Text(
                     'Experience: ${doctor.experience}',
@@ -473,7 +497,8 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
     );
   }
 
-  Widget _buildConnectionButton(BuildContext context, DoctorModel doctor, bool isConnecting) {
+  Widget _buildConnectionButton(
+      BuildContext context, DoctorModel doctor, bool isConnecting) {
     final theme = Theme.of(context);
     final status = doctor.connectionStatus.toLowerCase();
 
@@ -495,7 +520,8 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.green.shade600,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(vertical: 10),
         ),
         onPressed: () {
@@ -511,12 +537,16 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
 
     if (status == 'pending') {
       return OutlinedButton.icon(
-        icon: Icon(Icons.hourglass_empty, size: 18, color: Colors.orange.shade700),
-        label: Text('Request Pending', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
+        icon: Icon(Icons.hourglass_empty,
+            size: 18, color: Colors.orange.shade700),
+        label: Text('Request Pending',
+            style: TextStyle(
+                color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: Colors.orange.shade400),
           backgroundColor: Colors.orange.shade50,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(vertical: 10),
         ),
         onPressed: () {
@@ -533,11 +563,13 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
     if (status == 'rejected') {
       return OutlinedButton.icon(
         icon: const Icon(Icons.refresh, size: 18, color: Colors.red),
-        label: const Text('Rejected (Tap to Reconnect)', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        label: const Text('Rejected (Tap to Reconnect)',
+            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Colors.red),
           backgroundColor: Colors.red.shade50,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(vertical: 10),
         ),
         onPressed: () => _handleConnect(doctor),
@@ -547,7 +579,8 @@ class _FindDoctorScreenState extends State<FindDoctorScreen> {
     // Default 'none' status -> Connect Button
     return ElevatedButton.icon(
       icon: const Icon(Icons.person_add_alt_1, size: 18),
-      label: const Text('Connect', style: TextStyle(fontWeight: FontWeight.bold)),
+      label:
+          const Text('Connect', style: TextStyle(fontWeight: FontWeight.bold)),
       style: ElevatedButton.styleFrom(
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: Colors.white,

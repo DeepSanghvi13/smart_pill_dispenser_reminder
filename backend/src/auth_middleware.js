@@ -40,10 +40,11 @@ function requireRole(roles) {
     if (!req.user) {
       return res.status(401).json({ ok: false, message: 'Access token required' });
     }
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ ok: false, message: 'Access denied: unauthorized role' });
+    // Admin has superuser access to all sides across the system
+    if (req.user.role === 'admin' || req.user.isAdmin === true || roles.includes(req.user.role)) {
+      return next();
     }
-    next();
+    return res.status(403).json({ ok: false, message: 'Access denied: unauthorized role' });
   };
 }
 

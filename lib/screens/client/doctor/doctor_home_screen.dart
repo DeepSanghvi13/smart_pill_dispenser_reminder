@@ -286,8 +286,18 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
       (p) => p['email']?.toString() == defaultPatientEmail,
       orElse: () => patients.first,
     );
-    int? selectedPatientId =
-        int.tryParse(defaultPatient['patientId']?.toString() ?? '');
+    int? selectedPatientId = int.tryParse(defaultPatient['patientId']?.toString() ?? '') ??
+        int.tryParse(defaultPatient['id']?.toString() ?? '');
+    if (selectedPatientId == null && patients.isNotEmpty) {
+      for (final p in patients) {
+        final parsed = int.tryParse(p['patientId']?.toString() ?? '') ??
+            int.tryParse(p['id']?.toString() ?? '');
+        if (parsed != null) {
+          selectedPatientId = parsed;
+          break;
+        }
+      }
+    }
     final medNameCtrl = TextEditingController();
     final dosageCtrl = TextEditingController(text: '500 mg');
     final freqCtrl = TextEditingController(text: 'Twice daily after meals');
@@ -323,16 +333,16 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: patients.map((p) {
-                      final pId =
-                          int.tryParse(p['patientId']?.toString() ?? '');
+                      final pId = int.tryParse(p['patientId']?.toString() ?? '') ??
+                          int.tryParse(p['id']?.toString() ?? '');
                       final pEmail = p['email']?.toString() ?? '';
                       final pName = p['fullName']?.toString() ?? pEmail;
-                      return DropdownMenuItem(
+                      return DropdownMenuItem<int>(
                         value: pId,
                         child: Text('$pName ($pEmail)',
                             overflow: TextOverflow.ellipsis),
                       );
-                    }).toList(),
+                    }).where((item) => item.value != null).toList(),
                     onChanged: (val) {
                       if (val != null) {
                         setDialogState(() => selectedPatientId = val);
@@ -487,6 +497,16 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                         return;
                       }
 
+                      if (selectedPatientId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select a valid connected patient.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
                       setDialogState(() => isSubmitting = true);
                       Prescription? res;
                       String? error;
@@ -510,6 +530,10 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                         debugPrint('Issue prescription failed: $e');
                         debugPrintStack(stackTrace: stackTrace);
                         error = e.toString().replaceFirst('Exception: ', '');
+                      } finally {
+                        if (ctx.mounted) {
+                          setDialogState(() => isSubmitting = false);
+                        }
                       }
 
                       if (!mounted || !ctx.mounted) return;
@@ -526,17 +550,10 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                         setState(() => _selectedTabIndex = 3);
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Failed to issue prescription.'),
+                          SnackBar(
+                            content: Text(error ?? 'Failed to issue prescription.'),
                             backgroundColor: Colors.red,
                           ),
-                        );
-                      }
-                      if (error != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(error),
-                              backgroundColor: Colors.red),
                         );
                       }
                     },

@@ -278,6 +278,61 @@ class MySQLApiService {
     }
   }
 
+  Future<Map<String, dynamic>> connectCaretakerToPatient({
+    String? code,
+    String? patientEmail,
+    int? patientId,
+    String? phone,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/caretaker/connect'),
+            headers: _headers,
+            body: jsonEncode({
+              if (code != null) 'code': code,
+              if (patientEmail != null) 'patientEmail': patientEmail,
+              if (patientId != null) 'patientId': patientId,
+              if (phone != null) 'phone': phone,
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'ok': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<String?> resetPassword(String email, String newPassword) async {
+    final isConnected = await checkServerConnection();
+    final normalized = email.trim().toLowerCase();
+
+    if (!isConnected && _resolvedBaseUrl == null) {
+      return 'Server unreachable. Please check your connection.';
+    }
+
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/auth/reset-password'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': normalized,
+              'newPassword': newPassword.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200 && body['ok'] == true) {
+        return null;
+      }
+      return body['message'] as String? ?? 'Failed to reset password';
+    } catch (e) {
+      return 'Error connecting to server: $e';
+    }
+  }
+
   // ---- User Stats ----
 
   Future<int> getTotalRegisteredUsers() async {

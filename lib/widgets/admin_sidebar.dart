@@ -135,6 +135,43 @@ class AdminSidebar extends StatelessWidget {
                   title: 'System Settings',
                   routeName: AppRoutes.adminSettings,
                 ),
+                const Divider(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Text(
+                    'PORTAL ACCESS (4 SIDES)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+                _buildMenuItem(
+                  context,
+                  icon: Icons.person_outline,
+                  title: 'Patient Portal',
+                  routeName: AppRoutes.userHome,
+                ),
+                _buildMenuItem(
+                  context,
+                  icon: Icons.shopping_bag_outlined,
+                  title: 'Medical Shop & Orders',
+                  routeName: AppRoutes.medicalShop,
+                ),
+                _buildMenuItem(
+                  context,
+                  icon: Icons.medical_services_outlined,
+                  title: 'Doctor Portal',
+                  routeName: AppRoutes.doctorHome,
+                ),
+                _buildMenuItem(
+                  context,
+                  icon: Icons.storefront_outlined,
+                  title: 'Pharmacy Portal',
+                  routeName: AppRoutes.pharmacyHome,
+                ),
               ],
             ),
           ),

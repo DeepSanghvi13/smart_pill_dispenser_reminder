@@ -55,10 +55,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = false);
 
     if (error != null) {
+      final isAlreadyRegistered = error.toLowerCase().contains('already') || error.toLowerCase().contains('exist');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          action: isAlreadyRegistered
+              ? SnackBarAction(
+                  label: 'Log In',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(
+                      context,
+                      AppRoutes.login,
+                      arguments: {'email': email},
+                    );
+                  },
+                )
+              : null,
         ),
       );
     } else {

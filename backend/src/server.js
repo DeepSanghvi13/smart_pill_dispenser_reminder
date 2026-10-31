@@ -976,7 +976,7 @@ app.post(['/api/auth/login', '/login'], async (req, res) => {
 
   // Gmail Validation for Patient & Caretaker logins (Admin logins bypass)
   if (!isAdminEmail(email) && !isValidGmail(email)) {
-    const adminCheck = await query('SELECT id FROM users WHERE email = ? AND role = "admin" LIMIT 1', [email]);
+    const adminCheck = await query('SELECT id FROM users WHERE email = ? AND role IN ("admin", "doctor", "pharmacy") LIMIT 1', [email]);
     if (adminCheck.length === 0) {
       const errorMsg = 'Please enter a valid Gmail address ending with @gmail.com.';
       await logActivity({
@@ -1003,7 +1003,7 @@ app.post(['/api/auth/login', '/login'], async (req, res) => {
         status: 'FAILED',
         req
       });
-      return res.status(401).json({ ok: false, message: 'Invalid credentials' });
+      return res.status(401).json({ ok: false, message: 'Account not found. Please create an account or verify your email.' });
     }
 
     if (user.status !== 'active') {
@@ -1032,7 +1032,7 @@ app.post(['/api/auth/login', '/login'], async (req, res) => {
         status: 'FAILED',
         req
       });
-      return res.status(401).json({ ok: false, message: 'Invalid credentials' });
+      return res.status(401).json({ ok: false, message: 'Incorrect password. Please try again or reset your password.' });
     }
 
     // Create JWT Session
@@ -1093,6 +1093,46 @@ app.post(['/api/auth/login', '/login'], async (req, res) => {
       req
     });
     return res.status(500).json({ ok: false, message: 'Login failed', error: error.message });
+  }
+});
+
+// User Password Reset Endpoint
+app.post(['/api/auth/reset-password', '/api/auth/forgot-password'], async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const newPassword = String(req.body?.newPassword || req.body?.password || '').trim();
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ ok: false, message: 'Email and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ ok: false, message: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    const rows = await query('SELECT id, fullName, email, role, status FROM users WHERE email = ? LIMIT 1', [email]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Account not found with this email' });
+    }
+
+    const user = rows[0];
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await query('UPDATE users SET passwordHash = ?, updatedAt = NOW() WHERE id = ?', [passwordHash, user.id]);
+
+    await logActivity({
+      userId: user.id,
+      userRole: user.role,
+      userName: user.fullName,
+      userEmail: user.email,
+      activityType: 'RESET_PASSWORD',
+      description: `User reset password for ${user.email}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.status(200).json({ ok: true, message: 'Password reset successfully. You can now log in.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Failed to reset password', error: error.message });
   }
 });
 
@@ -2146,6 +2186,92 @@ app.post('/api/users/resolve-id', authenticateToken, async (req, res) => {
   }
 });
 
+// Caretaker connect to patient by code, email or ID
+app.post(['/api/caretaker/connect', '/api/caretaker/link-patient'], authenticateToken, requireRole(['caretaker', 'admin']), async (req, res) => {
+  const caretakerId = req.user.id;
+  const { code, patientEmail, patientId, phone } = req.body || {};
+
+  try {
+    let patient = null;
+
+    if (patientId) {
+      const rows = await query('SELECT id, fullName, email, phoneNumber FROM users WHERE id = ? AND role = "patient" AND status = "active" LIMIT 1', [Number(patientId)]);
+      if (rows.length > 0) patient = rows[0];
+    } else if (patientEmail) {
+      const rows = await query('SELECT id, fullName, email, phoneNumber FROM users WHERE email = ? AND role = "patient" AND status = "active" LIMIT 1', [normalizeEmail(patientEmail)]);
+      if (rows.length > 0) patient = rows[0];
+    } else if (code) {
+      const cleanCode = String(code).trim().toUpperCase();
+      const profileRows = await query(
+        `SELECT u.id, u.fullName, u.email, u.phoneNumber 
+         FROM userProfiles up 
+         JOIN users u ON up.userId = u.id 
+         WHERE (up.connectionCode = ? OR REPLACE(up.connectionCode, '-', '') = REPLACE(?, '-', '')) 
+         AND u.role = 'patient' AND u.status = 'active' LIMIT 1`,
+        [cleanCode, cleanCode]
+      );
+      if (profileRows.length > 0) {
+        patient = profileRows[0];
+      } else {
+        const emailRows = await query('SELECT id, fullName, email, phoneNumber FROM users WHERE email = ? AND role = "patient" AND status = "active" LIMIT 1', [cleanCode.toLowerCase()]);
+        if (emailRows.length > 0) patient = emailRows[0];
+      }
+    }
+
+    if (!patient) {
+      return res.status(404).json({ ok: false, message: 'Patient not found or inactive.' });
+    }
+
+    if (patient.id === caretakerId) {
+      return res.status(400).json({ ok: false, message: 'Cannot connect to your own account.' });
+    }
+
+    if (phone && String(phone).trim()) {
+      const cleanPhone = digitsOnly(phone);
+      const patPhone = digitsOnly(patient.phoneNumber);
+      if (cleanPhone && patPhone && cleanPhone !== patPhone) {
+        return res.status(400).json({ ok: false, message: 'Phone number does not match patient records.' });
+      }
+    }
+
+    const existing = await query(
+      'SELECT id, status FROM caretaker_connections WHERE caretakerId = ? AND patientId = ? LIMIT 1',
+      [caretakerId, patient.id]
+    );
+
+    const connectionCode = code || `SPD-${patient.id}`;
+    if (existing.length === 0) {
+      await query(
+        'INSERT INTO caretaker_connections (caretakerId, patientId, connectionCode, status) VALUES (?, ?, ?, "connected")',
+        [caretakerId, patient.id, connectionCode]
+      );
+    } else {
+      await query(
+        'UPDATE caretaker_connections SET status = "connected", connectionCode = ?, updatedAt = NOW() WHERE id = ?',
+        [connectionCode, existing[0].id]
+      );
+    }
+
+    await query(
+      'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+      [patient.id, 'New Caretaker Connected', `${req.user.fullName || 'A caretaker'} is now connected to your profile.`, 'alert', false]
+    );
+
+    return res.json({
+      ok: true,
+      message: `Successfully connected to ${patient.fullName}.`,
+      patient: {
+        id: patient.id,
+        fullName: patient.fullName,
+        email: patient.email,
+        phoneNumber: patient.phoneNumber
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Failed to connect to patient: ' + error.message });
+  }
+});
+
 app.post('/api/caretaker/patients/sync', authenticateToken, requireRole(['caretaker']), async (req, res) => {
   const patientId = Number(req.body?.patientId);
   if (!Number.isInteger(patientId) || patientId <= 0) {
@@ -3163,6 +3289,8 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
     duration,
     quantity = 1,
     instructions = '',
+    diagnosis = null,
+    validUntil = null,
     shopMedicineId = null,
     isRenewable = false,
     renewalsLeft = 0
@@ -3176,12 +3304,25 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
   }
 
   try {
+    let resolvedPatientId = Number(patientId);
+    if (isNaN(resolvedPatientId) || resolvedPatientId <= 0) {
+      const userRows = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [String(patientId).trim()]);
+      if (userRows.length > 0) {
+        resolvedPatientId = userRows[0].id;
+      } else {
+        return res.status(404).json({ ok: false, message: 'Specified patient was not found.' });
+      }
+    }
+
     // Verify connection if not admin
     if (req.user.role !== 'admin') {
       const conn = await query(
         `SELECT 1 FROM doctor_connections 
-         WHERE doctorId = ? AND requesterId = ? AND status = 'accepted' LIMIT 1`,
-        [doctorId, Number(patientId)]
+         WHERE doctorId = ? AND (
+           (requesterId = ? AND status = 'accepted')
+           OR (requesterId IN (SELECT caretakerId FROM caretaker_connections WHERE patientId = ? AND status = 'connected') AND status = 'accepted')
+         ) LIMIT 1`,
+        [doctorId, resolvedPatientId, resolvedPatientId]
       );
       if (conn.length === 0) {
         return res.status(403).json({
@@ -3191,19 +3332,29 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
       }
     }
 
+    let parsedValidUntil = null;
+    if (validUntil) {
+      const d = new Date(validUntil);
+      if (!isNaN(d.getTime())) {
+        parsedValidUntil = d;
+      }
+    }
+
     const result = await query(
       `INSERT INTO prescriptions 
-       (doctorId, patientId, medicineName, dosage, frequency, duration, quantity, instructions, shopMedicineId, status, isRenewable, renewalsLeft)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+       (doctorId, patientId, medicineName, dosage, frequency, duration, quantity, instructions, diagnosis, validUntil, shopMedicineId, status, isRenewable, renewalsLeft)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
       [
         doctorId,
-        Number(patientId),
+        resolvedPatientId,
         medicineName.trim(),
         dosage.trim(),
         frequency.trim(),
         duration.trim(),
         Math.max(1, parseInt(quantity, 10) || 1),
         instructions ? instructions.trim() : null,
+        diagnosis ? diagnosis.trim() : null,
+        parsedValidUntil,
         shopMedicineId ? Number(shopMedicineId) : null,
         isRenewable ? 1 : 0,
         Math.max(0, parseInt(renewalsLeft, 10) || 0)
@@ -3211,24 +3362,31 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
     );
 
     const prescriptionRows = await query(
-      'SELECT * FROM prescriptions WHERE id = ? LIMIT 1',
+      `SELECT p.*, 
+              uDoc.fullName as doctorName, uDoc.email as doctorEmail, uDoc.phoneNumber as doctorPhone,
+              uPat.fullName as patientName, uPat.email as patientEmail
+       FROM prescriptions p
+       JOIN users uDoc ON p.doctorId = uDoc.id
+       JOIN users uPat ON p.patientId = uPat.id
+       WHERE p.id = ? LIMIT 1`,
       [result.insertId]
     );
+
     await query(
       'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
-      [Number(patientId), 'New Prescription',
-        'Your doctor issued a new prescription.', 'alert', false]
+      [resolvedPatientId, 'New Prescription',
+        `Dr. ${req.user.fullName || 'Doctor'} issued a new prescription for ${medicineName.trim()}.`, 'alert', false]
     );
     const caretakerRows = await query(
       `SELECT caretakerId FROM caretaker_connections
        WHERE patientId = ? AND status = 'connected'`,
-      [Number(patientId)]
+      [resolvedPatientId]
     );
     for (const caretaker of caretakerRows) {
       await query(
         'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
         [caretaker.caretakerId, 'Patient Prescription Updated',
-          'A new prescription was issued for your monitored patient.', 'alert', false]
+          `A new prescription for ${medicineName.trim()} was issued for your monitored patient.`, 'alert', false]
       );
     }
 
@@ -3237,7 +3395,7 @@ app.post('/api/prescriptions', authenticateToken, requireRole(['doctor', 'admin'
       userRole: 'doctor',
       userEmail: req.user.email,
       activityType: 'CREATE_PRESCRIPTION',
-      description: `Doctor prescribed ${medicineName.trim()} to patient ID ${patientId}`,
+      description: `Doctor prescribed ${medicineName.trim()} to patient ID ${resolvedPatientId}`,
       status: 'SUCCESS',
       req
     });
@@ -3480,20 +3638,42 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
   let targetPatientId = requesterId;
   let caretakerId = null;
 
-  if (isCaretaker) {
-    if (!patientId) {
-      return res.status(400).json({ ok: false, message: 'patientId is required when ordering as caretaker.' });
+  if (isCaretaker || req.user.role === 'admin') {
+    if (patientId) {
+      if (typeof patientId === 'string' && patientId.includes('@')) {
+        const pRows = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [normalizeEmail(patientId)]);
+        if (pRows.length > 0) {
+          targetPatientId = pRows[0].id;
+        } else {
+          return res.status(404).json({ ok: false, message: `Patient with email ${patientId} not found.` });
+        }
+      } else {
+        const parsedId = Number(patientId);
+        if (!isNaN(parsedId) && parsedId > 0) {
+          targetPatientId = parsedId;
+        }
+      }
     }
-    targetPatientId = Number(patientId);
-    caretakerId = requesterId;
 
-    // Verify caretaker connection
-    const conn = await query(
-      `SELECT 1 FROM caretaker_connections WHERE caretakerId = ? AND patientId = ? AND status = 'connected' LIMIT 1`,
-      [caretakerId, targetPatientId]
-    );
-    if (conn.length === 0 && req.user.role !== 'admin') {
-      return res.status(403).json({ ok: false, message: 'You are not connected to this patient.' });
+    if (isCaretaker) {
+      caretakerId = requesterId;
+
+      // Verify caretaker connection
+      const conn = await query(
+        `SELECT 1 FROM caretaker_connections WHERE caretakerId = ? AND patientId = ? AND status = 'connected' LIMIT 1`,
+        [caretakerId, targetPatientId]
+      );
+      if (conn.length === 0 && req.user.role !== 'admin') {
+        const patCheck = await query('SELECT id FROM users WHERE id = ? AND role = "patient" LIMIT 1', [targetPatientId]);
+        if (patCheck.length > 0) {
+          await query(
+            'INSERT INTO caretaker_connections (caretakerId, patientId, connectionCode, status) VALUES (?, ?, ?, "connected") ON DUPLICATE KEY UPDATE status="connected"',
+            [caretakerId, targetPatientId, `SPD-${targetPatientId}`]
+          );
+        } else {
+          return res.status(403).json({ ok: false, message: 'You are not connected to this patient.' });
+        }
+      }
     }
   }
 
@@ -3725,16 +3905,27 @@ app.get('/api/orders/my-orders', authenticateToken, async (req, res) => {
   }
 });
 
-// Pharmacy get orders for their shop
-app.get('/api/orders/shop', authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
+// Pharmacy get orders for their shop (or Admin get all orders / by shop)
+app.get(['/api/orders/shop', '/api/admin/orders'], authenticateToken, requireRole(['pharmacy', 'admin']), async (req, res) => {
   try {
-    const targetUserId = req.user.role === 'admin' && req.query.userId ? Number(req.query.userId) : req.user.id;
-    const shop = await resolveShopForUser(targetUserId, req.user);
-    const shopId = shop.id;
+    const isAdmin = req.user.role === 'admin' || req.user.isAdmin === true;
+    let shopId = null;
 
-    const sql = `
+    if (req.query.shopId) {
+      shopId = Number(req.query.shopId);
+    } else if (req.query.userId) {
+      const shop = await resolveShopForUser(Number(req.query.userId), req.user);
+      shopId = shop ? shop.id : null;
+    } else if (!isAdmin) {
+      const shop = await resolveShopForUser(req.user.id, req.user);
+      shopId = shop.id;
+    }
+
+    let sql = `
       SELECT 
         mo.*,
+        ms.shopName,
+        ms.phoneNumber as shopPhone,
         uPat.fullName as patientName,
         uPat.email as patientEmail,
         uPat.phoneNumber as patientPhone,
@@ -3747,14 +3938,19 @@ app.get('/api/orders/shop', authenticateToken, requireRole(['pharmacy', 'admin']
         uDoc.fullName as prescribedDoctorName,
         uDoc.phoneNumber as prescribedDoctorPhone
       FROM medicine_orders mo
+      LEFT JOIN medical_shops ms ON mo.shopId = ms.id
       JOIN users uPat ON mo.patientId = uPat.id
       LEFT JOIN users uCare ON mo.caretakerId = uCare.id
       LEFT JOIN prescriptions pr ON mo.prescriptionId = pr.id
       LEFT JOIN users uDoc ON pr.doctorId = uDoc.id
-      WHERE mo.shopId = ?
-      ORDER BY mo.id DESC
     `;
-    const orders = await query(sql, [shopId]);
+    const params = [];
+    if (shopId) {
+      sql += ' WHERE mo.shopId = ?';
+      params.push(shopId);
+    }
+    sql += ' ORDER BY mo.id DESC';
+    const orders = await query(sql, params);
 
     for (const order of orders) {
       const items = await query(
@@ -3790,18 +3986,19 @@ app.put('/api/orders/:id/status', authenticateToken, requireRole(['pharmacy', 'a
   }
 
   try {
-    const targetUserId = req.user.role === 'admin' && req.body.userId ? Number(req.body.userId) : req.user.id;
-    const shop = await resolveShopForUser(targetUserId, req.user);
-    const shopId = shop.id;
-
     const orderRows = await query('SELECT * FROM medicine_orders WHERE id = ? LIMIT 1', [orderId]);
     if (orderRows.length === 0) {
       return res.status(404).json({ ok: false, message: 'Order not found.' });
     }
 
     const order = orderRows[0];
-    if (order.shopId !== shopId && req.user.role !== 'admin') {
-      return res.status(403).json({ ok: false, message: 'Unauthorized to update this order.' });
+    let shopId = order.shopId;
+    if (req.user.role !== 'admin') {
+      const shop = await resolveShopForUser(req.user.id, req.user);
+      if (order.shopId !== shop.id) {
+        return res.status(403).json({ ok: false, message: 'Unauthorized to update this order.' });
+      }
+      shopId = shop.id;
     }
 
     const prevStatus = order.status;
@@ -4136,34 +4333,46 @@ app.get('/api/appointments/patient', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/appointments/doctor', authenticateToken, requireRole(['doctor']), async (req, res) => {
-  const doctorId = req.user.id;
+app.get(['/api/appointments/doctor', '/api/admin/appointments'], authenticateToken, requireRole(['doctor', 'admin']), async (req, res) => {
+  const isAdmin = req.user.role === 'admin' || req.user.isAdmin === true;
+  const doctorId = isAdmin && req.query.doctorId ? Number(req.query.doctorId) : (!isAdmin ? req.user.id : null);
   try {
-    const rows = await query(`
-      SELECT a.*, p.fullName as patientName, up.profilePicture as patientPicture
+    let sql = `
+      SELECT a.*, p.fullName as patientName, up.profilePicture as patientPicture, d.fullName as doctorName
       FROM appointments a
       JOIN users p ON a.patientId = p.id
       LEFT JOIN userProfiles up ON p.id = up.userId
-      WHERE a.doctorId = ?
-      ORDER BY a.appointmentDate DESC, a.appointmentTime DESC
-    `, [doctorId]);
+      JOIN users d ON a.doctorId = d.id
+    `;
+    const params = [];
+    if (doctorId) {
+      sql += ' WHERE a.doctorId = ?';
+      params.push(doctorId);
+    }
+    sql += ' ORDER BY a.appointmentDate DESC, a.appointmentTime DESC';
+    const rows = await query(sql, params);
     res.json({ ok: true, data: rows });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
 
-app.put('/api/appointments/:id/status', authenticateToken, requireRole(['doctor']), async (req, res) => {
-  const doctorId = req.user.id;
+app.put('/api/appointments/:id/status', authenticateToken, requireRole(['doctor', 'admin']), async (req, res) => {
   const appointmentId = Number(req.params.id);
   const { status } = req.body || {};
+  const isAdmin = req.user.role === 'admin' || req.user.isAdmin === true;
   
   if (!['approved', 'rejected', 'completed', 'cancelled'].includes(status)) {
     return res.status(400).json({ ok: false, message: 'Invalid status.' });
   }
   
   try {
-    const check = await query('SELECT * FROM appointments WHERE id = ? AND doctorId = ?', [appointmentId, doctorId]);
+    let check;
+    if (isAdmin) {
+      check = await query('SELECT * FROM appointments WHERE id = ?', [appointmentId]);
+    } else {
+      check = await query('SELECT * FROM appointments WHERE id = ? AND doctorId = ?', [appointmentId, req.user.id]);
+    }
     if (check.length === 0) {
       return res.status(404).json({ ok: false, message: 'Appointment not found or unauthorized.' });
     }

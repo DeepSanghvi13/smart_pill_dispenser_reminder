@@ -46,13 +46,13 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
-    // Login using local Hive auth
-    final success = await context.read<AuthService>().login(email, password);
+    // Authenticate and get detailed server response
+    final errorMessage = await context.read<AuthService>().loginWithMessage(email, password);
 
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (success) {
+    if (errorMessage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Login successful!'),
@@ -84,6 +84,9 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
+      final isPasswordError = errorMessage.toLowerCase().contains('password');
+      final isNotFoundError = errorMessage.toLowerCase().contains('not found');
+
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -95,8 +98,24 @@ class _LoginScreenState extends State<LoginScreen> {
               Text('Login Failed'),
             ],
           ),
-          content: const Text('Invalid email or password. Please try again or create an account if you are new.'),
+          content: Text(errorMessage),
           actions: [
+            if (isPasswordError)
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showForgotPasswordDialog(initialEmail: email);
+                },
+                child: const Text('Reset Password'),
+              ),
+            if (isNotFoundError)
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, AppRoutes.register);
+                },
+                child: const Text('Register'),
+              ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('OK'),
@@ -105,6 +124,119 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     }
+  }
+
+  void _showForgotPasswordDialog({String? initialEmail}) {
+    final resetEmailController = TextEditingController(text: initialEmail ?? emailController.text.trim());
+    final newPasswordController = TextEditingController();
+    final resetFormKey = GlobalKey<FormState>();
+    bool isResetting = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Icon(Icons.lock_reset, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  const Text('Reset Password'),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: resetFormKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Enter your registered email and choose a new password.',
+                        style: TextStyle(fontSize: 13, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: resetEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (val) => AppValidators.validateGmail(val, allowAdmin: true),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: newPasswordController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: 'New Password',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) return 'Enter a new password';
+                          if (val.trim().length < 6) return 'Password must be at least 6 characters';
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isResetting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isResetting
+                      ? null
+                      : () async {
+                          if (!resetFormKey.currentState!.validate()) return;
+                          setDialogState(() => isResetting = true);
+                          final email = resetEmailController.text.trim();
+                          final newPass = newPasswordController.text.trim();
+
+                          final err = await context.read<AuthService>().resetPassword(email, newPass);
+                          if (!mounted) return;
+                          setDialogState(() => isResetting = false);
+
+                          if (err == null) {
+                            Navigator.pop(dialogContext);
+                            passwordController.text = newPass;
+                            emailController.text = email;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Password updated successfully! Please log in.'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(err),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  child: isResetting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Update Password'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -237,7 +369,30 @@ class _LoginScreenState extends State<LoginScreen> {
                                   return null;
                                 },
                               ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 6),
+
+                              // Forgot Password Link
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () => _showForgotPasswordDialog(
+                                    initialEmail: emailController.text.trim(),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  child: Text(
+                                    'Forgot password?',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
 
                               // Login Button
                               ElevatedButton(

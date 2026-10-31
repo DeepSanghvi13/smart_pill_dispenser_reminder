@@ -161,9 +161,13 @@ class AuthService extends ChangeNotifier {
   }
 
   /// Login — authenticates with server when online, or allows deliberate offline session
-  Future<bool> login(String email, String password) async {
+  /// Returns null on success, or an error message explaining the failure reason.
+  Future<String?> loginWithMessage(String email, String password) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
+      if (normalizedEmail.isEmpty) {
+        return 'Email cannot be empty.';
+      }
       final box = HiveService().usersBox;
       final settings = HiveService().settingsBox;
 
@@ -212,11 +216,11 @@ class AuthService extends ChangeNotifier {
             await settings.put(_sessionKey, normalizedEmail);
             await DatabaseService().setCurrentUser(normalizedEmail);
             notifyListeners();
-            return true;
+            return null; // Success!
           } else {
-            // Server actively rejected the login (wrong password, unknown user, suspended account)
-            // Stale local account CANNOT bypass server authentication
-            return false;
+            // Server actively rejected the login
+            final serverMsg = sessionData['message'] as String?;
+            return serverMsg ?? 'Invalid email or password.';
           }
         }
       }
@@ -227,7 +231,7 @@ class AuthService extends ChangeNotifier {
         if (localUser != null && verifyPassword(password, localUser.password)) {
           // Block disabled accounts even offline
           if (!localUser.isActive) {
-            return false;
+            return 'Your account is suspended or inactive.';
           }
 
           // If password was legacy plaintext, upgrade to hash
@@ -242,14 +246,60 @@ class AuthService extends ChangeNotifier {
           await settings.put(_sessionKey, normalizedEmail);
           await DatabaseService().setCurrentUser(normalizedEmail);
           notifyListeners();
-          return true;
+          return null;
         }
+        return 'Incorrect password. Please try again.';
       }
 
-      return false;
-    } catch (_) {
-      return false;
+      return 'Account not found with this email. Please create an account.';
+    } catch (e) {
+      return 'Login failed: $e';
     }
+  }
+
+  /// Login returning boolean (wraps loginWithMessage)
+  Future<bool> login(String email, String password) async {
+    final err = await loginWithMessage(email, password);
+    return err == null;
+  }
+
+  /// Self-service password reset for users
+  Future<String?> resetPassword(String email, String newPassword) async {
+    final normalized = email.trim().toLowerCase();
+    final cleanPass = newPassword.trim();
+    final box = HiveService().usersBox;
+
+    final err = await MySQLApiService().resetPassword(normalized, cleanPass);
+    if (err == null) {
+      final user = box.get(normalized);
+      if (user != null) {
+        await box.put(
+          normalized,
+          user.copyWith(
+            password: hashPassword(cleanPass),
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+      return null;
+    }
+
+    // Deliberate offline fallback if server is unreachable
+    if (box.containsKey(normalized)) {
+      final user = box.get(normalized);
+      if (user != null) {
+        await box.put(
+          normalized,
+          user.copyWith(
+            password: hashPassword(cleanPass),
+            updatedAt: DateTime.now(),
+          ),
+        );
+        return null;
+      }
+    }
+
+    return err;
   }
 
   /// Checks if the logged-in user has created/completed their profile
@@ -619,6 +669,12 @@ class AuthService extends ChangeNotifier {
       };
 
       await connectionsBox.put(connId, newConnection);
+      try {
+        await MySQLApiService().connectCaretakerToPatient(
+          code: patientProfile.connectionCode ?? rawInput,
+          patientEmail: patientEmail,
+        );
+      } catch (_) {}
       notifyListeners();
       return null; // Success
     } else {
@@ -667,6 +723,12 @@ class AuthService extends ChangeNotifier {
       };
 
       await connectionsBox.put(connId, newConnection);
+      try {
+        await MySQLApiService().connectCaretakerToPatient(
+          patientEmail: cleanEmail,
+          phone: cleanPhone,
+        );
+      } catch (_) {}
       notifyListeners();
       return null; // Success
     }

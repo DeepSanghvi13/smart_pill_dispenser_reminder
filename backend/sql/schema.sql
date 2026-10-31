@@ -296,7 +296,12 @@ CREATE TABLE IF NOT EXISTS `prescriptions` (
   `status` VARCHAR(50) DEFAULT 'active',
   `isRenewable` BOOLEAN DEFAULT FALSE,
   `renewalsLeft` INT DEFAULT 0,
+<<<<<<< HEAD
   `prescriptionImage` VARCHAR(500) DEFAULT NULL,
+=======
+  `diagnosis` VARCHAR(255) DEFAULT NULL,
+  `validUntil` DATETIME DEFAULT NULL,
+>>>>>>> ac4c8478353e74bc06e13f99ee408e2da387b8cd
   `createdAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `fk_presc_doctorId` FOREIGN KEY (`doctorId`) REFERENCES `users` (`id`) ON DELETE CASCADE,

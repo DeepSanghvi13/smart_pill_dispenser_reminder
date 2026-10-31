@@ -208,12 +208,11 @@ class MedicalShopService extends ChangeNotifier {
         return Prescription.fromMap(
             res['prescription'] as Map<String, dynamic>);
       }
-      throw Exception(
-        (res['message'] ?? res['error'] ?? 'Failed to issue prescription')
-            .toString(),
-      );
-    } catch (_) {
-      return null;
+      final errMsg = (res['message'] ?? res['error'] ?? 'Failed to issue prescription').toString();
+      throw Exception(errMsg);
+    } catch (e) {
+      debugPrint('createPrescription error: $e');
+      rethrow;
     }
   }
 

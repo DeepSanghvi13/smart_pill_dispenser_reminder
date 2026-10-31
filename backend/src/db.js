@@ -80,6 +80,18 @@ async function connectMySQL() {
   try {
     await conn.query(`DROP TABLE IF EXISTS admins`);
   } catch (_) {}
+  try {
+    await conn.query(`ALTER TABLE prescriptions ADD COLUMN isRenewable BOOLEAN DEFAULT FALSE`);
+  } catch (_) {}
+  try {
+    await conn.query(`ALTER TABLE prescriptions ADD COLUMN renewalsLeft INT DEFAULT 0`);
+  } catch (_) {}
+  try {
+    await conn.query(`ALTER TABLE prescriptions ADD COLUMN diagnosis VARCHAR(255) DEFAULT NULL`);
+  } catch (_) {}
+  try {
+    await conn.query(`ALTER TABLE prescriptions ADD COLUMN validUntil DATETIME DEFAULT NULL`);
+  } catch (_) {}
   conn.release();
 }
 

@@ -65,7 +65,41 @@ class AppDrawer extends StatelessWidget {
           ),
 
           // Drawer Menu Tiles
-          if (context.watch<AuthService>().isPharmacy) ...[
+          if (context.watch<AuthService>().isAdmin) ...[
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings, color: Colors.indigo),
+              title: const Text('Admin Dashboard', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.adminDashboard);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_pharmacy_outlined),
+              title: const Text('Medical Shop & Orders'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.medicalShop);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: const Text('Pharmacy Portal'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.pharmacyHome);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.medical_services_outlined),
+              title: const Text('Doctor Portal'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.doctorHome);
+              },
+            ),
+            const Divider(),
+          ] else if (context.watch<AuthService>().isPharmacy) ...[
             ListTile(
               leading: const Icon(Icons.storefront_outlined),
               title: const Text('Pharmacy Dashboard'),

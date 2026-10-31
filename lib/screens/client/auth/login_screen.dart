@@ -205,7 +205,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           setDialogState(() => isResetting = false);
 
                           if (err == null) {
-                            Navigator.pop(dialogContext);
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
                             passwordController.text = newPass;
                             emailController.text = email;
                             ScaffoldMessenger.of(context).showSnackBar(

@@ -59,6 +59,12 @@ async function connectMySQL() {
     await conn.query(`ALTER TABLE medicines ADD COLUMN expiryDate DATE DEFAULT NULL`);
   } catch (_) {}
   try {
+    await conn.query(`ALTER TABLE medicine_orders ADD COLUMN prescriptionImage VARCHAR(500) DEFAULT NULL`);
+  } catch (_) {}
+  try {
+    await conn.query(`ALTER TABLE prescriptions ADD COLUMN prescriptionImage VARCHAR(500) DEFAULT NULL`);
+  } catch (_) {}
+  try {
     // Migrate legacy patients table data into userProfiles before cleanup
     await conn.query(`
       UPDATE userProfiles up

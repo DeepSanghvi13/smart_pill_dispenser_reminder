@@ -35,13 +35,16 @@ Future<void> main() async {
         orElse: () => ThemeMode.light,
       ));
     }
+
+    // Restore login session before UI mounts
+    await AuthService().loadSession();
   } catch (e) {
     debugPrint('Database initialization error: $e');
   }
 
   runApp(const MyApp());
 
-  // Defer non-critical startup work so first frame appears sooner.
+  // Defer non-critical startup work
   Future.microtask(() async {
     try {
       await NotificationService.init();
@@ -73,13 +76,6 @@ Future<void> main() async {
       });
     } catch (e) {
       debugPrint('Notification service initialization error: $e');
-    }
-
-    // Restore login session in background; provider notifies UI when ready.
-    try {
-      await AuthService().loadSession();
-    } catch (e) {
-      debugPrint('Session restore error: $e');
     }
   });
 }

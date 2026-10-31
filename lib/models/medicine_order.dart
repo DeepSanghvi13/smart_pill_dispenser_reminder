@@ -94,6 +94,7 @@ class MedicineOrder {
   final dynamic caretakerId;
   final int shopId;
   final int? prescriptionId;
+  final String? prescriptionImage;
   final double totalAmount;
   final String status;
   final String? deliveryAddress;
@@ -124,6 +125,7 @@ class MedicineOrder {
     this.caretakerId,
     required this.shopId,
     this.prescriptionId,
+    this.prescriptionImage,
     required this.totalAmount,
     this.status = 'pending',
     this.deliveryAddress,
@@ -165,6 +167,7 @@ class MedicineOrder {
       'caretakerId': caretakerId,
       'shopId': shopId,
       'prescriptionId': prescriptionId,
+      'prescriptionImage': prescriptionImage,
       'totalAmount': totalAmount,
       'status': status,
       'deliveryAddress': deliveryAddress,
@@ -187,6 +190,7 @@ class MedicineOrder {
       caretakerId: int.tryParse(map['caretakerId']?.toString() ?? ''),
       shopId: int.tryParse(map['shopId']?.toString() ?? '') ?? 0,
       prescriptionId: int.tryParse(map['prescriptionId']?.toString() ?? ''),
+      prescriptionImage: map['prescriptionImage'] as String?,
       totalAmount:
           double.tryParse(map['totalAmount']?.toString() ?? '0') ?? 0.0,
       status: map['status']?.toString() ?? 'pending',

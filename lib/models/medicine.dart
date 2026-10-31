@@ -246,37 +246,45 @@ class Medicine {
   }
 
   factory Medicine.fromMap(Map<String, dynamic> map) {
-    final userIdVal = map['userId'] as String? ?? '';
+    final rawUserId = map['userId'] ?? map['patientId'];
+    final userIdVal = rawUserId?.toString() ?? '';
+    final parsedStart = map['startDate'] != null
+        ? (DateTime.tryParse(map['startDate'].toString()) ?? DateTime.now())
+        : DateTime.now();
     final parsedEnd = map['endDate'] != null
-        ? DateTime.parse(map['endDate'] as String)
+        ? (DateTime.tryParse(map['endDate'].toString()) ?? DateTime.now().add(const Duration(days: 30)))
         : DateTime.now().add(const Duration(days: 30));
     final parsedExpiry = map['expiryDate'] != null
-        ? DateTime.parse(map['expiryDate'] as String)
+        ? (DateTime.tryParse(map['expiryDate'].toString()) ?? parsedEnd)
         : parsedEnd;
 
     return Medicine(
-      id: map['id'] as int?,
+      id: map['id'] is int
+          ? map['id'] as int
+          : int.tryParse(map['id']?.toString() ?? ''),
       userId: userIdVal,
       name: map['name'] as String? ?? '',
-      type: map['type'] as String? ?? 'Tablets',
+      type: (map['type'] ?? map['category'])?.toString() ?? 'Tablets',
       dosage: map['dosage'] as String? ?? '',
-      quantity: map['quantity'] as String? ?? '1',
+      quantity: map['quantity']?.toString() ?? '1',
       frequency: map['frequency'] as String? ?? 'Daily',
       time: map['time'] as String? ?? '',
-      startDate: map['startDate'] != null
-          ? DateTime.parse(map['startDate'] as String)
-          : DateTime.now(),
+      startDate: parsedStart,
       endDate: parsedEnd,
       expiryDate: parsedExpiry,
       notes: map['notes'] as String?,
       status: map['status'] as String? ?? 'pending',
       lastActionDate: map['lastActionDate'] as String?,
-      patientId: map['patientId'] as String? ?? map['userId'] as String? ?? '',
-      createdBy: map['createdBy'] as String? ?? map['userId'] as String? ?? '',
-      updatedBy: map['updatedBy'] as String? ?? map['userId'] as String? ?? '',
-      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
-      updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt'] as String) : DateTime.now(),
-      isScanned: (map['isScanned'] as int? ?? 0) == 1,
+      patientId: map['patientId']?.toString() ?? userIdVal,
+      createdBy: map['createdBy']?.toString() ?? userIdVal,
+      updatedBy: map['updatedBy']?.toString() ?? userIdVal,
+      createdAt: map['createdAt'] != null
+          ? (DateTime.tryParse(map['createdAt'].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      updatedAt: map['updatedAt'] != null
+          ? (DateTime.tryParse(map['updatedAt'].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      isScanned: (map['isScanned'] == 1 || map['isScanned'] == true),
       scannedText: map['scannedText'] as String?,
       imagePath: map['imagePath'] as String?,
       healthCondition: map['healthCondition'] as String?,

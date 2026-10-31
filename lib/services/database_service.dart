@@ -71,7 +71,21 @@ class DatabaseService {
 
   Future<List<Medicine>> getAllMedicines() async {
     final box = HiveService().medicinesBox;
-    return box.values.where((m) => m.userId == activePatientId || m.patientId == activePatientId).toList();
+    final target = activePatientId.trim().toLowerCase();
+    return box.values.where((m) {
+      final u = m.userId.trim().toLowerCase();
+      final p = m.patientId.trim().toLowerCase();
+      return u == target || p == target || (target.isEmpty && u.isEmpty);
+    }).toList();
+  }
+
+  Future<void> saveServerMedicines(List<Medicine> medicines) async {
+    final box = HiveService().medicinesBox;
+    for (final m in medicines) {
+      if (m.id != null) {
+        await box.put(m.id, m);
+      }
+    }
   }
 
   Future<Medicine?> getMedicineById(int id) async {
@@ -184,6 +198,20 @@ class DatabaseService {
     await settingsBox.put(_remindersKey(), jsonEncode(list));
   }
 
+  Future<void> saveServerReminders(List<Reminder> serverReminders) async {
+    if (serverReminders.isEmpty) return;
+    final all = await getAllReminders();
+    for (final sr in serverReminders) {
+      final idx = all.indexWhere((r) => r.id == sr.id);
+      if (idx >= 0) {
+        all[idx] = sr;
+      } else {
+        all.add(sr);
+      }
+    }
+    await _saveReminders(all);
+  }
+
   Future<int> addReminder(Reminder reminder) async {
     final all = await getAllReminders();
     var maxId = 0;
@@ -282,6 +310,20 @@ class DatabaseService {
     final settingsBox = HiveService().settingsBox;
     final list = logs.map((l) => l.toMap()).toList();
     await settingsBox.put(_alarmLogsKey(), jsonEncode(list));
+  }
+
+  Future<void> saveServerAlarmLogs(List<AlarmLog> serverLogs) async {
+    if (serverLogs.isEmpty) return;
+    final all = await getAllAlarmLogs();
+    for (final sl in serverLogs) {
+      final idx = all.indexWhere((a) => a.id == sl.id);
+      if (idx >= 0) {
+        all[idx] = sl;
+      } else {
+        all.add(sl);
+      }
+    }
+    await _saveAlarmLogs(all);
   }
 
   Future<int> logAlarm(AlarmLog log) async {

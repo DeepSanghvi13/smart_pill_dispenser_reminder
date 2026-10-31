@@ -346,11 +346,11 @@ class MySQLApiService {
     }
   }
 
-  Future<List<Medicine>> getMedicinesFromServer() async {
+  Future<List<Medicine>> getMedicinesFromServer({String? userId}) async {
     try {
       final res = await http
           .get(
-            Uri.parse('$baseUrl/api/medicines?userId=$_currentUserId'),
+            Uri.parse('$baseUrl/api/medicines?userId=${(userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId}'),
             headers: _headers,
           )
           .timeout(const Duration(seconds: 10));
@@ -388,11 +388,11 @@ class MySQLApiService {
 
   // ---- Reminders ----
 
-  Future<List<Reminder>> getRemindersFromServer() async {
+  Future<List<Reminder>> getRemindersFromServer({String? userId}) async {
     try {
       final res = await http
           .get(
-            Uri.parse('$baseUrl/api/reminders?userId=$_currentUserId'),
+            Uri.parse('$baseUrl/api/reminders?userId=${(userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId}'),
             headers: _headers,
           )
           .timeout(const Duration(seconds: 10));
@@ -487,11 +487,11 @@ class MySQLApiService {
     }
   }
 
-  Future<List<AlarmLog>> getAlarmLogsFromServer() async {
+  Future<List<AlarmLog>> getAlarmLogsFromServer({String? userId}) async {
     try {
       final res = await http
           .get(
-            Uri.parse('$baseUrl/api/alarm-logs?userId=$_currentUserId'),
+            Uri.parse('$baseUrl/api/alarm-logs?userId=${(userId != null && userId.trim().isNotEmpty) ? userId.trim() : _currentUserId}'),
             headers: _headers,
           )
           .timeout(const Duration(seconds: 10));
@@ -1455,6 +1455,57 @@ class MySQLApiService {
   }
 
   // Orders
+  Future<Map<String, dynamic>> uploadPrescriptionImage({
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/prescriptions/upload');
+      final request = http.MultipartRequest('POST', uri);
+
+      final token = _token;
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      final multipartFile = http.MultipartFile.fromBytes(
+        'prescription',
+        bytes,
+        filename: filename,
+      );
+
+      request.files.add(multipartFile);
+
+      final streamedResponse =
+          await request.send().timeout(const Duration(seconds: 20));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data;
+      } else {
+        try {
+          final errData = jsonDecode(response.body) as Map<String, dynamic>;
+          return {
+            'ok': false,
+            'message':
+                errData['message'] ?? 'Upload failed (${response.statusCode})',
+          };
+        } catch (_) {
+          return {
+            'ok': false,
+            'message': 'Failed to upload prescription (${response.statusCode})',
+          };
+        }
+      }
+    } catch (e) {
+      return {
+        'ok': false,
+        'message': 'Network error uploading prescription: $e'
+      };
+    }
+  }
+
   Future<Map<String, dynamic>> placeOrder(
       Map<String, dynamic> orderData) async {
     try {

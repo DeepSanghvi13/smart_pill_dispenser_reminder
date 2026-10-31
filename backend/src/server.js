@@ -65,6 +65,38 @@ const profileUpload = multer({
   }
 });
 
+const prescriptionUploadDir = path.join(uploadDir, 'prescriptions');
+if (!fs.existsSync(prescriptionUploadDir)) {
+  fs.mkdirSync(prescriptionUploadDir, { recursive: true });
+}
+
+const prescriptionStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, prescriptionUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const userId = req.user ? req.user.id : 'anon';
+    const uniqueSuffix = Date.now() + '_' + Math.round(Math.random() * 1e9);
+    cb(null, 'presc_' + userId + '_' + uniqueSuffix + ext);
+  }
+});
+
+const prescriptionUpload = multer({
+  storage: prescriptionStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  fileFilter: function (req, file, cb) {
+    const allowedMime = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedMime.includes(file.mimetype) || allowedExt.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Please select a valid image file (.jpg, .jpeg, .png, .webp).'));
+    }
+  }
+});
+
 const port = Number(process.env.PORT || 3000);
 const adminEmail = (process.env.ADMIN_EMAIL || 'admin@smartpill.com')
   .trim()
@@ -347,13 +379,19 @@ function authenticateTokenOrFallback(req, res, next) {
 }
 
 // Convert model objects to API responses (DTO mapping)
-function medicineToDto(doc) {
+function medicineToDto(doc, userEmail) {
+  const resolvedEmail = userEmail || doc.userEmail || String(doc.userId || '');
   return {
     id: doc.id,
+    userId: resolvedEmail,
+    patientId: resolvedEmail,
     name: doc.name,
     dosage: doc.dosage,
+    quantity: doc.quantity || '1 Pill',
+    frequency: doc.frequency || 'Daily',
     time: doc.time,
-    category: doc.type,
+    type: doc.type || doc.category || 'tablets',
+    category: doc.type || doc.category || 'tablets',
     startDate: doc.startDate,
     endDate: doc.endDate,
     expiryDate: doc.expiryDate || doc.endDate,
@@ -370,7 +408,7 @@ function medicineToDto(doc) {
   };
 }
 
-function reminderToDto(doc) {
+function reminderToDto(doc, userEmail) {
   let days = [];
   try {
     if (typeof doc.daysOfWeek === 'string') {
@@ -381,9 +419,13 @@ function reminderToDto(doc) {
   } catch (_) {
     days = [];
   }
+  const resolvedEmail = userEmail || doc.userEmail || String(doc.userId || '');
   return {
     id: doc.id,
+    userId: resolvedEmail,
+    patientId: resolvedEmail,
     medicineId: doc.medicineId,
+    medicineName: doc.medicineName || '',
     time: doc.time,
     daysOfWeek: days || [],
     isActive: doc.isActive === 1 || doc.isActive === true,
@@ -391,9 +433,12 @@ function reminderToDto(doc) {
   };
 }
 
-function alarmLogToDto(doc) {
+function alarmLogToDto(doc, userEmail) {
+  const resolvedEmail = userEmail || doc.userEmail || String(doc.userId || '');
   return {
     id: doc.id,
+    userId: resolvedEmail,
+    patientId: resolvedEmail,
     medicineId: doc.medicineId,
     medicineName: doc.medicineName,
     scheduledTime: doc.scheduledTime,
@@ -1184,6 +1229,8 @@ app.get('/api/medicines', authenticateTokenOrFallback, async (req, res) => {
   if (!userId) return res.status(400).json({ ok: false, error: 'User mapping failed' });
 
   try {
+    const userRow = await query('SELECT email FROM users WHERE id = ? LIMIT 1', [userId]);
+    const userEmail = userRow.length > 0 ? userRow[0].email : String(userId);
     const rows = await query('SELECT * FROM medicines WHERE userId = ? ORDER BY id DESC', [userId]);
     await logActivity({
       userId,
@@ -1194,7 +1241,7 @@ app.get('/api/medicines', authenticateTokenOrFallback, async (req, res) => {
       status: 'SUCCESS',
       req
     });
-    res.json({ ok: true, data: rows.map(medicineToDto) });
+    res.json({ ok: true, data: rows.map(r => medicineToDto(r, userEmail)) });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -1283,8 +1330,10 @@ app.get('/api/reminders', authenticateTokenOrFallback, async (req, res) => {
   if (!userId) return res.status(400).json({ ok: false, error: 'User mapping failed' });
 
   try {
-    const rows = await query('SELECT * FROM reminders WHERE userId = ? ORDER BY id DESC', [userId]);
-    res.json({ ok: true, data: rows.map(reminderToDto) });
+    const userRow = await query('SELECT email FROM users WHERE id = ? LIMIT 1', [userId]);
+    const userEmail = userRow.length > 0 ? userRow[0].email : String(userId);
+    const rows = await query(`SELECT r.*, m.name AS medicineName FROM reminders r LEFT JOIN medicines m ON r.medicineId = m.id WHERE r.userId = ? ORDER BY r.id DESC`, [userId]);
+    res.json({ ok: true, data: rows.map(r => reminderToDto(r, userEmail)) });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -1336,8 +1385,10 @@ app.get('/api/alarm-logs', authenticateTokenOrFallback, async (req, res) => {
   if (!userId) return res.status(400).json({ ok: false, error: 'User mapping failed' });
 
   try {
+    const userRow = await query('SELECT email FROM users WHERE id = ? LIMIT 1', [userId]);
+    const userEmail = userRow.length > 0 ? userRow[0].email : String(userId);
     const rows = await query('SELECT * FROM alarmLogs WHERE userId = ? ORDER BY id DESC', [userId]);
-    res.json({ ok: true, data: rows.map(alarmLogToDto) });
+    res.json({ ok: true, data: rows.map(r => alarmLogToDto(r, userEmail)) });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -3352,6 +3403,56 @@ app.post('/api/prescriptions/:id/renew', authenticateToken, async (req, res) => 
   }
 });
 
+// Upload doctor prescription image (Patient / Caretaker for orders)
+app.post('/api/prescriptions/upload', authenticateToken, (req, res) => {
+  prescriptionUpload.single('prescription')(req, res, async (err) => {
+    if (err) {
+      const isSize = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        ok: false,
+        message: isSize
+          ? 'Image size is too large. Maximum size allowed is 10MB.'
+          : (err.message || 'Please select a valid image file (.jpg, .jpeg, .png, .webp).')
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        ok: false,
+        message: 'No prescription file provided. Please select an image.'
+      });
+    }
+
+    const userId = req.user.id;
+    const relativePath = '/uploads/prescriptions/' + req.file.filename;
+
+    try {
+      await logActivity({
+        userId,
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        activityType: 'UPLOAD_PRESCRIPTION',
+        description: 'Uploaded doctor prescription image for medical order',
+        status: 'SUCCESS',
+        req
+      });
+
+      const protocol = req.protocol || 'http';
+      const host = req.get('host') || ('localhost:' + port);
+      const fullUrl = protocol + '://' + host + relativePath;
+
+      return res.status(200).json({
+        ok: true,
+        message: 'Prescription uploaded successfully.',
+        imageUrl: relativePath,
+        fullUrl: fullUrl
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, message: 'Server error: ' + e.message });
+    }
+  });
+});
+
 // 6. Orders (Patient & Caretaker create order, Pharmacy manages)
 app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 'admin']), async (req, res) => {
   const requesterId = req.user.id;
@@ -3361,6 +3462,7 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
     patientId,
     shopId,
     prescriptionId = null,
+    prescriptionImage = null,
     deliveryAddress = '',
     paymentMethod = 'Cash on Delivery',
     notes = '',
@@ -3459,7 +3561,7 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
       }
 
       // Check prescription required
-      if (med.prescriptionRequired === 1 && !prescriptionId) {
+      if (med.prescriptionRequired === 1 && !prescriptionId && !prescriptionImage) {
         return res.status(400).json({
           ok: false,
           message: `${med.name} requires a doctor prescription. Please select an active prescription.`
@@ -3495,14 +3597,15 @@ app.post('/api/orders', authenticateToken, requireRole(['patient', 'caretaker', 
 
     const orderRes = await query(
       `INSERT INTO medicine_orders 
-       (orderNumber, patientId, caretakerId, shopId, prescriptionId, totalAmount, status, deliveryAddress, paymentMethod, notes)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+       (orderNumber, patientId, caretakerId, shopId, prescriptionId, prescriptionImage, totalAmount, status, deliveryAddress, paymentMethod, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
       [
         orderNumber,
         targetPatientId,
         caretakerId,
         Number(shopId),
         prescriptionId ? Number(prescriptionId) : null,
+        prescriptionImage ? prescriptionImage.trim() : null,
         totalAmount,
         deliveryAddress ? deliveryAddress.trim() : null,
         paymentMethod || 'Cash on Delivery',

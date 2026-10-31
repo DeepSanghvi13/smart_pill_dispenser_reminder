@@ -60,6 +60,7 @@ import '../screens/client/doctor/doctor_home_screen.dart';
 import '../screens/client/shop/medical_shop_screen.dart';
 import '../screens/client/shop/cart_screen.dart';
 import '../screens/client/shop/order_details_screen.dart';
+import '../screens/client/shop/upload_prescription_screen.dart';
 import '../screens/client/pharmacy/pharmacy_home_screen.dart';
 import '../screens/client/doctor/my_prescriptions_screen.dart';
 import '../screens/client/doctor/doctor_feedback_screen.dart';
@@ -83,6 +84,7 @@ class AppRoutes {
   static const String medicalShop = '/shop';
   static const String cart = '/shop/cart';
   static const String orderDetails = '/shop/order-details';
+  static const String uploadPrescription = '/shop/upload-prescription';
   static const String pharmacyHome = '/pharmacy/home';
 
   static const String adminDashboard = '/admin/dashboard';
@@ -157,6 +159,8 @@ class AppRoutes {
         final args = settings.arguments;
         final patientEmail = args is String ? args : null;
         return MaterialPageRoute(builder: (_) => CartScreen(patientEmail: patientEmail));
+      case uploadPrescription:
+        return MaterialPageRoute(builder: (_) => const UploadPrescriptionScreen());
       case orderDetails:
         final args = settings.arguments;
         if (args is MedicineOrder) {

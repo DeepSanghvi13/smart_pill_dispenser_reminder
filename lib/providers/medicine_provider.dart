@@ -9,6 +9,7 @@ import '../services/notification_service.dart';
 import '../services/auth_service.dart';
 import '../services/hive_service.dart';
 import '../services/database_service.dart';
+import '../services/mysql_api_service.dart';
 
 class MedicineProvider extends ChangeNotifier {
   final MedicineRepository _repo = MedicineRepository();
@@ -53,6 +54,18 @@ class MedicineProvider extends ChangeNotifier {
       _loadingMedicines = true;
       _error = null;
       _medicines = await _repo.getAllMedicines();
+      notifyListeners();
+
+      final api = MySQLApiService();
+      final isOnline = await api.checkServerConnection();
+      if (isOnline) {
+        final targetUser = _activePatientId ?? DatabaseService().activePatientId;
+        final serverMeds = await api.getMedicinesFromServer(userId: targetUser);
+        if (serverMeds.isNotEmpty) {
+          await DatabaseService().saveServerMedicines(serverMeds);
+          _medicines = await _repo.getAllMedicines();
+        }
+      }
     } catch (e) {
       _error = 'Failed to load medicines: $e';
     } finally {
@@ -300,6 +313,18 @@ class MedicineProvider extends ChangeNotifier {
       _loadingReminders = true;
       _error = null;
       _reminders = await _repo.getAllReminders();
+      notifyListeners();
+
+      final api = MySQLApiService();
+      final isOnline = await api.checkServerConnection();
+      if (isOnline) {
+        final targetUser = _activePatientId ?? DatabaseService().activePatientId;
+        final serverReminders = await api.getRemindersFromServer(userId: targetUser);
+        if (serverReminders.isNotEmpty) {
+          await DatabaseService().saveServerReminders(serverReminders);
+          _reminders = await _repo.getAllReminders();
+        }
+      }
     } catch (e) {
       _error = 'Failed to load reminders: $e';
     } finally {
@@ -367,6 +392,18 @@ class MedicineProvider extends ChangeNotifier {
       _loadingAlarms = true;
       _error = null;
       _todayAlarms = await _repo.getTodayAlarmLogs();
+      notifyListeners();
+
+      final api = MySQLApiService();
+      final isOnline = await api.checkServerConnection();
+      if (isOnline) {
+        final targetUser = _activePatientId ?? DatabaseService().activePatientId;
+        final serverLogs = await api.getAlarmLogsFromServer(userId: targetUser);
+        if (serverLogs.isNotEmpty) {
+          await DatabaseService().saveServerAlarmLogs(serverLogs);
+          _todayAlarms = await _repo.getTodayAlarmLogs();
+        }
+      }
     } catch (e) {
       _error = 'Failed to load alarms: $e';
     } finally {

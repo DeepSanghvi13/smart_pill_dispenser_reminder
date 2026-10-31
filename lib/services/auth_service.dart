@@ -139,6 +139,22 @@ class AuthService extends ChangeNotifier {
         _currentUser = email;
         _isLoggedIn = true;
         await DatabaseService().setCurrentUser(email);
+        final token = settings.get('jwt_token') as String?;
+        MySQLApiService().configure(userId: email, authToken: token);
+
+        try {
+          final profileBox = HiveService().profilesBox;
+          if (!profileBox.containsKey(email)) {
+            final isServerOnline = await MySQLApiService().checkServerConnection();
+            if (isServerOnline) {
+              final serverProf = await MySQLApiService().getUserProfileFromServer(email);
+              if (serverProf != null) {
+                await profileBox.put(email, serverProf);
+              }
+            }
+          }
+        } catch (_) {}
+
         notifyListeners();
       }
     } catch (_) {}

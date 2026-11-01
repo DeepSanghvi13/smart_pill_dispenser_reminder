@@ -258,7 +258,7 @@ class MySQLApiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'email': email, 'password': password}),
           )
-          .timeout(const Duration(milliseconds: 3500));
+          .timeout(const Duration(seconds: 10));
 
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return body;
@@ -709,17 +709,28 @@ class MySQLApiService {
             headers: _headers,
             body: jsonEncode({
               'userId': userEmail,
+              'fullName': profile.fullName,
               'firstName': parts.isNotEmpty ? parts.first : '',
               'lastName': parts.length > 1 ? parts.sublist(1).join(' ') : '',
               'email': profile.email,
               'gender': profile.gender,
               'phoneNumber': profile.mobileNumber,
+              'mobileNumber': profile.mobileNumber,
+              'age': profile.age,
               'emergencyContact': profile.emergencyContact,
               'bloodGroup': profile.bloodGroup,
               'weight': profile.weight,
               'height': profile.height,
               'medicalConditions': profile.medicalConditions,
               'profilePicture': profile.profilePicture,
+              'relationship': profile.relationship,
+              'specialization': profile.specialization,
+              'licenseNumber': profile.licenseNumber,
+              'hospitalName': profile.hospitalName,
+              'experience': profile.experience,
+              'location': profile.location,
+              'address': profile.address,
+              'connectionCode': profile.connectionCode,
             }),
           )
           .timeout(const Duration(seconds: 10));
@@ -740,19 +751,7 @@ class MySQLApiService {
       if (res.statusCode == 200) {
         final d = jsonDecode(res.body)['data'] as Map<String, dynamic>?;
         if (d == null) return null;
-        return UserProfile(
-          email: d['email']?.toString() ?? '',
-          fullName: '${d['firstName'] ?? ''} ${d['lastName'] ?? ''}'.trim(),
-          mobileNumber: d['phoneNumber']?.toString(),
-          gender: d['gender']?.toString(),
-          profilePicture: d['profilePicture']?.toString(),
-          emergencyContact: d['emergencyContact']?.toString(),
-          bloodGroup: d['bloodGroup']?.toString(),
-          weight: d['weight']?.toString(),
-          height: d['height']?.toString(),
-          medicalConditions: d['medicalConditions']?.toString(),
-          age: d['age'] is num ? (d['age'] as num).toInt() : null,
-        );
+        return UserProfile.fromMap(d);
       }
       return null;
     } catch (_) {
@@ -1470,19 +1469,14 @@ class MySQLApiService {
   Future<List<Map<String, dynamic>>> getMyPrescriptions(
       {dynamic patientId}) async {
     try {
-      int? resolvedPatientId;
-      if (patientId != null) {
-        resolvedPatientId =
-            patientId is int ? patientId : int.tryParse(patientId.toString());
-        resolvedPatientId ??= await resolveUserIdByEmail(patientId.toString());
-      }
-      final uri = patientId != null
-          ? Uri.parse(
-              '$baseUrl/api/prescriptions/my-prescriptions?patientId=$resolvedPatientId')
-          : Uri.parse('$baseUrl/api/prescriptions/my-prescriptions');
+      final targetParam = (patientId != null && patientId.toString().trim().isNotEmpty)
+          ? patientId.toString().trim()
+          : _currentUserId;
+      final uri = Uri.parse(
+          '$baseUrl/api/prescriptions/my-prescriptions?patientId=$targetParam');
       final res = await http
           .get(uri, headers: _headers)
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body)['data'] as List<dynamic>? ?? [];
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -1506,6 +1500,24 @@ class MySQLApiService {
       return [];
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<bool> deletePrescription(int prescriptionId) async {
+    try {
+      final res = await http
+          .delete(
+            Uri.parse('$baseUrl/api/prescriptions/$prescriptionId'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['ok'] == true;
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 

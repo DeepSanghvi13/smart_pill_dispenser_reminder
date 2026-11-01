@@ -8,6 +8,7 @@ import '../../../models/user_profile.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
+import '../../../services/hive_service.dart';
 import '../../../services/mysql_api_service.dart';
 
 class CreateProfileScreen extends StatefulWidget {
@@ -99,29 +100,107 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     final email = auth.currentUser;
     if (email == null) return;
 
-    final profile = await DatabaseService().getUserProfileData();
-    if (profile != null) {
+    // 1. Load from local database/Hive
+    var profile = await DatabaseService().getUserProfileData();
+
+    // 2. Load from MySQL server to ensure fresh, fully-joined data
+    try {
+      final isOnline = await MySQLApiService().checkServerConnection();
+      if (isOnline) {
+        final serverProfile = await MySQLApiService().getUserProfileFromServer(email);
+        if (serverProfile != null) {
+          profile = serverProfile;
+          await HiveService().profilesBox.put(email, serverProfile);
+        }
+      }
+    } catch (_) {}
+
+    final localUser = HiveService().usersBox.get(email);
+
+    if (mounted) {
       setState(() {
-        nameController.text = profile.fullName;
-        ageController.text = profile.age?.toString() ?? '';
-        mobileController.text = profile.mobileNumber ?? '';
-        emergencyController.text = profile.emergencyContact ?? '';
-        weightController.text = profile.weight ?? '';
-        heightController.text = profile.height ?? '';
-        conditionsController.text = profile.medicalConditions ?? '';
+        if (profile != null) {
+          nameController.text = profile.fullName.isNotEmpty ? profile.fullName : (localUser?.fullName ?? '');
+          ageController.text = profile.age?.toString() ?? '';
+          mobileController.text = profile.mobileNumber ?? '';
+          emergencyController.text = profile.emergencyContact ?? '';
+          weightController.text = profile.weight ?? '';
+          heightController.text = profile.height ?? '';
+          conditionsController.text = profile.medicalConditions ?? '';
 
-        specializationController.text = profile.specialization ?? '';
-        licenseController.text = profile.licenseNumber ?? '';
-        hospitalController.text = profile.hospitalName ?? '';
-        experienceController.text = profile.experience ?? '';
-        locationController.text = profile.location ?? '';
+          specializationController.text = profile.specialization ?? '';
+          licenseController.text = profile.licenseNumber ?? '';
+          hospitalController.text = profile.hospitalName ?? (auth.isPharmacy ? (profile.address ?? '') : '');
+          experienceController.text = profile.experience ?? '';
+          locationController.text = profile.location ?? profile.address ?? '';
 
-        _selectedGender = _genders.contains(profile.gender) ? profile.gender : null;
-        _selectedBloodGroup = _bloodGroups.contains(profile.bloodGroup) ? profile.bloodGroup : null;
-        _selectedRelationship = _relationships.contains(profile.relationship) ? profile.relationship : null;
-        _selectedSpecialization = _specializations.contains(profile.specialization) ? profile.specialization : null;
-        _imagePath = profile.profilePicture;
+          _selectedGender = _genders.contains(profile.gender) ? profile.gender : null;
+          _selectedBloodGroup = _bloodGroups.contains(profile.bloodGroup) ? profile.bloodGroup : null;
+          _selectedRelationship = _relationships.contains(profile.relationship) ? profile.relationship : null;
+          _selectedSpecialization = _specializations.contains(profile.specialization) ? profile.specialization : null;
+          _imagePath = profile.profilePicture;
+        } else {
+          nameController.text = localUser?.fullName ?? '';
+          mobileController.text = '';
+        }
       });
+    }
+
+    // 3. Role-specific deep fetching
+    if (auth.isDoctor) {
+      try {
+        final doc = await MySQLApiService().getDoctorProfile(email);
+        if (doc != null && mounted) {
+          setState(() {
+            if (nameController.text.isEmpty && doc['fullName'] != null) {
+              nameController.text = doc['fullName'].toString();
+            }
+            if (mobileController.text.isEmpty && doc['phoneNumber'] != null) {
+              mobileController.text = doc['phoneNumber'].toString();
+            }
+            final spec = doc['specialization']?.toString() ?? '';
+            if (spec.isNotEmpty) {
+              specializationController.text = spec;
+              _selectedSpecialization = _specializations.contains(spec) ? spec : null;
+            }
+            if (licenseController.text.isEmpty && doc['licenseNumber'] != null) {
+              licenseController.text = doc['licenseNumber'].toString();
+            }
+            if (hospitalController.text.isEmpty && doc['hospitalName'] != null) {
+              hospitalController.text = doc['hospitalName'].toString();
+            }
+            if (experienceController.text.isEmpty && doc['experience'] != null) {
+              experienceController.text = doc['experience'].toString();
+            }
+            if (locationController.text.isEmpty && doc['location'] != null) {
+              locationController.text = doc['location'].toString();
+            }
+          });
+        }
+      } catch (_) {}
+    } else if (auth.isPharmacy) {
+      try {
+        final shop = await MySQLApiService().getPharmacyProfile();
+        if (shop != null && mounted) {
+          setState(() {
+            if (nameController.text.isEmpty && shop['ownerName'] != null) {
+              nameController.text = shop['ownerName'].toString();
+            }
+            if (mobileController.text.isEmpty && shop['phoneNumber'] != null) {
+              mobileController.text = shop['phoneNumber'].toString();
+            }
+            if (hospitalController.text.isEmpty && shop['shopName'] != null) {
+              hospitalController.text = shop['shopName'].toString();
+            }
+            if (licenseController.text.isEmpty && shop['licenseNumber'] != null) {
+              licenseController.text = shop['licenseNumber'].toString();
+            }
+            if (locationController.text.isEmpty && shop['address'] != null) {
+              locationController.text = shop['address'].toString();
+            }
+          });
+        }
+      } catch (_) {}
     }
   }
 
@@ -226,7 +305,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         connectionCode: connCode,
         specialization: isDoc ? specValue : null,
         licenseNumber: (isDoc || isPharm) ? licenseController.text.trim() : null,
-        hospitalName: isDoc ? hospitalController.text.trim() : null,
+        hospitalName: isDoc ? hospitalController.text.trim() : (isPharm ? hospitalController.text.trim() : null),
         experience: isDoc ? experienceController.text.trim() : null,
         location: (isDoc || isPharm) ? locationController.text.trim() : null,
         address: isPharm ? locationController.text.trim() : null,
@@ -236,7 +315,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
       // If Doctor, also sync to MySQL doctor profile endpoint
       if (isDoc) {
-        MySQLApiService().saveDoctorProfile({
+        await MySQLApiService().saveDoctorProfile({
           'fullName': nameController.text.trim(),
           'phoneNumber': mobileController.text.trim(),
           'specialization': specValue ?? 'General Physician',
@@ -249,8 +328,8 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
       // If Pharmacy, sync to pharmacy profile endpoint
       if (isPharm) {
-        MySQLApiService().savePharmacyProfile({
-          'shopName': nameController.text.trim(),
+        await MySQLApiService().savePharmacyProfile({
+          'shopName': hospitalController.text.trim(),
           'ownerName': nameController.text.trim(),
           'phoneNumber': mobileController.text.trim(),
           'address': locationController.text.trim(),
@@ -270,18 +349,35 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         ),
       );
 
-      // Routing logic
-      if (widget.isEditing || Navigator.canPop(context)) {
-        Navigator.pop(context, true); // go back if editing
+      // Routing logic:
+      if (widget.isEditing) {
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context, true); // go back if editing
+        } else {
+          if (auth.isAdmin) {
+            Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+          } else if (auth.isDoctor) {
+            Navigator.pushReplacementNamed(context, AppRoutes.doctorHome);
+          } else if (auth.isCaretaker) {
+            Navigator.pushReplacementNamed(context, AppRoutes.caretakerHome);
+          } else if (auth.isPharmacy) {
+            Navigator.pushReplacementNamed(context, AppRoutes.pharmacyHome);
+          } else {
+            Navigator.pushReplacementNamed(context, AppRoutes.userHome);
+          }
+        }
       } else {
-        // User requested: Register -> Profile -> Login
-        // We log them out of the temporary registration session and route to Login
+        // User registered and added details -> navigate to Login page
         await auth.logout();
         if (!mounted) return;
         Navigator.pushNamedAndRemoveUntil(
           context,
           AppRoutes.login,
           (route) => false,
+          arguments: {
+            'email': email,
+            'isFromRegister': true,
+          },
         );
       }
     } catch (e) {

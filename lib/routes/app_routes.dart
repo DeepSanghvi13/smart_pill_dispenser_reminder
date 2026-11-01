@@ -200,9 +200,9 @@ class AppRoutes {
 
         if (args is String) {
           prefilledEmail = args;
-        } else if (args is Map<String, dynamic>) {
-          prefilledEmail = args['email'] as String?;
-          isFromRegister = args['isFromRegister'] as bool? ?? false;
+        } else if (args is Map) {
+          prefilledEmail = args['email']?.toString();
+          isFromRegister = args['isFromRegister'] == true;
         }
 
         return MaterialPageRoute(

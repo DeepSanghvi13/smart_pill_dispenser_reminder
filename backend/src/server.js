@@ -718,14 +718,31 @@ async function upsertDependent(userId, dependent) {
 async function upsertUserProfile(userId, profile) {
   if (!profile) return;
   
+  const rawAge = profile.age;
+  const ageVal = rawAge !== undefined && rawAge !== null && !isNaN(Number(rawAge)) ? Number(rawAge) : null;
+  const bloodGroupVal = profile.bloodGroup ? String(profile.bloodGroup).trim() : null;
+  const weightVal = profile.weight ? String(profile.weight).trim() : null;
+  const heightVal = profile.height ? String(profile.height).trim() : null;
+  const emergencyContactVal = profile.emergencyContact ? String(profile.emergencyContact).trim() : null;
+  const medicalConditionsVal = profile.medicalConditions ? String(profile.medicalConditions).trim() : null;
+  const phoneVal = (profile.phoneNumber || profile.mobileNumber) ? String(profile.phoneNumber || profile.mobileNumber).trim() : null;
+  const emailVal = profile.email ? String(profile.email).trim() : null;
+  const profilePicVal = profile.profilePicture || null;
+
   await query(
-    `INSERT INTO userProfiles (userId, firstName, lastName, gender, birthDate, zipCode, phoneNumber, email, profilePicture)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO userProfiles (
+       userId, firstName, lastName, gender, birthDate, zipCode, phoneNumber, email, profilePicture,
+       age, bloodGroup, weight, height, emergencyContact, medicalConditions
+     )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE 
      firstName=VALUES(firstName), lastName=VALUES(lastName), gender=VALUES(gender), 
      birthDate=VALUES(birthDate), zipCode=VALUES(zipCode), phoneNumber=VALUES(phoneNumber), 
      email=VALUES(email),
-     profilePicture=COALESCE(VALUES(profilePicture), profilePicture)`,
+     profilePicture=COALESCE(VALUES(profilePicture), profilePicture),
+     age=VALUES(age), bloodGroup=VALUES(bloodGroup), weight=VALUES(weight),
+     height=VALUES(height), emergencyContact=VALUES(emergencyContact),
+     medicalConditions=VALUES(medicalConditions)`,
     [
       userId,
       profile.firstName || '',
@@ -733,14 +750,66 @@ async function upsertUserProfile(userId, profile) {
       profile.gender || null,
       profile.birthDate || null,
       profile.zipCode || null,
-      profile.phoneNumber || null,
-      profile.email || null,
-      profile.profilePicture || null
+      phoneVal,
+      emailVal,
+      profilePicVal,
+      ageVal,
+      bloodGroupVal,
+      weightVal,
+      heightVal,
+      emergencyContactVal,
+      medicalConditionsVal
     ]
   );
 
-  if (profile.phoneNumber && String(profile.phoneNumber).trim().length > 0) {
-    await query('UPDATE users SET phoneNumber = ? WHERE id = ?', [String(profile.phoneNumber).trim(), userId]);
+  // Sync fullName & phoneNumber back to users table
+  if (profile.fullName && String(profile.fullName).trim().length > 0) {
+    await query('UPDATE users SET fullName = ? WHERE id = ?', [String(profile.fullName).trim(), userId]);
+  } else if ((profile.firstName || profile.lastName) && String(`${profile.firstName || ''} ${profile.lastName || ''}`).trim().length > 0) {
+    await query('UPDATE users SET fullName = ? WHERE id = ?', [String(`${profile.firstName || ''} ${profile.lastName || ''}`).trim(), userId]);
+  }
+
+  if (phoneVal) {
+    await query('UPDATE users SET phoneNumber = ? WHERE id = ?', [phoneVal, userId]);
+  }
+
+  // If caretaker relationship is provided, update caretakers table
+  if (profile.relationship !== undefined && profile.relationship !== null) {
+    const rel = String(profile.relationship).trim();
+    if (rel.length > 0) {
+      await query(
+        `INSERT INTO caretakers (userId, relationship) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE relationship = VALUES(relationship)`,
+        [userId, rel]
+      );
+    }
+  }
+
+  // If doctor details are provided, update doctors table
+  if (profile.specialization || profile.licenseNumber || profile.hospitalName || profile.experience || profile.location) {
+    await upsertDoctor(userId, {
+      specialization: profile.specialization,
+      licenseNumber: profile.licenseNumber,
+      hospitalName: profile.hospitalName,
+      experience: profile.experience,
+      location: profile.location
+    });
+  }
+
+  // If pharmacy details are provided, update medical_shops table
+  if (profile.shopName || (profile.address && profile.licenseNumber)) {
+    const shopName = profile.shopName || profile.hospitalName || 'Medical Shop';
+    const ownerName = profile.fullName || profile.ownerName || '';
+    const address = profile.address || profile.location || '';
+    const lic = profile.licenseNumber || '';
+    await query(
+      `INSERT INTO medical_shops (userId, shopName, ownerName, phoneNumber, email, address, licenseNumber)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+       shopName=VALUES(shopName), ownerName=VALUES(ownerName), phoneNumber=VALUES(phoneNumber),
+       address=VALUES(address), licenseNumber=VALUES(licenseNumber)`,
+      [userId, shopName, ownerName, phoneVal, emailVal || '', address, lic]
+    );
   }
 }
 
@@ -1562,10 +1631,19 @@ app.get('/api/user-profile/:userId', authenticateTokenOrFallback, async (req, re
 
   try {
     const rows = await query(
-      `SELECT up.*, u.fullName, u.email as userEmail, u.phoneNumber 
-       FROM userProfiles up 
-       JOIN users u ON up.userId = u.id 
-       WHERE up.userId = ? LIMIT 1`, 
+      `SELECT u.id, u.fullName, u.email as userEmail, u.phoneNumber as userPhone, u.role as userRole,
+              up.firstName, up.lastName, up.gender, up.birthDate, up.zipCode, up.phoneNumber as profilePhone,
+              up.email as profileEmail, up.profilePicture, up.age, up.bloodGroup, up.weight, up.height,
+              up.emergencyContact, up.medicalConditions, up.createdAt, up.updatedAt,
+              d.specialization, d.licenseNumber as docLicense, d.hospitalName, d.experience, d.location as docLocation, d.isVerified as docVerified,
+              c.relationship,
+              ms.shopName, ms.ownerName, ms.phoneNumber as shopPhone, ms.address as shopAddress, ms.licenseNumber as shopLicense
+       FROM users u
+       LEFT JOIN userProfiles up ON u.id = up.userId
+       LEFT JOIN doctors d ON u.id = d.userId
+       LEFT JOIN caretakers c ON u.id = c.userId
+       LEFT JOIN medical_shops ms ON u.id = ms.userId
+       WHERE u.id = ? LIMIT 1`, 
       [userId]
     );
     const profile = rows[0];
@@ -1573,17 +1651,41 @@ app.get('/api/user-profile/:userId', authenticateTokenOrFallback, async (req, re
       return res.status(404).json({ ok: false, message: 'Profile not found' });
     }
 
+    const resolvedFullName = (profile.fullName && profile.fullName.trim().length > 0)
+      ? profile.fullName.trim()
+      : `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
+
     return res.json({
       ok: true,
       data: {
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        gender: profile.gender,
-        birthDate: profile.birthDate,
-        zipCode: profile.zipCode,
-        phoneNumber: profile.phoneNumber,
-        email: profile.userEmail,
+        userId: profile.id,
+        fullName: resolvedFullName,
+        firstName: profile.firstName || (resolvedFullName ? resolvedFullName.split(' ')[0] : ''),
+        lastName: profile.lastName || (resolvedFullName && resolvedFullName.split(' ').length > 1 ? resolvedFullName.split(' ').slice(1).join(' ') : ''),
+        gender: profile.gender || null,
+        birthDate: profile.birthDate || null,
+        zipCode: profile.zipCode || null,
+        phoneNumber: profile.userPhone || profile.profilePhone || profile.shopPhone || null,
+        mobileNumber: profile.userPhone || profile.profilePhone || profile.shopPhone || null,
+        email: profile.userEmail || profile.profileEmail || null,
         profilePicture: profile.profilePicture || null,
+        age: profile.age != null ? Number(profile.age) : null,
+        bloodGroup: profile.bloodGroup || null,
+        weight: profile.weight || null,
+        height: profile.height || null,
+        emergencyContact: profile.emergencyContact || null,
+        medicalConditions: profile.medicalConditions || null,
+        relationship: profile.relationship || null,
+        specialization: profile.specialization || (profile.userRole === 'doctor' ? 'General Physician' : null),
+        licenseNumber: profile.docLicense || profile.shopLicense || null,
+        hospitalName: profile.hospitalName || profile.shopName || null,
+        experience: profile.experience || null,
+        location: profile.docLocation || profile.shopAddress || null,
+        address: profile.shopAddress || profile.docLocation || null,
+        shopName: profile.shopName || null,
+        ownerName: profile.ownerName || null,
+        role: profile.userRole || null,
+        isVerified: profile.docVerified ? true : false,
         createdAt: profile.createdAt,
         updatedAt: profile.updatedAt,
       },
@@ -3458,22 +3560,23 @@ app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req, 
 });
 
 // Get prescriptions for currently logged-in user
-app.get('/api/prescriptions/my-prescriptions', authenticateToken, async (req, res) => {
-  const userId = req.user.id;
-  const { patientId } = req.query;
+app.get('/api/prescriptions/my-prescriptions', authenticateTokenOrFallback, async (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const inputPatientId = req.query.patientId || req.query.userId;
 
   try {
     let targetPatientId = userId;
-    if (req.user.role === 'caretaker') {
-      if (patientId) {
-        targetPatientId = Number(patientId);
-      } else {
-        const conns = await query(
-          `SELECT patientId FROM caretaker_connections WHERE caretakerId = ? AND status = 'connected' LIMIT 1`,
-          [userId]
-        );
-        if (conns.length > 0) targetPatientId = conns[0].patientId;
+    if (inputPatientId) {
+      const resolved = await resolveUserId(inputPatientId);
+      if (resolved) {
+        targetPatientId = resolved;
       }
+    } else if (!targetPatientId && req.user && req.user.email) {
+      targetPatientId = await resolveUserId(req.user.email);
+    }
+
+    if (!targetPatientId) {
+      return res.status(400).json({ ok: false, message: 'User or patient ID mapping failed' });
     }
 
     const sql = `
@@ -3491,7 +3594,7 @@ app.get('/api/prescriptions/my-prescriptions', authenticateToken, async (req, re
       JOIN users uDoc ON p.doctorId = uDoc.id
       LEFT JOIN doctors d ON uDoc.id = d.userId
       LEFT JOIN shop_medicines sm ON p.shopMedicineId = sm.id
-      WHERE p.patientId = ? AND p.status = 'active'
+      WHERE p.patientId = ? AND (p.status = 'active' OR p.status IS NULL)
       ORDER BY p.id DESC
     `;
     const rows = await query(sql, [targetPatientId]);
@@ -3557,6 +3660,62 @@ app.post('/api/prescriptions/:id/renew', authenticateToken, async (req, res) => 
     });
 
     return res.json({ ok: true, message: 'Renewal requested successfully.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Delete prescription (Doctor who issued it or Admin)
+app.delete('/api/prescriptions/:id', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const userRole = req.user.role;
+  const prescriptionId = Number(req.params.id);
+
+  if (!prescriptionId || isNaN(prescriptionId)) {
+    return res.status(400).json({ ok: false, message: 'Invalid prescription ID.' });
+  }
+
+  try {
+    const rows = await query('SELECT * FROM prescriptions WHERE id = ? LIMIT 1', [prescriptionId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Prescription not found.' });
+    }
+
+    const prescription = rows[0];
+
+    if (userRole !== 'admin' && prescription.doctorId !== userId) {
+      return res.status(403).json({
+        ok: false,
+        message: 'Permission denied. Only the issuing doctor can delete this prescription.'
+      });
+    }
+
+    await query('DELETE FROM prescriptions WHERE id = ?', [prescriptionId]);
+
+    try {
+      await query(
+        'INSERT INTO notifications (userId, title, body, type, isRead) VALUES (?, ?, ?, ?, ?)',
+        [
+          prescription.patientId,
+          'Prescription Removed',
+          `The prescription for ${prescription.medicineName} was removed by Dr. ${req.user.fullName || 'Doctor'}.`,
+          'alert',
+          false
+        ]
+      );
+    } catch (_) {}
+
+    await logActivity({
+      userId,
+      userRole,
+      userEmail: req.user.email,
+      activityType: 'DELETE_PRESCRIPTION',
+      description: `Deleted prescription ID ${prescriptionId} for medicine ${prescription.medicineName}`,
+      status: 'SUCCESS',
+      req
+    });
+
+    return res.json({ ok: true, message: 'Prescription deleted successfully.' });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
   }

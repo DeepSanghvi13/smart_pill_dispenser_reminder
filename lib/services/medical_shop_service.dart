@@ -230,6 +230,16 @@ class MedicalShopService extends ChangeNotifier {
     }
   }
 
+  Future<bool> deletePrescription(int prescriptionId) async {
+    final success = await MySQLApiService().deletePrescription(prescriptionId);
+    if (success) {
+      _doctorPrescriptions.removeWhere((p) => p.id == prescriptionId);
+      _activePrescriptions.removeWhere((p) => p.id == prescriptionId);
+      _safeNotifyListeners();
+    }
+    return success;
+  }
+
   Future<List<Prescription>> getPrescriptionsForPatient(
       dynamic patientId) async {
     try {

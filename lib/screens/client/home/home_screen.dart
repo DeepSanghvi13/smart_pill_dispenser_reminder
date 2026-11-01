@@ -586,6 +586,13 @@ class HomeBody extends StatelessWidget {
       ),
       _quickActionButton(
         context: context,
+        icon: Icons.description_outlined,
+        label: 'Prescriptions',
+        color: Colors.deepPurple,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.myPrescriptions),
+      ),
+      _quickActionButton(
+        context: context,
         icon: Icons.camera_alt_outlined,
         label: 'Add Photo',
         color: Colors.purple,

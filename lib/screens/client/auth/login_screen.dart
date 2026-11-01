@@ -27,6 +27,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (widget.prefilledEmail != null && widget.prefilledEmail!.isNotEmpty) {
       emailController.text = widget.prefilledEmail!;
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    });
   }
 
   @override
@@ -37,56 +42,105 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     setState(() => _isLoading = true);
 
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+    try {
+      final email = emailController.text.trim();
+      final password = passwordController.text.trim();
 
-    // Authenticate and get detailed server response
-    final errorMessage = await context.read<AuthService>().loginWithMessage(email, password);
+      // Authenticate and get detailed server response
+      final errorMessage = await context.read<AuthService>().loginWithMessage(email, password);
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
 
-    if (errorMessage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login successful!'),
-          backgroundColor: Colors.green,
-          duration: Duration(milliseconds: 1000),
-        ),
-      );
-
-      final auth = context.read<AuthService>();
-      if (auth.isAdmin) {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.adminDashboard,
-          (route) => false,
+      if (errorMessage == null) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Login successful!'),
+            backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 1000),
+          ),
         );
-      } else if (auth.isDoctor) {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.doctorHome,
-          (route) => false,
-        );
-      } else if (auth.isPharmacy) {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.pharmacyHome,
-          (route) => false,
-        );
+
+        final auth = context.read<AuthService>();
+        if (auth.isAdmin) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.adminDashboard,
+            (route) => false,
+          );
+        } else if (auth.isDoctor) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.doctorHome,
+            (route) => false,
+          );
+        } else if (auth.isCaretaker) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.caretakerHome,
+            (route) => false,
+          );
+        } else if (auth.isPharmacy) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.pharmacyHome,
+            (route) => false,
+          );
+        } else {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.userHome,
+            (route) => false,
+          );
+        }
       } else {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.userHome,
-          (route) => false,
+        final isPasswordError = errorMessage.toLowerCase().contains('password');
+        final isNotFoundError = errorMessage.toLowerCase().contains('not found');
+
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Login Failed'),
+              ],
+            ),
+            content: Text(errorMessage),
+            actions: [
+              if (isPasswordError)
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showForgotPasswordDialog(initialEmail: email);
+                  },
+                  child: const Text('Reset Password'),
+                ),
+              if (isNotFoundError)
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, AppRoutes.register);
+                  },
+                  child: const Text('Register'),
+                ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
-    } else {
-      final isPasswordError = errorMessage.toLowerCase().contains('password');
-      final isNotFoundError = errorMessage.toLowerCase().contains('not found');
-
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -95,27 +149,11 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Icon(Icons.error_outline, color: Colors.red),
               SizedBox(width: 8),
-              Text('Login Failed'),
+              Text('Login Error'),
             ],
           ),
-          content: Text(errorMessage),
+          content: Text('Login failed unexpectedly: $e'),
           actions: [
-            if (isPasswordError)
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _showForgotPasswordDialog(initialEmail: email);
-                },
-                child: const Text('Reset Password'),
-              ),
-            if (isNotFoundError)
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, AppRoutes.register);
-                },
-                child: const Text('Register'),
-              ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('OK'),
@@ -123,6 +161,10 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
       );
+    } finally {
+      if (mounted && _isLoading) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

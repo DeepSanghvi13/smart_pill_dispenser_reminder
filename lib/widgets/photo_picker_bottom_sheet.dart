@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -25,8 +26,8 @@ class PhotoPickerBottomSheet extends StatelessWidget {
     navigator.pop();
 
     try {
-      // Permission check if camera on mobile platforms
-      if (source == ImageSource.camera && (Platform.isAndroid || Platform.isIOS)) {
+      // Permission check if camera on mobile platforms (skip on web)
+      if (!kIsWeb && source == ImageSource.camera && (Platform.isAndroid || Platform.isIOS)) {
         final status = await Permission.camera.status;
         if (status.isPermanentlyDenied) {
           if (context.mounted) {
@@ -55,6 +56,8 @@ class PhotoPickerBottomSheet extends StatelessWidget {
       final XFile? pickedFile = await picker.pickImage(
         source: source,
         imageQuality: 85,
+        maxWidth: 1600,
+        maxHeight: 1600,
       );
 
       if (pickedFile == null) {
@@ -68,8 +71,8 @@ class PhotoPickerBottomSheet extends StatelessWidget {
         return;
       }
 
-      final file = File(pickedFile.path);
-      if (!await file.exists()) {
+      final bytes = await pickedFile.readAsBytes();
+      if (bytes.isEmpty) {
         messenger.showSnackBar(
           const SnackBar(
             content: Text('Failed to load selected image file.'),
@@ -79,10 +82,15 @@ class PhotoPickerBottomSheet extends StatelessWidget {
         return;
       }
 
-      // Navigate to preview/add photo screen
+      // Navigate to preview/add photo screen with XFile & bytes (cross-platform)
       navigator.pushNamed(
         AppRoutes.addPhoto,
-        arguments: file,
+        arguments: {
+          'xFile': pickedFile,
+          'bytes': bytes,
+          'path': pickedFile.path,
+          'name': pickedFile.name,
+        },
       );
     } catch (e) {
       debugPrint("Photo picker error: $e");

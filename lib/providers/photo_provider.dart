@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/user_photo.dart';
 import '../services/photo_service.dart';
 
@@ -36,9 +38,11 @@ class PhotoProvider extends ChangeNotifier {
     }
   }
 
-  /// Add a new photo for current userId
+  /// Add a new photo for current userId (supports cross-platform XFile, bytes, or File)
   Future<UserPhoto?> addPhoto({
-    required File imageFile,
+    File? imageFile,
+    XFile? xFile,
+    Uint8List? imageBytes,
     required String userId,
     required String userRole,
     String? caption,
@@ -50,6 +54,8 @@ class PhotoProvider extends ChangeNotifier {
     try {
       final savedPhoto = await _photoService.savePhoto(
         sourceFile: imageFile,
+        sourceXFile: xFile,
+        imageBytes: imageBytes,
         userId: userId,
         userRole: userRole,
         caption: caption,

@@ -1,12 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/image_helper.dart';
 import '../../models/user_photo.dart';
 import '../../providers/photo_provider.dart';
 import '../../services/auth_service.dart';
-import '../../services/photo_service.dart';
 
 class PhotoDetailsScreen extends StatefulWidget {
   final UserPhoto photo;
@@ -84,23 +86,40 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
 
   Future<void> _sharePhoto() async {
     try {
-      final file = File(_currentPhoto.imagePath);
-      if (!await file.exists()) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Photo file does not exist on disk.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      if (_currentPhoto.imagePath.startsWith('data:image')) {
+        final commaIdx = _currentPhoto.imagePath.indexOf(',');
+        final base64Data = commaIdx != -1 ? _currentPhoto.imagePath.substring(commaIdx + 1) : _currentPhoto.imagePath;
+        final bytes = base64Decode(base64Data);
+        await Share.shareXFiles(
+          [XFile.fromData(bytes, mimeType: 'image/jpeg', name: '${_currentPhoto.photoId}.jpg')],
+          text: _currentPhoto.caption ?? 'Photo shared from Smart Pill Reminder',
+        );
         return;
       }
 
-      await Share.shareXFiles(
-        [XFile(_currentPhoto.imagePath)],
-        text: _currentPhoto.caption ?? 'Photo shared from Smart Pill Reminder',
-      );
+      if (!kIsWeb) {
+        final file = File(_currentPhoto.imagePath);
+        if (!await file.exists()) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Photo file does not exist on disk.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
+        await Share.shareXFiles(
+          [XFile(_currentPhoto.imagePath)],
+          text: _currentPhoto.caption ?? 'Photo shared from Smart Pill Reminder',
+        );
+      } else {
+        await Share.shareUri(
+          Uri.parse(_currentPhoto.imagePath),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -166,7 +185,6 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final file = File(_currentPhoto.imagePath);
     final dateFormatted = DateFormat('EEEE, MMMM d, yyyy').format(_currentPhoto.createdAt);
     final timeFormatted = DateFormat('h:mm a').format(_currentPhoto.createdAt);
 
@@ -202,43 +220,24 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
               ),
               color: Colors.black,
               child: Center(
-                child: file.existsSync()
-                    ? InteractiveViewer(
-                        panEnabled: true,
-                        boundaryMargin: const EdgeInsets.all(20),
-                        minScale: 0.8,
-                        maxScale: 4.0,
-                        child: Image.file(
-                          file,
-                          fit: BoxFit.contain,
-                        ),
-                      )
-                    : FutureBuilder<File?>(
-                        future: PhotoService().getValidImageFile(_currentPhoto),
-                        builder: (context, snapshot) {
-                          final resolvedFile = snapshot.data;
-                          if (resolvedFile != null && resolvedFile.existsSync()) {
-                            return InteractiveViewer(
-                              panEnabled: true,
-                              boundaryMargin: const EdgeInsets.all(20),
-                              minScale: 0.8,
-                              maxScale: 4.0,
-                              child: Image.file(
-                                resolvedFile,
-                                fit: BoxFit.contain,
-                              ),
-                            );
-                          }
-                          return const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.broken_image, size: 64, color: Colors.grey),
-                              SizedBox(height: 8),
-                              Text('Image file not found', style: TextStyle(color: Colors.white70)),
-                            ],
-                          );
-                        },
-                      ),
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  boundaryMargin: const EdgeInsets.all(20),
+                  minScale: 0.8,
+                  maxScale: 4.0,
+                  child: AppImageHelper.buildImage(
+                    imagePath: _currentPhoto.imagePath,
+                    fit: BoxFit.contain,
+                    errorWidget: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.broken_image, size: 64, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text('Image file not found', style: TextStyle(color: Colors.white70)),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
 

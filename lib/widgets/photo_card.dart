@@ -1,8 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../core/image_helper.dart';
 import '../models/user_photo.dart';
-import '../services/photo_service.dart';
 
 class PhotoCard extends StatelessWidget {
   final UserPhoto photo;
@@ -16,7 +15,6 @@ class PhotoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = File(photo.imagePath);
     final dateStr = DateFormat('MMM d, yyyy').format(photo.createdAt);
     final timeStr = DateFormat('h:mm a').format(photo.createdAt);
 
@@ -29,37 +27,17 @@ class PhotoCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            file.existsSync()
-                ? Image.file(
-                    file,
-                    key: ValueKey(photo.photoId),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: Colors.grey.shade300,
-                      child: const Center(
-                        child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
-                      ),
-                    ),
-                  )
-                : FutureBuilder<File?>(
-                    future: PhotoService().getValidImageFile(photo),
-                    builder: (context, snapshot) {
-                      final resolvedFile = snapshot.data;
-                      if (resolvedFile != null && resolvedFile.existsSync()) {
-                        return Image.file(
-                          resolvedFile,
-                          key: ValueKey(photo.photoId),
-                          fit: BoxFit.cover,
-                        );
-                      }
-                      return Container(
-                        color: Colors.grey.shade300,
-                        child: const Center(
-                          child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
-                        ),
-                      );
-                    },
-                  ),
+            // Cross-platform Image View
+            AppImageHelper.buildImage(
+              imagePath: photo.imagePath,
+              fit: BoxFit.cover,
+              errorWidget: Container(
+                color: Colors.grey.shade300,
+                child: const Center(
+                  child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                ),
+              ),
+            ),
 
             // Gradient shadow overlay at the bottom
             Positioned(

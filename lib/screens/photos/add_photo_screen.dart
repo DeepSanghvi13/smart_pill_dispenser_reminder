@@ -1,25 +1,53 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../core/image_helper.dart';
 import '../../providers/photo_provider.dart';
 import '../../services/auth_service.dart';
 import '../../routes/app_routes.dart';
 
 class AddPhotoScreen extends StatefulWidget {
-  final File initialFile;
+  final File? initialFile;
+  final XFile? initialXFile;
+  final Uint8List? initialBytes;
+  final String? initialPath;
 
   const AddPhotoScreen({
     super.key,
-    required this.initialFile,
+    this.initialFile,
+    this.initialXFile,
+    this.initialBytes,
+    this.initialPath,
   });
+
+  factory AddPhotoScreen.fromArguments(dynamic args) {
+    if (args is Map<String, dynamic>) {
+      return AddPhotoScreen(
+        initialXFile: args['xFile'] as XFile?,
+        initialBytes: args['bytes'] as Uint8List?,
+        initialPath: args['path'] as String?,
+      );
+    } else if (args is XFile) {
+      return AddPhotoScreen(initialXFile: args, initialPath: args.path);
+    } else if (args is File) {
+      return AddPhotoScreen(initialFile: args, initialPath: args.path);
+    } else if (args is String) {
+      return AddPhotoScreen(initialPath: args);
+    }
+    return const AddPhotoScreen();
+  }
 
   @override
   State<AddPhotoScreen> createState() => _AddPhotoScreenState();
 }
 
 class _AddPhotoScreenState extends State<AddPhotoScreen> {
-  late File _currentFile;
+  XFile? _currentXFile;
+  File? _currentFile;
+  Uint8List? _currentBytes;
+  String? _currentPath;
   final TextEditingController _captionController = TextEditingController();
   bool _isSaving = false;
 
@@ -27,6 +55,26 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
   void initState() {
     super.initState();
     _currentFile = widget.initialFile;
+    _currentXFile = widget.initialXFile;
+    _currentBytes = widget.initialBytes;
+    _currentPath = widget.initialPath ?? widget.initialFile?.path ?? widget.initialXFile?.path;
+    _loadBytesIfNecessary();
+  }
+
+  Future<void> _loadBytesIfNecessary() async {
+    if (_currentBytes == null || _currentBytes!.isEmpty) {
+      if (_currentXFile != null) {
+        try {
+          final b = await _currentXFile!.readAsBytes();
+          if (mounted) setState(() => _currentBytes = b);
+        } catch (_) {}
+      } else if (!kIsWeb && _currentFile != null) {
+        try {
+          final b = await _currentFile!.readAsBytes();
+          if (mounted) setState(() => _currentBytes = b);
+        } catch (_) {}
+      }
+    }
   }
 
   @override
@@ -54,8 +102,12 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
                 final picker = ImagePicker();
                 final picked = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
                 if (picked != null && mounted) {
+                  final b = await picked.readAsBytes();
                   setState(() {
-                    _currentFile = File(picked.path);
+                    _currentXFile = picked;
+                    _currentPath = picked.path;
+                    _currentBytes = b;
+                    if (!kIsWeb) _currentFile = File(picked.path);
                   });
                 }
               },
@@ -68,8 +120,12 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
                 final picker = ImagePicker();
                 final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
                 if (picked != null && mounted) {
+                  final b = await picked.readAsBytes();
                   setState(() {
-                    _currentFile = File(picked.path);
+                    _currentXFile = picked;
+                    _currentPath = picked.path;
+                    _currentBytes = b;
+                    if (!kIsWeb) _currentFile = File(picked.path);
                   });
                 }
               },
@@ -104,6 +160,8 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
 
     final photoProvider = context.read<PhotoProvider>();
     final savedPhoto = await photoProvider.addPhoto(
+      xFile: _currentXFile,
+      imageBytes: _currentBytes,
       imageFile: _currentFile,
       userId: userId,
       userRole: userRole,
@@ -157,15 +215,16 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Image Preview Card
+              // Image Preview Card (cross-platform using AppImageHelper)
               Card(
                 elevation: 4,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 clipBehavior: Clip.antiAlias,
                 child: AspectRatio(
                   aspectRatio: 4 / 3,
-                  child: Image.file(
-                    _currentFile,
+                  child: AppImageHelper.buildImage(
+                    imagePath: _currentPath,
+                    bytes: _currentBytes,
                     fit: BoxFit.cover,
                   ),
                 ),

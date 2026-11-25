@@ -47,13 +47,11 @@ import '../screens/admin/admin_settings_screen.dart';
 import '../screens/admin/system_health_screen.dart';
 import '../screens/admin/connection_management_screen.dart';
 
-import 'dart:io';
 import '../models/medicine_order.dart';
 import '../models/user_photo.dart';
 import '../screens/photos/add_photo_screen.dart';
 import '../screens/photos/my_photos_screen.dart';
 import '../screens/photos/photo_details_screen.dart';
-import '../widgets/photo_picker_bottom_sheet.dart';
 import '../screens/client/doctor/find_doctor_screen.dart';
 import '../screens/client/doctor/my_doctors_screen.dart';
 import '../screens/client/doctor/doctor_home_screen.dart';
@@ -169,19 +167,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const MyPhotosScreen());
       case addPhoto:
         final args = settings.arguments;
-        if (args is File) {
-          return MaterialPageRoute(builder: (_) => AddPhotoScreen(initialFile: args));
-        }
         return MaterialPageRoute(
-          builder: (context) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.pop(context);
-              PhotoPickerBottomSheet.show(context);
-            });
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          },
+          builder: (_) => AddPhotoScreen.fromArguments(args),
         );
       case photoDetails:
         final args = settings.arguments;

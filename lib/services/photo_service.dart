@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_photo.dart';
@@ -21,6 +22,8 @@ class PhotoService {
 
   /// Dynamically locate an image file on disk even if app container path changed on mobile platform
   Future<File?> getValidImageFile(UserPhoto photo) async {
+    if (kIsWeb || photo.imagePath.startsWith('data:image')) return null;
+
     final primary = File(photo.imagePath);
     if (await primary.exists()) return primary;
 
@@ -49,8 +52,11 @@ class PhotoService {
 
   /// Save a newly captured or selected image file to local app storage
   /// and store its metadata in both Hive user_photos box and settingsBox JSON backup.
+  /// Works seamlessly on Web (storing as base64 Data URI) and native platforms (storing to disk).
   Future<UserPhoto?> savePhoto({
-    required File sourceFile,
+    File? sourceFile,
+    XFile? sourceXFile,
+    Uint8List? imageBytes,
     required String userId,
     required String userRole,
     String? caption,
@@ -58,32 +64,46 @@ class PhotoService {
     try {
       final normalizedUserId = userId.trim().isEmpty ? 'guest' : userId.trim().toLowerCase();
 
+      // Extract image bytes from any available source
+      Uint8List? bytes = imageBytes;
+      if (bytes == null && sourceXFile != null) {
+        bytes = await sourceXFile.readAsBytes();
+      }
+      if (bytes == null && sourceFile != null) {
+        bytes = await sourceFile.readAsBytes();
+      }
+
+      if (bytes == null || bytes.isEmpty) {
+        debugPrint("PhotoService: No image bytes provided to savePhoto");
+        return null;
+      }
+
       // Generate unique photo ID
       final photoId = 'PHOTO_${_uuid.v4()}';
+      String finalImagePath;
 
-      // Get app storage directory: /user_photos/<userId>/
-      Directory appDir;
-      try {
-        appDir = await getApplicationDocumentsDirectory();
-      } catch (_) {
-        appDir = await getApplicationSupportDirectory();
-      }
+      if (kIsWeb) {
+        // On Flutter Web: store bytes directly as base64 Data URI in Hive
+        final base64String = base64Encode(bytes);
+        finalImagePath = 'data:image/jpeg;base64,$base64String';
+      } else {
+        // On Mobile / Desktop: write bytes to local storage folder
+        Directory appDir;
+        try {
+          appDir = await getApplicationDocumentsDirectory();
+        } catch (_) {
+          appDir = await getApplicationSupportDirectory();
+        }
 
-      final userPhotosDir = Directory('${appDir.path}/user_photos/$normalizedUserId');
-      if (!await userPhotosDir.exists()) {
-        await userPhotosDir.create(recursive: true);
-      }
+        final userPhotosDir = Directory('${appDir.path}/user_photos/$normalizedUserId');
+        if (!await userPhotosDir.exists()) {
+          await userPhotosDir.create(recursive: true);
+        }
 
-      // Write bytes directly to target path (bulletproof across all platform filesystems)
-      final targetPath = '${userPhotosDir.path}/$photoId.jpg';
-      final savedFile = File(targetPath);
-
-      try {
-        final bytes = await sourceFile.readAsBytes();
+        final targetPath = '${userPhotosDir.path}/$photoId.jpg';
+        final savedFile = File(targetPath);
         await savedFile.writeAsBytes(bytes, flush: true);
-      } catch (e) {
-        debugPrint("writeAsBytes warning, attempting copy fallback: $e");
-        await sourceFile.copy(targetPath);
+        finalImagePath = savedFile.path;
       }
 
       // Create model instance
@@ -92,7 +112,7 @@ class PhotoService {
         photoId: photoId,
         userId: normalizedUserId,
         userRole: userRole,
-        imagePath: savedFile.path,
+        imagePath: finalImagePath,
         caption: caption?.trim(),
         createdAt: now,
         updatedAt: now,
@@ -285,13 +305,15 @@ class PhotoService {
         }
       } catch (_) {}
 
-      // Delete actual file from local storage
-      try {
-        final file = await getValidImageFile(photo);
-        if (file != null && await file.exists()) {
-          await file.delete();
-        }
-      } catch (_) {}
+      // Delete actual file from local storage if not on Web and not base64
+      if (!kIsWeb && !photo.imagePath.startsWith('data:image')) {
+        try {
+          final file = await getValidImageFile(photo);
+          if (file != null && await file.exists()) {
+            await file.delete();
+          }
+        } catch (_) {}
+      }
 
       return true;
     } catch (e) {

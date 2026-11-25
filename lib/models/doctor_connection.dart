@@ -10,7 +10,8 @@ class DoctorModel {
   final String experience;
   final String location;
   final String? profilePicture;
-  final String connectionStatus; // 'none', 'pending', 'accepted', 'rejected'
+  final String
+      connectionStatus; // 'none', 'pending', 'connected', 'accepted', 'rejected'
   final int? connectionId;
   final bool isVerified;
 
@@ -103,14 +104,9 @@ class DoctorModel {
       location: map['location']?.toString() ?? '',
       profilePicture: map['profilePicture']?.toString(),
       connectionStatus: (map['connectionStatus'] ?? map['status'])
-                  ?.toString()
-                  .toLowerCase() ==
-              'connected'
-          ? 'accepted'
-          : (map['connectionStatus'] ?? map['status'])
-                  ?.toString()
-                  .toLowerCase() ??
-              'none',
+              ?.toString()
+              .toLowerCase() ??
+          'none',
       connectionId: map['connectionId'] is int
           ? map['connectionId'] as int
           : int.tryParse(map['connectionId']?.toString() ?? ''),

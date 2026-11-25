@@ -4,12 +4,13 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/image_helper.dart';
 import '../../../models/prescription.dart';
-import '../../../routes/app_routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/doctor_service.dart';
 import '../../../services/medical_shop_service.dart';
 import '../../../services/mysql_api_service.dart';
+import '../manage/create_profile_screen.dart';
 import '../../../widgets/app_drawer.dart';
+import '../../../widgets/digital_prescription_slip.dart';
 import '../../../core/responsive.dart';
 
 class DoctorHomeScreen extends StatefulWidget {
@@ -61,6 +62,55 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
               'Unable to load prescriptions. Please retry.';
           _isLoadingPrescriptions = false;
         });
+      }
+    }
+  }
+
+  Future<void> _confirmDeletePrescription(Prescription p) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Prescription?'),
+        content: Text(
+          'Are you sure you want to delete the prescription for ${p.medicineName} (Patient: ${p.patientName ?? p.patientId})?\n\nThis will remove it from both your records and the patient\'s active prescriptions.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && p.id != null) {
+      final success = await _shopService.deletePrescription(p.id!);
+      if (!mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Prescription for ${p.medicineName} deleted successfully.'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _loadDoctorPrescriptions();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to delete prescription. Please try again.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     }
   }
@@ -680,11 +730,14 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                                       icon: const Icon(Icons.edit_outlined),
                                       tooltip: 'Edit Profile',
                                       onPressed: () {
-                                        Navigator.pushNamed(context,
-                                                AppRoutes.createProfile)
-                                            .then((_) {
-                                          setState(() {});
-                                        });
+                                        Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => const CreateProfileScreen(isEditing: true),
+                                            ),
+                                          ).then((_) {
+                                            setState(() {});
+                                          });
                                       },
                                     ),
                                   ],
@@ -1818,6 +1871,41 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // Delete Button
+                        IconButton(
+                          tooltip: 'Delete Prescription',
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red, size: 22),
+                          onPressed: () => _confirmDeletePrescription(p),
+                        ),
+                        const SizedBox(width: 8),
+                        // Download Slip Button (PNG / JPG)
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0D4F8B),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.download, size: 16),
+                          label: const Text(
+                            'Download Slip (PNG/JPG)',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: () {
+                            DigitalPrescriptionSlip.showSlipDialog(context, p);
+                          },
                         ),
                       ],
                     ),

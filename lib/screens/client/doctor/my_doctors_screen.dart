@@ -467,6 +467,22 @@ class _MyDoctorsScreenState extends State<MyDoctorsScreen> {
                     },
                   ),
                 ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.description_outlined, size: 16),
+                    label: const Text('Prescriptions'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0D4F8B),
+                      side: const BorderSide(color: Color(0xFF0D4F8B)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, AppRoutes.myPrescriptions);
+                    },
+                  ),
+                ),
                 if (doc.connectionId != null) ...[
                   const SizedBox(width: 8),
                   IconButton(

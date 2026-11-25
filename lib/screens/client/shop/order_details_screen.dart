@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/medicine_order.dart';
 import '../../../services/medical_shop_service.dart';
+import '../../../core/image_helper.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final MedicineOrder order;
@@ -233,6 +234,65 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ),
               ),
             ),
+            if (_order.prescriptionImage != null &&
+                _order.prescriptionImage!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Prescription Attached',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.receipt_long,
+                              color: theme.colorScheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Uploaded Doctor Prescription',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          constraints: const BoxConstraints(maxHeight: 240),
+                          width: double.infinity,
+                          color: Colors.black12,
+                          child: AppImageHelper.getImageProvider(
+                                      _order.prescriptionImage) !=
+                                  null
+                              ? Image(
+                                  image: AppImageHelper.getImageProvider(
+                                      _order.prescriptionImage)!,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Padding(
+                                    padding: EdgeInsets.all(20),
+                                    child: Center(
+                                      child: Text(
+                                          'Unable to load prescription preview'),
+                                    ),
+                                  ),
+                                )
+                              : const Center(child: Icon(Icons.broken_image)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
           ],
         ),

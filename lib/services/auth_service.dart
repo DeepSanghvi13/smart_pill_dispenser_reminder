@@ -139,6 +139,20 @@ class AuthService extends ChangeNotifier {
         _currentUser = email;
         _isLoggedIn = true;
         await DatabaseService().setCurrentUser(email);
+        final token = settings.get('jwt_token') as String?;
+        MySQLApiService().configure(userId: email, authToken: token);
+
+        try {
+          final profileBox = HiveService().profilesBox;
+          final isServerOnline = await MySQLApiService().checkServerConnection();
+          if (isServerOnline) {
+            final serverProf = await MySQLApiService().getUserProfileFromServer(email);
+            if (serverProf != null) {
+              await profileBox.put(email, serverProf);
+            }
+          }
+        } catch (_) {}
+
         notifyListeners();
       }
     } catch (_) {}
@@ -187,6 +201,15 @@ class AuthService extends ChangeNotifier {
               final serverProf = await MySQLApiService().getUserProfileFromServer(normalizedEmail);
               if (serverProf != null) {
                 await profileBox.put(normalizedEmail, serverProf);
+                final hasCompleted = (serverProf.mobileNumber != null && serverProf.mobileNumber!.trim().isNotEmpty) &&
+                    (serverProf.age != null ||
+                     (serverProf.relationship != null && serverProf.relationship!.trim().isNotEmpty) ||
+                     (serverProf.specialization != null && serverProf.specialization!.trim().isNotEmpty) ||
+                     (serverProf.licenseNumber != null && serverProf.licenseNumber!.trim().isNotEmpty) ||
+                     (serverProf.hospitalName != null && serverProf.hospitalName!.trim().isNotEmpty));
+                if (hasCompleted) {
+                  await settings.put('${normalizedEmail}_profile_created', true);
+                }
               } else if (!profileBox.containsKey(normalizedEmail)) {
                 await profileBox.put(
                   normalizedEmail,
@@ -299,7 +322,10 @@ class AuthService extends ChangeNotifier {
       final hasAge = profile.age != null;
       final hasRelationship = profile.relationship != null && profile.relationship!.trim().isNotEmpty;
       final hasDoctorInfo = profile.specialization != null && profile.specialization!.trim().isNotEmpty;
-      if (hasMobile && (hasAge || hasRelationship || hasDoctorInfo)) {
+      final hasPharmacyInfo = (profile.licenseNumber != null && profile.licenseNumber!.trim().isNotEmpty) ||
+                              (profile.hospitalName != null && profile.hospitalName!.trim().isNotEmpty) ||
+                              (profile.address != null && profile.address!.trim().isNotEmpty);
+      if (hasMobile && (hasAge || hasRelationship || hasDoctorInfo || hasPharmacyInfo)) {
         return true;
       }
     }

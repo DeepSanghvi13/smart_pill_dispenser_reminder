@@ -61,16 +61,26 @@ class AlarmLog {
 
   factory AlarmLog.fromMap(Map<String, dynamic> map) {
     return AlarmLog(
-      id: map['id'] as int?,
-      medicineId: map['medicineId'] as int,
-      medicineName: map['medicineName'] as String,
-      scheduledTime: DateTime.parse(map['scheduledTime'] as String),
+      id: map['id'] is int
+          ? map['id'] as int
+          : int.tryParse(map['id']?.toString() ?? ''),
+      medicineId: map['medicineId'] is int
+          ? map['medicineId'] as int
+          : int.tryParse(map['medicineId']?.toString() ?? '') ?? 0,
+      medicineName: map['medicineName']?.toString() ?? '',
+      scheduledTime: map['scheduledTime'] != null
+          ? (DateTime.tryParse(map['scheduledTime'].toString()) ?? DateTime.now())
+          : DateTime.now(),
       triggeredTime: map['triggeredTime'] != null
-          ? DateTime.parse(map['triggeredTime'] as String)
+          ? DateTime.tryParse(map['triggeredTime'].toString())
           : null,
       status: map['status'] as String? ?? 'pending',
-      snoozeCount: map['snoozeCount'] as int? ?? 0,
-      takenAt: map['takenAt'] != null ? DateTime.parse(map['takenAt'] as String) : null,
+      snoozeCount: map['snoozeCount'] is int
+          ? map['snoozeCount'] as int
+          : int.tryParse(map['snoozeCount']?.toString() ?? '0') ?? 0,
+      takenAt: map['takenAt'] != null
+          ? DateTime.tryParse(map['takenAt'].toString())
+          : null,
       notes: map['notes'] as String?,
     );
   }
@@ -83,5 +93,3 @@ class AlarmLog {
   @override
   String toString() => 'AlarmLog($medicineName - $status at $scheduledTime)';
 }
-
-

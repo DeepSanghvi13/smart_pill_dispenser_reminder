@@ -15,6 +15,7 @@ class CartProvider extends ChangeNotifier {
 
   // Prescription selection
   Prescription? _selectedPrescription;
+  String? _uploadedPrescriptionImage;
 
   String _deliveryAddress = '';
   String _paymentMethod = 'Cash on Delivery';
@@ -37,6 +38,7 @@ class CartProvider extends ChangeNotifier {
   int? get selectedPatientNumericId => _selectedPatientNumericId;
   String? get selectedPatientName => _selectedPatientName;
   Prescription? get selectedPrescription => _selectedPrescription;
+  String? get uploadedPrescriptionImage => _uploadedPrescriptionImage;
   String get deliveryAddress => _deliveryAddress;
   String get paymentMethod => _paymentMethod;
   String get notes => _notes;
@@ -53,6 +55,11 @@ class CartProvider extends ChangeNotifier {
 
   void setPrescription(Prescription? prescription) {
     _selectedPrescription = prescription;
+    notifyListeners();
+  }
+
+  void setUploadedPrescriptionImage(String? image) {
+    _uploadedPrescriptionImage = image;
     notifyListeners();
   }
 
@@ -160,6 +167,7 @@ class CartProvider extends ChangeNotifier {
   void clearCart() {
     _items.clear();
     _selectedPrescription = null;
+    _uploadedPrescriptionImage = null;
     notifyListeners();
   }
 
@@ -169,6 +177,7 @@ class CartProvider extends ChangeNotifier {
     required dynamic patientId,
     String? deliveryAddress,
     int? prescriptionId,
+    String? prescriptionImage,
     String? notes,
   }) async {
     if (_items.isEmpty) return null;
@@ -176,6 +185,7 @@ class CartProvider extends ChangeNotifier {
 
     final addr = deliveryAddress ?? _deliveryAddress;
     final prescId = prescriptionId ?? _selectedPrescription?.id;
+    final prescImg = prescriptionImage ?? _uploadedPrescriptionImage;
     final orderNotes = notes ?? _notes;
 
     final itemPayloads = _items.values.map((item) {
@@ -189,6 +199,7 @@ class CartProvider extends ChangeNotifier {
       patientId: patientId,
       shopId: shopId!,
       prescriptionId: prescId,
+      prescriptionImage: prescImg,
       deliveryAddress: addr,
       paymentMethod: _paymentMethod,
       notes: orderNotes,

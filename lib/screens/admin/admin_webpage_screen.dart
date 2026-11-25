@@ -8,6 +8,7 @@ import 'package:smart_pill_reminder/models/reminder.dart';
 import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
 import 'package:smart_pill_reminder/services/mysql_api_service.dart';
+import '../client/manage/create_profile_screen.dart';
 
 class CaretakerWebpageScreen extends StatefulWidget {
   const CaretakerWebpageScreen({super.key});
@@ -134,6 +135,18 @@ class _CaretakerWebpageScreenState extends State<CaretakerWebpageScreen> {
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.person_outline),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CreateProfileScreen(isEditing: true),
+                    ),
+                  ).then((_) => _loadAllData());
+                },
+                tooltip: 'My Profile',
               ),
               IconButton(
                 icon: const Icon(Icons.storage),

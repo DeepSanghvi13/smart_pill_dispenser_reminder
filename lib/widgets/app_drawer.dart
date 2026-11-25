@@ -5,6 +5,7 @@ import 'package:smart_pill_reminder/routes/app_routes.dart';
 import 'package:smart_pill_reminder/services/auth_service.dart';
 import 'package:smart_pill_reminder/services/database_service.dart';
 import 'package:smart_pill_reminder/models/user_profile.dart';
+import '../screens/client/manage/create_profile_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -150,13 +151,26 @@ class AppDrawer extends StatelessWidget {
                 Navigator.pushNamed(context, AppRoutes.myAppointments);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined),
+              title: const Text('My Prescriptions'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.myPrescriptions);
+              },
+            ),
           ],
           ListTile(
             leading: const Icon(Icons.person_outline),
             title: const Text('My Profile'),
             onTap: () {
               Navigator.pop(context); // Close drawer
-              Navigator.pushNamed(context, AppRoutes.createProfile);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CreateProfileScreen(isEditing: true),
+                ),
+              );
             },
           ),
           ListTile(

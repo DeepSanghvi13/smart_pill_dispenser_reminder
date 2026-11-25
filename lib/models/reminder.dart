@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Reminder {
   final int? id;
   final int medicineId;
@@ -55,18 +57,46 @@ class Reminder {
   }
 
   factory Reminder.fromMap(Map<String, dynamic> map) {
+    List<String> parsedDays = [];
+    final rawDays = map['daysOfWeek'];
+    if (rawDays is List) {
+      parsedDays = rawDays.map((d) => d.toString()).toList();
+    } else if (rawDays is String) {
+      if (rawDays.startsWith('[') && rawDays.endsWith(']')) {
+        try {
+          final decoded = jsonDecode(rawDays);
+          if (decoded is List) {
+            parsedDays = decoded.map((d) => d.toString()).toList();
+          }
+        } catch (_) {
+          parsedDays = rawDays.replaceAll(RegExp(r'[\[\]"]'), '').split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+        }
+      } else {
+        parsedDays = rawDays.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      }
+    }
+
+    final rawIsActive = map['isActive'];
+    final bool active = rawIsActive is bool
+        ? rawIsActive
+        : (rawIsActive is num ? rawIsActive == 1 : (rawIsActive?.toString() == 'true' || rawIsActive?.toString() == '1'));
+
     return Reminder(
-      id: map['id'] as int?,
-      medicineId: map['medicineId'] as int,
-      medicineName: map['medicineName'] as String,
-      time: map['time'] as String,
-      daysOfWeek: (map['daysOfWeek'] as String?)?.split(',') ?? [],
-      isActive: (map['isActive'] as int?) == 1,
+      id: map['id'] is int
+          ? map['id'] as int
+          : int.tryParse(map['id']?.toString() ?? ''),
+      medicineId: map['medicineId'] is int
+          ? map['medicineId'] as int
+          : int.tryParse(map['medicineId']?.toString() ?? '') ?? 0,
+      medicineName: map['medicineName']?.toString() ?? '',
+      time: map['time']?.toString() ?? '',
+      daysOfWeek: parsedDays,
+      isActive: active,
       lastNotifiedAt: map['lastNotifiedAt'] != null
-          ? DateTime.parse(map['lastNotifiedAt'] as String)
+          ? DateTime.tryParse(map['lastNotifiedAt'].toString())
           : null,
       createdAt: map['createdAt'] != null
-          ? DateTime.parse(map['createdAt'] as String)
+          ? DateTime.tryParse(map['createdAt'].toString())
           : null,
     );
   }
@@ -75,5 +105,3 @@ class Reminder {
   String toString() =>
       'Reminder($medicineName at $time on ${daysOfWeek.join(", ")})';
 }
-
-

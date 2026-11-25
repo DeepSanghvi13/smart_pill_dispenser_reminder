@@ -7,6 +7,7 @@ import '../../../services/database_service.dart';
 import '../../../services/medical_shop_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/responsive.dart';
+import '../../../core/image_helper.dart';
 
 class CartScreen extends StatefulWidget {
   final String? patientEmail;
@@ -27,6 +28,29 @@ class _CartScreenState extends State<CartScreen> {
   bool _isLoadingPrescriptions = false;
   String? _prescriptionError;
   bool _isSubmitting = false;
+  String? _uploadedPrescriptionImage;
+
+  Future<void> _openUploadPrescription() async {
+    final result = await Navigator.pushNamed(
+      context,
+      AppRoutes.uploadPrescription,
+    );
+    if (result != null && result is String && result.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _uploadedPrescriptionImage = result;
+        });
+        context.read<CartProvider>().setUploadedPrescriptionImage(result);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Prescription attached to order successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
 
   List<Prescription> _matchingPrescriptions(CartProvider cart) {
     final names = cart.itemList
@@ -46,6 +70,8 @@ class _CartScreenState extends State<CartScreen> {
   @override
   void initState() {
     super.initState();
+    _uploadedPrescriptionImage =
+        context.read<CartProvider>().uploadedPrescriptionImage;
     _loadInitialData();
   }
 
@@ -114,13 +140,15 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
-    if (cart.requiresPrescription &&
-        !_matchingPrescriptions(cart)
-            .any((p) => p.id == _selectedPrescriptionId)) {
+    final hasValidPrescription = _uploadedPrescriptionImage != null ||
+        _matchingPrescriptions(cart)
+            .any((p) => p.id == _selectedPrescriptionId);
+
+    if (cart.requiresPrescription && !hasValidPrescription) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'One or more medicines require a valid doctor prescription. Please select one.'),
+              'One or more medicines require a valid doctor prescription. Please select or upload one.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -144,6 +172,7 @@ class _CartScreenState extends State<CartScreen> {
         patientId: effectivePatientId,
         deliveryAddress: address,
         prescriptionId: _selectedPrescriptionId,
+        prescriptionImage: _uploadedPrescriptionImage,
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
@@ -153,6 +182,8 @@ class _CartScreenState extends State<CartScreen> {
       setState(() => _isSubmitting = false);
 
       if (order != null) {
+        setState(() { _uploadedPrescriptionImage = null; });
+        context.read<CartProvider>().setUploadedPrescriptionImage(null);
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -456,7 +487,80 @@ class _CartScreenState extends State<CartScreen> {
                                       fontSize: 12, color: Colors.black87),
                                 ),
                                 const SizedBox(height: 12),
-                                if (_isLoadingPrescriptions)
+                                if (_uploadedPrescriptionImage != null)
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.green.shade300),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Container(
+                                            width: 50,
+                                            height: 50,
+                                            color: Colors.grey.shade200,
+                                            child: AppImageHelper.getImageProvider(_uploadedPrescriptionImage) != null
+                                                ? Image(
+                                                    image: AppImageHelper.getImageProvider(_uploadedPrescriptionImage)!,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (_, __, ___) => const Icon(Icons.receipt_long, color: Colors.green),
+                                                  )
+                                                : const Icon(Icons.receipt_long, color: Colors.green),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    'Prescription Attached',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.green.shade900,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Doctor prescription image will be included with order',
+                                                style: TextStyle(
+                                                  color: Colors.green.shade800,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_outlined, size: 20),
+                                          tooltip: 'Change prescription',
+                                          onPressed: _openUploadPrescription,
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.close, size: 20, color: Colors.red),
+                                          tooltip: 'Remove',
+                                          onPressed: () {
+                                            setState(() {
+                                              _uploadedPrescriptionImage = null;
+                                            });
+                                            context.read<CartProvider>().setUploadedPrescriptionImage(null);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else if (_isLoadingPrescriptions)
                                   const Center(
                                       child: CircularProgressIndicator())
                                 else if (_prescriptionError != null &&
@@ -477,35 +581,44 @@ class _CartScreenState extends State<CartScreen> {
                                   )
                                 else if (matching.isEmpty)
                                   Container(
-                                    padding: const EdgeInsets.all(10),
+                                    padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: Colors.red.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.deepPurple.shade50.withValues(alpha: 0.8),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.deepPurple.shade200),
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
                                         const Text(
-                                          'No valid prescription matches the prescription medicines in this cart.',
+                                          'No active digital prescription found for medicines in this cart.',
                                           style: TextStyle(
-                                              color: Colors.red, fontSize: 12),
+                                              color: Colors.deepPurple, fontSize: 13, fontWeight: FontWeight.w600),
                                         ),
-                                        const SizedBox(height: 8),
-                                        TextButton.icon(
-                                          onPressed: () => Navigator.pushNamed(
-                                            context,
-                                            AppRoutes.myDoctors,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Upload a photo of your doctor\'s prescription to complete this order.',
+                                          style: TextStyle(
+                                              color: Colors.grey.shade700, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        ElevatedButton.icon(
+                                          onPressed: _openUploadPrescription,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: theme.colorScheme.primary,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
                                           ),
-                                          icon: const Icon(
-                                              Icons.medical_services_outlined),
-                                          label: const Text(
-                                              'Request prescription from doctor'),
+                                          icon: const Icon(Icons.upload_file, size: 18),
+                                          label: const Text('Request prescription from doc'),
                                         ),
                                       ],
                                     ),
                                   )
-                                else
+                                else ...[
                                   DropdownButtonFormField<int>(
                                     initialValue: matching.any((p) =>
                                             p.id == _selectedPrescriptionId)
@@ -533,6 +646,16 @@ class _CartScreenState extends State<CartScreen> {
                                       });
                                     },
                                   ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: TextButton.icon(
+                                      onPressed: _openUploadPrescription,
+                                      icon: const Icon(Icons.upload_file, size: 16),
+                                      label: const Text('Or upload prescription image from doctor'),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),

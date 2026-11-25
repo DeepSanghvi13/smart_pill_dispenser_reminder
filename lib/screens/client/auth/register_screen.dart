@@ -25,6 +25,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    try {
+      ScaffoldMessenger.of(context).clearSnackBars();
+    } catch (_) {}
     nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
@@ -56,16 +59,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (error != null) {
       final isAlreadyRegistered = error.toLowerCase().contains('already') || error.toLowerCase().contains('exist');
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
           action: isAlreadyRegistered
               ? SnackBarAction(
                   label: 'Log In',
                   textColor: Colors.white,
                   onPressed: () {
+                    ScaffoldMessenger.of(context).clearSnackBars();
                     Navigator.pushReplacementNamed(
                       context,
                       AppRoutes.login,

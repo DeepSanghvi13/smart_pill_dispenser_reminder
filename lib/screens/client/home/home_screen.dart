@@ -31,6 +31,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   String _searchQuery = '';
+  final GlobalKey<_CaretakerHomeBodyState> _caretakerKey =
+      GlobalKey<_CaretakerHomeBodyState>();
 
   @override
   void initState() {
@@ -69,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
       switch (_currentIndex) {
         case 0:
           return CaretakerHomeBody(
+            key: _caretakerKey,
             onEdit: _editMedicine,
             onDelete: _deleteMedicine,
           );
@@ -269,7 +272,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ? FloatingActionButton(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
-                  onPressed: _addMedicine,
+                  onPressed: isCare && _currentIndex == 0
+                      ? () => _caretakerKey.currentState?.showAddPatientDialog(
+                            context,
+                            context.read<AuthService>(),
+                            context.read<MedicineProvider>(),
+                          )
+                      : _addMedicine,
                   child: const Icon(Icons.add),
                 )
               : null,
@@ -583,6 +592,13 @@ class HomeBody extends StatelessWidget {
         label: 'Medical Shop',
         color: Colors.indigo,
         onTap: () => Navigator.pushNamed(context, AppRoutes.medicalShop),
+      ),
+      _quickActionButton(
+        context: context,
+        icon: Icons.description_outlined,
+        label: 'Prescriptions',
+        color: Colors.deepPurple,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.myPrescriptions),
       ),
       _quickActionButton(
         context: context,
@@ -1258,7 +1274,8 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
           // Caretaker Quick Actions
-          _buildCaretakerQuickActions(context, auth, provider),
+          _buildCaretakerQuickActions(
+              context, auth, provider, activePatientEmail),
           const SizedBox(height: 20),
 
           // 1. Connected Patients horizontal header selector
@@ -1621,6 +1638,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
     BuildContext context,
     AuthService auth,
     MedicineProvider provider,
+    String? activePatientEmail,
   ) {
     final theme = Theme.of(context);
     return Column(
@@ -1641,7 +1659,7 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                 icon: Icons.people_alt_outlined,
                 label: 'My Patients',
                 color: Colors.blue,
-                onTap: () => showAddPatientDialog(context, auth, provider),
+                onTap: () => _showPatientsDialog(context, auth, provider),
               ),
               const SizedBox(width: 8),
               _quickActionButton(
@@ -1674,21 +1692,148 @@ class _CaretakerHomeBodyState extends State<CaretakerHomeBody> {
                 icon: Icons.notifications_outlined,
                 label: 'Notifications',
                 color: Colors.orange,
-                onTap: () {
-                  final count = HiveService().notificationsBox.length;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                          'Caregiver Alerts: $count notifications in log.'),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
+                onTap: () =>
+                    _showNotificationsDialog(context, activePatientEmail),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  void _showPatientsDialog(
+      BuildContext context, AuthService auth, MedicineProvider provider) {
+    final patients = auth.getConnectedPatients();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('My Patients'),
+        content: SizedBox(
+          width: 420,
+          child: patients.isEmpty
+              ? const Text('No patients connected yet.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: patients.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, index) {
+                    final patient = patients[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: AppImageHelper.getImageProvider(
+                            patient.profilePicture),
+                        child: AppImageHelper.getImageProvider(
+                                    patient.profilePicture) ==
+                                null
+                            ? const Icon(Icons.person)
+                            : null,
+                      ),
+                      title: Text(patient.fullName),
+                      subtitle: Text(patient.email),
+                      onTap: () {
+                        provider.setActivePatient(patient.email);
+                        Navigator.pop(dialogContext);
+                      },
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              showAddPatientDialog(context, auth, provider);
+            },
+            child: const Text('Add Patient'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNotificationsDialog(
+      BuildContext context, String? activePatientEmail) {
+    final box = HiveService().notificationsBox;
+    final entries = box.toMap().entries.where((entry) {
+      final notification = entry.value;
+      if (notification is! Map) return false;
+      if (activePatientEmail == null) return true;
+      return notification['patientId'] == null ||
+          notification['patientId'] == activePatientEmail;
+    }).toList()
+      ..sort((a, b) {
+        final aDate = DateTime.tryParse(
+                (a.value as Map)['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = DateTime.tryParse(
+                (b.value as Map)['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Caregiver Notifications'),
+        content: SizedBox(
+          width: 420,
+          child: entries.isEmpty
+              ? const Text('No notifications for the selected patient.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: entries.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, index) {
+                    final notification = entries[index].value as Map;
+                    final isAnnouncement =
+                        notification['type'] == 'announcement';
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        isAnnouncement
+                            ? Icons.campaign_outlined
+                            : Icons.warning_amber_rounded,
+                        color: isAnnouncement ? Colors.indigo : Colors.red,
+                      ),
+                      title: Text(
+                        isAnnouncement
+                            ? notification['title']?.toString() ??
+                                'Announcement'
+                            : '${notification['patientName'] ?? 'Patient'} missed ${notification['medicineName'] ?? 'medicine'}',
+                      ),
+                      subtitle: Text(
+                        isAnnouncement
+                            ? notification['body']?.toString() ?? ''
+                            : 'Scheduled for ${notification['scheduledTime'] ?? 'unknown time'}',
+                      ),
+                      trailing: IconButton(
+                        tooltip: 'Dismiss',
+                        icon: const Icon(Icons.check),
+                        onPressed: () async {
+                          await box.delete(entries[index].key);
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext);
+                            _showNotificationsDialog(
+                                context, activePatientEmail);
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
